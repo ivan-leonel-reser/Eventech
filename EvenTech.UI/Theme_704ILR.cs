@@ -155,5 +155,16 @@ namespace EvenTech.UI
         public static readonly string IcoPago_704ILR     = Glyph_704ILR(0xE8C7); // PaymentCard (pagos)
         public static readonly string IcoDocumento_704ILR = Glyph_704ILR(0xE8A5); // Document (comprobante)
         public static readonly string IcoEmail_704ILR     = Glyph_704ILR(0xE715); // Mail (enviar comprobante)
+        // Proceso 2: personal, coordinacion y ejecucion de los eventos.
+        public static readonly string IcoEmpleado_704ILR    = Glyph_704ILR(0xE7EE); // OtherUser (empleados)
+        public static readonly string IcoOperaciones_704ILR = Glyph_704ILR(0xE9D5); // CheckList (operaciones)
+        public static readonly string IcoAgenda_704ILR      = Glyph_704ILR(0xE8BF); // CalendarDay (mi agenda)
+        public static readonly string IcoReloj_704ILR       = Glyph_704ILR(0xE823); // Recent (cronograma)
+        public static readonly string IcoTarea_704ILR       = Glyph_704ILR(0xE8FD); // BulletedList (tareas)
+        public static readonly string IcoOk_704ILR          = Glyph_704ILR(0xE73E); // CheckMark (confirmar)
+        public static readonly string IcoArriba_704ILR      = Glyph_704ILR(0xE70E); // ChevronUp (subir)
+        public static readonly string IcoAbajo_704ILR       = Glyph_704ILR(0xE70D); // ChevronDown (bajar)
+        public static readonly string IcoIniciar_704ILR     = Glyph_704ILR(0xE768); // Play (iniciar ejecucion)
+        public static readonly string IcoEliminar_704ILR    = Glyph_704ILR(0xE74D); // Delete (eliminar el cronograma)
     }
 }

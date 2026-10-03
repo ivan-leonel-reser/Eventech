@@ -20,25 +20,10 @@ namespace EvenTech.DAL
             "LEFT JOIN dbo.Clientes c ON c.Id = m.ClienteId " +
             "LEFT JOIN dbo.Salones s ON s.Id = m.SalonId ";
 
-        public static int Insert_704ILR(BE_ReservaMemento_704ILR m_704ILR)
-        {
-            using (var cn_704ILR = new DAL_DB_Connection_704ILR())
-            {
-                var conn_704ILR = cn_704ILR.OpenConnection_704ILR();
-                using (var tx_704ILR = conn_704ILR.BeginTransaction())
-                {
-                    int id_704ILR = Insert_704ILR(m_704ILR, conn_704ILR, tx_704ILR);
-                    tx_704ILR.Commit();
-                    return id_704ILR;
-                }
-            }
-        }
-
-        // Sobrecarga transaccional: escribe la version sobre la conexion y la
-        // transaccion que le pasan. La usa la capa de negocio para que la version
-        // previa y la modificacion que la motiva entren o no entren juntas: si la
-        // escritura de la reserva falla, tampoco queda una version de un cambio que
-        // nunca ocurrio.
+        // Escribe la version sobre la conexion y la transaccion de la operacion que
+        // la motiva: es el unico camino de alta, para que la version previa y la
+        // modificacion entren o no entren juntas. Si la escritura de la reserva
+        // falla, tampoco queda una version de un cambio que nunca ocurrio.
         public static int Insert_704ILR(BE_ReservaMemento_704ILR m_704ILR,
             SqlConnection conn_704ILR, SqlTransaction tx_704ILR)
         {

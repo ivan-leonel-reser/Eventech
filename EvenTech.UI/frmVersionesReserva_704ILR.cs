@@ -209,7 +209,10 @@ namespace EvenTech.UI
                 // restauracion que terminaba en un aviso de error y un asiento de rechazo.
                 var reserva_704ILR = BLL_Reserva_704ILR.GetById_704ILR(_reservaId_704ILR);
                 _estadoReservaDefinido_704ILR = reserva_704ILR != null && System.Enum.IsDefined(typeof(EstadoReserva_704ILR), reserva_704ILR.Estado_704ILR);
-                _reservaModificable_704ILR = BLL_Reserva_704ILR.PuedeModificar_704ILR(reserva_704ILR);
+                // Tampoco se ofrece restaurar con el evento en ejecucion o cerrado: la
+                // reserva queda congelada (RN-13) y la BLL lo rechaza.
+                _reservaModificable_704ILR = BLL_Reserva_704ILR.PuedeModificar_704ILR(reserva_704ILR)
+                    && !BLL_Coordinacion_704ILR.PlanCongelado_704ILR(reserva_704ILR.EstadoCoordinacion_704ILR);
                 List<BE_ReservaMemento_704ILR> data_704ILR = CaretakerReserva_704ILR.GetVersiones_704ILR(_reservaId_704ILR);
                 _grid_704ILR.DataSource = data_704ILR;
                 ActualizarEstadoVacio_704ILR(data_704ILR == null || data_704ILR.Count == 0);
@@ -350,6 +353,8 @@ namespace EvenTech.UI
                     return T_704ILR("MSG_RES_SIN_ADELANTO", "Para confirmar la reserva hay que registrar el adelanto: guardala y cobra el pago desde Pagos.");
                 case ReservaResult_704ILR.Vencida_704ILR:
                     return T_704ILR("MSG_RES_VENCIDA", "La operación venció: renovala antes de cambiar su estado.");
+                case ReservaResult_704ILR.EventoIniciado_704ILR:
+                    return T_704ILR("MSG_RES_EVENTO_INICIADO", "El evento de esta reserva está en ejecución o cerrado: la reserva ya no admite modificaciones ni cancelación.");
                 default:                           return T_704ILR("MSG_RES_ERROR", "No se pudo guardar la reserva.");
             }
         }

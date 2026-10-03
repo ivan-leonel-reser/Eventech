@@ -150,6 +150,8 @@ namespace EvenTech.UI
                 DropDownStyle = ComboBoxStyle.DropDown,
                 FlatStyle = FlatStyle.Flat
             };
+            // Un combo plano se repinta entero al cambiar de tamano (ver Ui_704ILR.Combo_704ILR).
+            _cboServidor_704ILR.Resize += (s_704ILR, e_704ILR) => _cboServidor_704ILR.Invalidate();
             foreach (string i_704ILR in BLL_Conexion_704ILR.GetInstancias_704ILR()) _cboServidor_704ILR.Items.Add(i_704ILR);
             _cboServidor_704ILR.Text = BLL_Conexion_704ILR.ServidorActual_704ILR;
 

@@ -126,7 +126,7 @@ namespace EvenTech.DAL
 
         // ================== Diagnostico de conectividad ==================
 
-        // Contrato minimo del esquema que la app necesita para arrancar: las 20
+        // Contrato minimo del esquema que la app necesita para arrancar: las 27
         // tablas de db/schema.sql y TODAS las columnas que ese script agrega por
         // migracion con ALTER TABLE ... ADD (una base de una revision anterior tiene
         // Users pero no estas). Una columna migrada nueva se agrega tambien aca.
@@ -137,13 +137,15 @@ namespace EvenTech.DAL
             "Users", "LoginAuditLog", "Perfiles", "Permisos", "PerfilPermiso", "PerfilIncluido",
             "Clientes", "Salones", "Reservas", "Servicios", "ReservaServicio", "Pagos", "MetodosPago",
             "Bitacora", "HistorialCambios", "ReservaMemento", "ReservaMementoServicio",
-            "Idiomas", "Traducciones", "DVVertical"
+            "Idiomas", "Traducciones", "DVVertical",
+            "Especialidades", "Empleados", "AsignacionesPersonal", "Cronogramas", "CronogramaActividades",
+            "Tareas", "Incidencias"
         };
         private static readonly string[] ColumnasRequeridas_704ILR =
         {
             "Users.PerfilId", "Users.Activo", "Users.Blocked", "Users.FailedAttempts",
             "Reservas.ClienteId", "Reservas.VenceEl", "Reservas.CantidadInvitados", "Reservas.Dvh",
-            "ReservaMemento.CantidadInvitados"
+            "ReservaMemento.CantidadInvitados", "Reservas.EstadoCoordinacion"
         };
 
         // Verifica que se pueda abrir la conexion Y que la base exista. Abrir con
@@ -341,6 +343,11 @@ namespace EvenTech.DAL
                             // La primera linea es el encabezado ("Servers:") y las
                             // entradas remotas vienen con doble barra inicial.
                             if (s_704ILR.Length == 0 || s_704ILR.EndsWith(":", StringComparison.Ordinal)) continue;
+                            // El nombre de una instancia no lleva espacios ni los separadores de
+                            // una cadena de conexion: segun el cliente instalado, sqlcmd puede
+                            // devolver ademas una linea con los atributos del controlador
+                            // (";UID:Login ID=?;PWD:Password=?;..."), que no es un servidor.
+                            if (s_704ILR.IndexOfAny(new[] { ';', '=', '?', ' ' }) >= 0) continue;
                             s_704ILR = s_704ILR.TrimStart('\\');
                             if (s_704ILR.Length > 0 && !instancias_704ILR.Contains(s_704ILR)) instancias_704ILR.Add(s_704ILR);
                         }

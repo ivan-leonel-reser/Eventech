@@ -12,7 +12,7 @@ namespace EvenTech.DAL
         private const string SelectBase_704ILR =
             "SELECT r.Id, r.ClienteId, LTRIM(ISNULL(c.Nombre,'') + ISNULL(' ' + c.Apellido,'')) AS ClienteNombre, " +
             "r.SalonId, s.Nombre, r.FechaEvento, r.Estado, r.Monto, r.CantidadInvitados, " +
-            "r.CreatedAt, r.Dvh, r.VenceEl " +
+            "r.CreatedAt, r.Dvh, r.VenceEl, r.EstadoCoordinacion " +
             "FROM dbo.Reservas r " +
             "INNER JOIN dbo.Salones s ON s.Id = r.SalonId " +
             "LEFT JOIN dbo.Clientes c ON c.Id = r.ClienteId ";
@@ -280,7 +280,8 @@ namespace EvenTech.DAL
             CantidadInvitados_704ILR = r_704ILR.IsDBNull(8) ? 0 : r_704ILR.GetInt32(8),
             CreatedAt_704ILR = r_704ILR.GetDateTime(9),
             Dvh_704ILR = r_704ILR.IsDBNull(10) ? null : r_704ILR.GetString(10),
-            VenceEl_704ILR = r_704ILR.IsDBNull(11) ? (DateTime?)null : r_704ILR.GetDateTime(11)
+            VenceEl_704ILR = r_704ILR.IsDBNull(11) ? (DateTime?)null : r_704ILR.GetDateTime(11),
+            EstadoCoordinacion_704ILR = DAL_Coordinacion_704ILR.EstadoDesdeTexto_704ILR(r_704ILR.IsDBNull(12) ? null : r_704ILR.GetString(12))
         };
     }
 }

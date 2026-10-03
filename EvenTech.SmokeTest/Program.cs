@@ -151,8 +151,20 @@ void Ejecutar_704ILR(string sql_704ILR, params (string nombre_704ILR, object val
 
 // Marcas de corte para informar al final cuanto residuo dejo la corrida en la
 // bitacora y en la auditoria de acceso (esas filas no se borran: son evidencia).
-int bitacoraInicio_704ILR = Escalar_704ILR("SELECT ISNULL(MAX(Id), 0) FROM dbo.Bitacora");
-int auditoriaInicio_704ILR = Escalar_704ILR("SELECT ISNULL(MAX(Id), 0) FROM dbo.LoginAuditLog");
+// Es la primera lectura de la base: si no responde no hay nada que probar, y se
+// informa con el codigo de fallo en lugar de abortar con una excepcion sin resumen.
+int bitacoraInicio_704ILR, auditoriaInicio_704ILR;
+try
+{
+    bitacoraInicio_704ILR = Escalar_704ILR("SELECT ISNULL(MAX(Id), 0) FROM dbo.Bitacora");
+    auditoriaInicio_704ILR = Escalar_704ILR("SELECT ISNULL(MAX(Id), 0) FROM dbo.LoginAuditLog");
+}
+catch (Exception exInicio_704ILR)
+{
+    Console.WriteLine($"No se pudo leer la base configurada: {exInicio_704ILR.GetType().Name}: {exInicio_704ILR.Message}");
+    Console.WriteLine("== Resultado: la corrida no pudo empezar (codigo 1). Revisar la conexion y el esquema: db/README.md ==");
+    return 1;
+}
 
 // Primera fecha en la que el salon indicado admite una reserva firme, a partir
 // de 'desde'. Se resuelve con la consulta de disponibilidad del propio sistema
@@ -250,63 +262,93 @@ EvenTech.BE.BE_Reserva_704ILR NuevaReserva_704ILR(int clienteId_704ILR, int salo
 
 // [1] Login OK
 Caso_704ILR("[1] Login admin/admin123:");
-var r1_704ILR = BLL_Login_704ILR.Authenticate_704ILR("admin", Encrypt_704ILR.HashValue_704ILR("admin123"));
-Esperar_704ILR("result", r1_704ILR.Result_704ILR, LoginResult_704ILR.Success_704ILR);
-Esperar_704ILR("sesion activa", SessionManager_704ILR.IsSessionActive_704ILR, true);
-BLL_Login_704ILR.Logout_704ILR();
+try
+{
+    var r1_704ILR = BLL_Login_704ILR.Authenticate_704ILR("admin", Encrypt_704ILR.HashValue_704ILR("admin123"));
+    Esperar_704ILR("result", r1_704ILR.Result_704ILR, LoginResult_704ILR.Success_704ILR);
+    Esperar_704ILR("sesion activa", SessionManager_704ILR.IsSessionActive_704ILR, true);
+    BLL_Login_704ILR.Logout_704ILR();
+}
+catch (Exception ex1_704ILR) { Excepcion_704ILR("[1]", ex1_704ILR); }
 
 // [2] Crear usuario nuevo (con timestamp para que sea unico entre corridas)
 string newUser_704ILR = "smoke_" + suf_704ILR;
 Caso_704ILR($"[2] Crear usuario '{newUser_704ILR}' password 'pass1234':");
-var rc1_704ILR = BLL_User_704ILR.CreateUser_704ILR(newUser_704ILR, Encrypt_704ILR.HashValue_704ILR("pass1234"));
-Esperar_704ILR("result", rc1_704ILR, CreateUserResult_704ILR.Success_704ILR);
+try
+{
+    var rc1_704ILR = BLL_User_704ILR.CreateUser_704ILR(newUser_704ILR, Encrypt_704ILR.HashValue_704ILR("pass1234"));
+    Esperar_704ILR("result", rc1_704ILR, CreateUserResult_704ILR.Success_704ILR);
+}
+catch (Exception ex2_704ILR) { Excepcion_704ILR("[2]", ex2_704ILR); }
 
 // [3] Crear duplicado
 Caso_704ILR($"[3] Crear '{newUser_704ILR}' duplicado:");
-var rc2_704ILR = BLL_User_704ILR.CreateUser_704ILR(newUser_704ILR, Encrypt_704ILR.HashValue_704ILR("otra"));
-Esperar_704ILR("result", rc2_704ILR, CreateUserResult_704ILR.UsernameAlreadyExists_704ILR);
+try
+{
+    var rc2_704ILR = BLL_User_704ILR.CreateUser_704ILR(newUser_704ILR, Encrypt_704ILR.HashValue_704ILR("otra"));
+    Esperar_704ILR("result", rc2_704ILR, CreateUserResult_704ILR.UsernameAlreadyExists_704ILR);
+}
+catch (Exception ex3_704ILR) { Excepcion_704ILR("[3]", ex3_704ILR); }
 
 // [4] Username invalido
 Caso_704ILR("[4] Crear con username '..' (invalido):");
-var rc3_704ILR = BLL_User_704ILR.CreateUser_704ILR("..", Encrypt_704ILR.HashValue_704ILR("xxxx"));
-Esperar_704ILR("result", rc3_704ILR, CreateUserResult_704ILR.InvalidUsername_704ILR);
+try
+{
+    var rc3_704ILR = BLL_User_704ILR.CreateUser_704ILR("..", Encrypt_704ILR.HashValue_704ILR("xxxx"));
+    Esperar_704ILR("result", rc3_704ILR, CreateUserResult_704ILR.InvalidUsername_704ILR);
+}
+catch (Exception ex4_704ILR) { Excepcion_704ILR("[4]", ex4_704ILR); }
 
 // [5] Login con el usuario recien creado. Nace SIN perfil asignado: la sesion
 // tiene que quedar marcada como tal y sin un solo permiso (denegar por defecto),
-// que es la bandera con la que la ventana principal bloquea al usuario.
+// que es la bandera con la que la ventana principal bloquea al usuario. Las tres
+// verificaciones de la sesion corren siempre: si el ingreso falla, fallan con el.
 Caso_704ILR($"[5] Login con '{newUser_704ILR}':");
-var r5_704ILR = BLL_Login_704ILR.Authenticate_704ILR(newUser_704ILR, Encrypt_704ILR.HashValue_704ILR("pass1234"));
-Esperar_704ILR("result", r5_704ILR.Result_704ILR, LoginResult_704ILR.Success_704ILR);
-if (SessionManager_704ILR.IsSessionActive_704ILR)
+try
 {
-    Esperar_704ILR("sesion sin perfil asignado", SessionManager_704ILR.GetInstance_704ILR.SinPerfil_704ILR, true);
-    Esperar_704ILR("permisos de la sesion", SessionManager_704ILR.GetInstance_704ILR.Permisos_704ILR.Count, 0);
-    Esperar_704ILR("RESERVA_CREAR sin perfil", SessionManager_704ILR.GetInstance_704ILR.TienePermiso_704ILR("RESERVA_CREAR"), false);
+    var r5_704ILR = BLL_Login_704ILR.Authenticate_704ILR(newUser_704ILR, Encrypt_704ILR.HashValue_704ILR("pass1234"));
+    Esperar_704ILR("result", r5_704ILR.Result_704ILR, LoginResult_704ILR.Success_704ILR);
+    bool sesion5_704ILR = SessionManager_704ILR.IsSessionActive_704ILR;
+    Esperar_704ILR("sesion sin perfil asignado", sesion5_704ILR && SessionManager_704ILR.GetInstance_704ILR.SinPerfil_704ILR, true);
+    Esperar_704ILR("permisos de la sesion", sesion5_704ILR ? SessionManager_704ILR.GetInstance_704ILR.Permisos_704ILR.Count : -1, 0);
+    Esperar_704ILR("RESERVA_CREAR sin perfil", sesion5_704ILR && SessionManager_704ILR.GetInstance_704ILR.TienePermiso_704ILR("RESERVA_CREAR"), false);
+    BLL_Login_704ILR.Logout_704ILR();
 }
-BLL_Login_704ILR.Logout_704ILR();
+catch (Exception ex5_704ILR) { Excepcion_704ILR("[5]", ex5_704ILR); }
 
 // [6] Auditoria de acceso: el ingreso y el cierre de sesion de [5] tienen que ser
 // los dos ultimos movimientos registrados para ese usuario (antes el caso solo
 // imprimia las ultimas cinco filas, sin verificar nada).
 Caso_704ILR("[6] Ultimas 5 entradas de auditoria:");
-var ultimas_704ILR = BLL_LoginAudit_704ILR.GetAll_704ILR(5);
-foreach (var e_704ILR in ultimas_704ILR)
+try
 {
-    Console.WriteLine($"  #{e_704ILR.Id_704ILR} {e_704ILR.Timestamp_704ILR:HH:mm:ss} {e_704ILR.Username_704ILR,-20} {e_704ILR.Action_704ILR,-12} {e_704ILR.Details_704ILR}");
+    var ultimas_704ILR = BLL_LoginAudit_704ILR.GetAll_704ILR(5);
+    foreach (var e_704ILR in ultimas_704ILR)
+    {
+        Console.WriteLine($"  #{e_704ILR.Id_704ILR} {e_704ILR.Timestamp_704ILR:HH:mm:ss} {e_704ILR.Username_704ILR,-20} {e_704ILR.Action_704ILR,-12} {e_704ILR.Details_704ILR}");
+    }
+    Esperar_704ILR("ultimo movimiento: cierre de sesion del usuario de prueba",
+        ultimas_704ILR.Count > 0 && ultimas_704ILR[0].Username_704ILR == newUser_704ILR &&
+        ultimas_704ILR[0].Action_704ILR == EvenTech.BE.LoginAuditAction_704ILR.LOGOUT, true);
+    Esperar_704ILR("ingreso correcto del usuario de prueba registrado",
+        ultimas_704ILR.Any(e_704ILR => e_704ILR.Username_704ILR == newUser_704ILR &&
+            e_704ILR.Action_704ILR == EvenTech.BE.LoginAuditAction_704ILR.LOGIN_OK), true);
+    Esperar_704ILR("movimientos del usuario de prueba entre los ultimos 5",
+        ultimas_704ILR.Count(e_704ILR => e_704ILR.Username_704ILR == newUser_704ILR), 2);
 }
-Esperar_704ILR("ultimo movimiento: cierre de sesion del usuario de prueba",
-    ultimas_704ILR.Count > 0 && ultimas_704ILR[0].Username_704ILR == newUser_704ILR &&
-    ultimas_704ILR[0].Action_704ILR == EvenTech.BE.LoginAuditAction_704ILR.LOGOUT, true);
-Esperar_704ILR("ingreso correcto del usuario de prueba registrado",
-    ultimas_704ILR.Any(e_704ILR => e_704ILR.Username_704ILR == newUser_704ILR &&
-        e_704ILR.Action_704ILR == EvenTech.BE.LoginAuditAction_704ILR.LOGIN_OK), true);
-Esperar_704ILR("movimientos del usuario de prueba entre los ultimos 5",
-    ultimas_704ILR.Count(e_704ILR => e_704ILR.Username_704ILR == newUser_704ILR), 2);
+catch (Exception ex6_704ILR) { Excepcion_704ILR("[6]", ex6_704ILR); }
 
-// [7] Reservas: alta valida (la reserva referencia al cliente por Id)
+// [7] Reservas: alta valida (la reserva referencia al cliente por Id). Si los
+// catalogos no se pueden leer, las listas quedan vacias y los casos se omiten.
 Caso_704ILR("[7] Crear reserva valida:");
-var salones_704ILR = BLL_Salon_704ILR.GetAll_704ILR();
-var clientes_704ILR = BLL_Cliente_704ILR.GetAll_704ILR();
+var salones_704ILR = new List<EvenTech.BE.BE_Salon_704ILR>();
+var clientes_704ILR = new List<EvenTech.BE.BE_Cliente_704ILR>();
+try
+{
+    salones_704ILR = BLL_Salon_704ILR.GetAll_704ILR();
+    clientes_704ILR = BLL_Cliente_704ILR.GetAll_704ILR();
+}
+catch (Exception ex7a_704ILR) { Excepcion_704ILR("[7] (lectura de catalogos)", ex7a_704ILR); }
 if (salones_704ILR.Count == 0 || clientes_704ILR.Count == 0)
 {
     Omitir_704ILR("[7]", "no hay salones/clientes seed; corre db/schema.sql");
@@ -418,72 +460,87 @@ catch (Exception ex7_704ILR) { Excepcion_704ILR("[7]-[12]", ex7_704ILR); }
 // que tener grupos con hojas adentro, y toda hoja lleva su clave (sin clave no
 // habilita nada).
 Caso_704ILR("[13] Arbol de permisos (Composite):");
-var arbol_704ILR = BLL_Perfil_704ILR.GetArbolPermisos_704ILR();
-int grupos_704ILR = 0, hojas_704ILR = 0, hojasSinClave_704ILR = 0;
-void Imprimir_704ILR(EvenTech.BE.BE_IComponentePermiso_704ILR n_704ILR, int nivel_704ILR)
+try
 {
-    Console.WriteLine($"  {new string(' ', nivel_704ILR * 2)}{(n_704ILR.EsGrupo_704ILR ? "[G]" : "[P]")} {n_704ILR.Nombre_704ILR}");
-    if (n_704ILR is EvenTech.BE.BE_GrupoPermisos_704ILR g_704ILR)
+    var arbol_704ILR = BLL_Perfil_704ILR.GetArbolPermisos_704ILR();
+    int grupos_704ILR = 0, hojas_704ILR = 0, hojasSinClave_704ILR = 0;
+    void Imprimir_704ILR(EvenTech.BE.BE_IComponentePermiso_704ILR n_704ILR, int nivel_704ILR)
     {
-        grupos_704ILR++;
-        foreach (var h_704ILR in g_704ILR.Hijos_704ILR) Imprimir_704ILR(h_704ILR, nivel_704ILR + 1);
+        Console.WriteLine($"  {new string(' ', nivel_704ILR * 2)}{(n_704ILR.EsGrupo_704ILR ? "[G]" : "[P]")} {n_704ILR.Nombre_704ILR}");
+        if (n_704ILR is EvenTech.BE.BE_GrupoPermisos_704ILR g_704ILR)
+        {
+            grupos_704ILR++;
+            foreach (var h_704ILR in g_704ILR.Hijos_704ILR) Imprimir_704ILR(h_704ILR, nivel_704ILR + 1);
+        }
+        else if (n_704ILR is EvenTech.BE.BE_Permiso_704ILR p_704ILR)
+        {
+            hojas_704ILR++;
+            if (string.IsNullOrWhiteSpace(p_704ILR.Clave_704ILR)) hojasSinClave_704ILR++;
+        }
     }
-    else if (n_704ILR is EvenTech.BE.BE_Permiso_704ILR p_704ILR)
-    {
-        hojas_704ILR++;
-        if (string.IsNullOrWhiteSpace(p_704ILR.Clave_704ILR)) hojasSinClave_704ILR++;
-    }
+    foreach (var raiz_704ILR in arbol_704ILR) Imprimir_704ILR(raiz_704ILR, 0);
+    Esperar_704ILR("raices del arbol", arbol_704ILR.Count > 0, true);
+    Esperar_704ILR("grupos en el arbol", grupos_704ILR > 0, true);
+    Esperar_704ILR("hojas en el arbol", hojas_704ILR > 0, true);
+    Esperar_704ILR("hojas sin clave", hojasSinClave_704ILR, 0);
+    // Una raiz sin permisos efectivos pasaria el All() sin probar nada: se exige
+    // que tenga hojas y que todo lo que resuelve lo sea.
+    var efectivosRaiz_704ILR = arbol_704ILR.Count > 0 ? arbol_704ILR[0].ObtenerPermisosEfectivos_704ILR().ToList() : null;
+    Esperar_704ILR("permisos efectivos de una raiz = sus hojas",
+        efectivosRaiz_704ILR != null && efectivosRaiz_704ILR.Count > 0 && efectivosRaiz_704ILR.All(p_704ILR => p_704ILR.EsHoja_704ILR()), true);
 }
-foreach (var raiz_704ILR in arbol_704ILR) Imprimir_704ILR(raiz_704ILR, 0);
-Esperar_704ILR("raices del arbol", arbol_704ILR.Count > 0, true);
-Esperar_704ILR("grupos en el arbol", grupos_704ILR > 0, true);
-Esperar_704ILR("hojas en el arbol", hojas_704ILR > 0, true);
-Esperar_704ILR("hojas sin clave", hojasSinClave_704ILR, 0);
-Esperar_704ILR("permisos efectivos de una raiz = sus hojas",
-    arbol_704ILR.Count > 0 && arbol_704ILR[0].ObtenerPermisosEfectivos_704ILR().All(p_704ILR => p_704ILR.EsHoja_704ILR()), true);
+catch (Exception ex13_704ILR) { Excepcion_704ILR("[13]", ex13_704ILR); }
 
-var perfiles_704ILR = BLL_Perfil_704ILR.GetPerfiles_704ILR();
-if (perfiles_704ILR.Count > 0)
+Caso_704ILR("[14] Permisos efectivos de un perfil:");
+try
 {
-    // Se resuelve con el MISMO algoritmo que usa el login (Composite sobre
-    // BE_Perfil): los permisos efectivos son las hojas que cubren los componentes
-    // asignados, incluidas las que llegan por los perfiles incluidos.
-    var asignados_704ILR = BLL_Perfil_704ILR.GetPermisosAsignados_704ILR(perfiles_704ILR[0].Id_704ILR);
-    var efectivos_704ILR = BLL_Perfil_704ILR.GetPermisosEfectivosDePerfil_704ILR(perfiles_704ILR[0].Id_704ILR);
-    Caso_704ILR($"[14] Perfil '{perfiles_704ILR[0].Nombre_704ILR}': {asignados_704ILR.Count} componente(s) asignado(s) " +
-                $"-> {efectivos_704ILR.Count} permisos efectivos (hojas).");
-    Esperar_704ILR("el perfil resuelve al menos un permiso", efectivos_704ILR.Count > 0, true);
+    var perfiles_704ILR = BLL_Perfil_704ILR.GetPerfiles_704ILR();
+    if (perfiles_704ILR.Count > 0)
+    {
+        // Se resuelve con el MISMO algoritmo que usa el login (Composite sobre
+        // BE_Perfil): los permisos efectivos son las hojas que cubren los componentes
+        // asignados, incluidas las que llegan por los perfiles incluidos.
+        var asignados_704ILR = BLL_Perfil_704ILR.GetPermisosAsignados_704ILR(perfiles_704ILR[0].Id_704ILR);
+        var efectivos_704ILR = BLL_Perfil_704ILR.GetPermisosEfectivosDePerfil_704ILR(perfiles_704ILR[0].Id_704ILR);
+        Console.WriteLine($"  perfil '{perfiles_704ILR[0].Nombre_704ILR}': {asignados_704ILR.Count} componente(s) asignado(s) " +
+                          $"-> {efectivos_704ILR.Count} permisos efectivos (hojas).");
+        Esperar_704ILR("el perfil resuelve al menos un permiso", efectivos_704ILR.Count > 0, true);
+    }
+    else
+    {
+        Omitir_704ILR("[14]", "no hay perfiles sembrados; corre db/schema.sql");
+    }
 }
-else
-{
-    Caso_704ILR("[14] Permisos efectivos de un perfil:");
-    Omitir_704ILR("[14]", "no hay perfiles sembrados; corre db/schema.sql");
-}
+catch (Exception ex14_704ILR) { Excepcion_704ILR("[14]", ex14_704ILR); }
 
 // [15] Idiomas (Observer): el gestor notifica a sus observadores cuando el idioma
 // cambia en caliente. Se suscribe un observador de prueba —el mismo rol que cumple
 // cada formulario de la aplicacion— y se cuenta cuantas veces lo llamo.
 Caso_704ILR("[15] Idiomas (Observer):");
-EvenTech.BLL.BLL_Idioma_704ILR.Inicializar_704ILR();
-var gi_704ILR = EvenTech.Services.GestorDeIdioma_704ILR.GetInstance_704ILR;
-var obs_704ILR = new ObservadorPrueba_704ILR();
-gi_704ILR.Suscribir_704ILR(obs_704ILR);
-Esperar_704ILR("idioma inicial", gi_704ILR.IdiomaActual_704ILR, "ES");
-Esperar_704ILR("MENU_RESERVAS en ES", gi_704ILR.Traducir_704ILR("MENU_RESERVAS"), "Reservas");
+try
+{
+    EvenTech.BLL.BLL_Idioma_704ILR.Inicializar_704ILR();
+    var gi_704ILR = EvenTech.Services.GestorDeIdioma_704ILR.GetInstance_704ILR;
+    var obs_704ILR = new ObservadorPrueba_704ILR();
+    gi_704ILR.Suscribir_704ILR(obs_704ILR);
+    Esperar_704ILR("idioma inicial", gi_704ILR.IdiomaActual_704ILR, "ES");
+    Esperar_704ILR("MENU_RESERVAS en ES", gi_704ILR.Traducir_704ILR("MENU_RESERVAS"), "Reservas");
 
-gi_704ILR.CambiarIdioma_704ILR("EN");
-Esperar_704ILR("idioma tras el cambio", gi_704ILR.IdiomaActual_704ILR, "EN");
-Esperar_704ILR("notificaciones al observador", obs_704ILR.Llamadas_704ILR, 1);
-Esperar_704ILR("MENU_RESERVAS en EN", gi_704ILR.Traducir_704ILR("MENU_RESERVAS"), "Reservations");
+    gi_704ILR.CambiarIdioma_704ILR("EN");
+    Esperar_704ILR("idioma tras el cambio", gi_704ILR.IdiomaActual_704ILR, "EN");
+    Esperar_704ILR("notificaciones al observador", obs_704ILR.Llamadas_704ILR, 1);
+    Esperar_704ILR("MENU_RESERVAS en EN", gi_704ILR.Traducir_704ILR("MENU_RESERVAS"), "Reservations");
 
-gi_704ILR.CambiarIdioma_704ILR("ES");
-Esperar_704ILR("notificaciones tras volver a ES", obs_704ILR.Llamadas_704ILR, 2);
+    gi_704ILR.CambiarIdioma_704ILR("ES");
+    Esperar_704ILR("notificaciones tras volver a ES", obs_704ILR.Llamadas_704ILR, 2);
 
-// Desuscribir corta la notificacion: un formulario cerrado no debe seguir avisado.
-gi_704ILR.Desuscribir_704ILR(obs_704ILR);
-gi_704ILR.CambiarIdioma_704ILR("EN");
-Esperar_704ILR("notificaciones tras desuscribir", obs_704ILR.Llamadas_704ILR, 2);
-gi_704ILR.CambiarIdioma_704ILR("ES");
+    // Desuscribir corta la notificacion: un formulario cerrado no debe seguir avisado.
+    gi_704ILR.Desuscribir_704ILR(obs_704ILR);
+    gi_704ILR.CambiarIdioma_704ILR("EN");
+    Esperar_704ILR("notificaciones tras desuscribir", obs_704ILR.Llamadas_704ILR, 2);
+    gi_704ILR.CambiarIdioma_704ILR("ES");
+}
+catch (Exception ex15_704ILR) { Excepcion_704ILR("[15]", ex15_704ILR); }
 
 // [16] Digitos verificadores (T07/T08). La prueba DIAGNOSTICA: si la linea base
 // esta inconsistente lo informa, lista las inconsistencias y la corrida falla.
@@ -493,13 +550,17 @@ gi_704ILR.CambiarIdioma_704ILR("ES");
 // administrativa (Auditoria > Recalcular linea base, permiso INTEGRIDAD_RECALC)
 // que se ejecuta despues de revisar la causa, no desde una prueba.
 Caso_704ILR("[16] Integridad (digitos verificadores):");
-var resInt_704ILR = EvenTech.BLL.BLL_Integridad_704ILR.Verificar_704ILR();
-Esperar_704ILR("Ok", resInt_704ILR.Ok_704ILR, true);
-Esperar_704ILR("inconsistencias", resInt_704ILR.Inconsistencias_704ILR.Count, 0);
-foreach (var i_704ILR in resInt_704ILR.Inconsistencias_704ILR) Console.WriteLine("   - " + i_704ILR);
-if (!resInt_704ILR.Ok_704ILR)
-    Console.WriteLine("  ATENCION: la linea base esta inconsistente. La prueba no la repara: revisar la causa y " +
-                      "recalcular desde Auditoria (accion administrativa).");
+try
+{
+    var resInt_704ILR = EvenTech.BLL.BLL_Integridad_704ILR.Verificar_704ILR();
+    Esperar_704ILR("Ok", resInt_704ILR.Ok_704ILR, true);
+    Esperar_704ILR("inconsistencias", resInt_704ILR.Inconsistencias_704ILR.Count, 0);
+    foreach (var i_704ILR in resInt_704ILR.Inconsistencias_704ILR) Console.WriteLine("   - " + i_704ILR);
+    if (!resInt_704ILR.Ok_704ILR)
+        Console.WriteLine("  ATENCION: la linea base esta inconsistente. La prueba no la repara: revisar la causa y " +
+                          "recalcular desde Auditoria (accion administrativa).");
+}
+catch (Exception ex16_704ILR) { Excepcion_704ILR("[16]", ex16_704ILR); }
 
 // [17] Alta de idioma desde la capa de negocio (admin agrega idioma). 'PT' ya
 // viene sembrado por db/schema.sql y ejercita el rechazo del codigo duplicado;
@@ -530,7 +591,7 @@ try
     var es_704ILR = idiomasPrevios_704ILR.FirstOrDefault(i_704ILR => i_704ILR.Codigo_704ILR == "ES");
     int leyendasES_704ILR = es_704ILR == null ? 0 : EvenTech.BLL.BLL_Idioma_704ILR.GetTraducciones_704ILR(es_704ILR.Id_704ILR).Count;
     int altasIdioma_704ILR = Asientos_704ILR("Idiomas");
-    var rNuevo_704ILR = EvenTech.BLL.BLL_Idioma_704ILR.CrearIdioma_704ILR(codigoNuevo_704ILR, "Idioma smoke", out int idIdioma_704ILR);
+    var rNuevo_704ILR = EvenTech.BLL.BLL_Idioma_704ILR.CrearIdioma_704ILR(codigoNuevo_704ILR, "Idioma smoke " + suf_704ILR, out int idIdioma_704ILR);
     idiomaDeLaCorrida_704ILR = idIdioma_704ILR;
     Esperar_704ILR($"alta de '{codigoNuevo_704ILR}'", rNuevo_704ILR, IdiomaResult_704ILR.Success_704ILR);
     Esperar_704ILR("id asignado", idIdioma_704ILR > 0, true);
@@ -554,8 +615,9 @@ catch (Exception ex17_704ILR) { Excepcion_704ILR("[17]", ex17_704ILR); }
 
 // [18] Patron Memento: versionado y restauracion de reservas
 Caso_704ILR("[18] Memento (versiones de reserva):");
-var clientesM_704ILR = BLL_Cliente_704ILR.GetAll_704ILR();
-var salonesM_704ILR = BLL_Salon_704ILR.GetAll_704ILR();
+// Los catalogos son los que leyo [7] (vacios si esa lectura fallo: el caso se omite).
+var clientesM_704ILR = clientes_704ILR;
+var salonesM_704ILR = salones_704ILR;
 if (clientesM_704ILR.Count == 0 || salonesM_704ILR.Count == 0)
 {
     Omitir_704ILR("[18]", "faltan clientes/salones seed; corre db/schema.sql");
@@ -802,13 +864,17 @@ catch (Exception ex21_704ILR) { Excepcion_704ILR("[21]", ex21_704ILR); }
 // [22] Todas las claves que la UI exige tienen que existir en el arbol COMO HOJAS
 // (EsGrupo = 0): si una falta, la seccion queda invisible para todos y el problema
 // pasa inadvertido. Son exactamente las claves que la ventana principal y las
-// pantallas exigen; RESERVA_RESTAURAR (restaurar version) es la mas reciente.
+// pantallas exigen; las siete del Proceso 2 son las mas recientes.
 Caso_704ILR("[22] Claves de permiso usadas por la UI presentes en el arbol:");
+try
 {
     string[] usadas_704ILR = { "RESERVA_CREAR", "RESERVA_EDITAR", "RESERVA_HISTORIAL", "RESERVA_RESTAURAR",
                         "DISPONIBILIDAD_CONSULTAR", "PAGOS_REGISTRAR", "PAGOS_ANULAR",
                         "CLIENTES_GESTION", "SERVICIOS_GESTION", "PERFILES_GESTION",
-                        "BITACORA_VER", "AUDIT_LOGIN_VER", "INTEGRIDAD_RECALC", "IDIOMAS_GESTION" };
+                        "BITACORA_VER", "AUDIT_LOGIN_VER", "INTEGRIDAD_RECALC", "IDIOMAS_GESTION",
+                        // Proceso 2: operaciones de los eventos, agenda del empleado y personal.
+                        "EMPLEADOS_GESTION", "PERSONAL_ASIGNAR", "CRONOGRAMA_GESTION", "TAREAS_ASIGNAR",
+                        "DISPONIBILIDAD_CONFIRMAR", "AGENDA_CONSULTAR", "EJECUCION_SUPERVISAR" };
     // Solo se recogen las claves de las HOJAS (BE_Permiso): un grupo con el mismo
     // nombre no cuenta, porque no habilita nada por si mismo.
     var enArbol_704ILR = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -823,11 +889,16 @@ Caso_704ILR("[22] Claves de permiso usadas por la UI presentes en el arbol:");
     }
     Recorrer_704ILR(BLL_Perfil_704ILR.GetArbolPermisos_704ILR());
     var faltan_704ILR = usadas_704ILR.Where(c_704ILR => !enArbol_704ILR.Contains(c_704ILR)).ToList();
-    Console.WriteLine($"  claves en el arbol: {enArbol_704ILR.Count}");
-    Esperar_704ILR("claves exigidas por la UI", usadas_704ILR.Length, 14);
+    // Y al reves: una hoja que ninguna pantalla exige es un permiso que se asigna
+    // y no habilita nada.
+    var sobran_704ILR = enArbol_704ILR.Where(c_704ILR => !usadas_704ILR.Contains(c_704ILR, StringComparer.OrdinalIgnoreCase)).ToList();
+    Esperar_704ILR("hojas del arbol de permisos", enArbol_704ILR.Count, 21);
     Esperar_704ILR("claves de la UI que faltan como hoja del arbol",
         faltan_704ILR.Count == 0 ? "ninguna" : string.Join(", ", faltan_704ILR), "ninguna");
+    Esperar_704ILR("hojas del arbol que ninguna pantalla exige",
+        sobran_704ILR.Count == 0 ? "ninguna" : string.Join(", ", sobran_704ILR), "ninguna");
 }
+catch (Exception ex22_704ILR) { Excepcion_704ILR("[22]", ex22_704ILR); }
 
 // [23] Una reserva cancelada es estado terminal: no admite modificaciones.
 Caso_704ILR("[23] Reserva cancelada no modificable:");
@@ -939,11 +1010,11 @@ try
     Esperar_704ILR("servidor releido", BLL_Conexion_704ILR.ServidorActual_704ILR, servidorPrevio_704ILR);
     Esperar_704ILR("base releida", BLL_Conexion_704ILR.BaseDatosActual_704ILR, basePrevia_704ILR);
 
-    if (!estabaConfigurada_704ILR)
-    {
-        BLL_Conexion_704ILR.Restablecer_704ILR();
-        Esperar_704ILR("entorno restaurado (sin archivo)", BLL_Conexion_704ILR.EstaConfigurada_704ILR, false);
-    }
+    // El entorno queda como estaba: sin archivo si no lo habia y con el suyo si lo
+    // habia. La verificacion corre siempre, para que la cantidad de verificaciones
+    // de la corrida no dependa de la maquina.
+    if (!estabaConfigurada_704ILR) BLL_Conexion_704ILR.Restablecer_704ILR();
+    Esperar_704ILR("entorno como estaba antes de la prueba", BLL_Conexion_704ILR.EstaConfigurada_704ILR, estabaConfigurada_704ILR);
 }
 catch (Exception ex24_704ILR) { Excepcion_704ILR("[24]", ex24_704ILR); }
 
@@ -983,7 +1054,7 @@ Caso_704ILR("[25] Base existente pero sin esquema o con esquema incompleto:");
             Console.WriteLine($"    diagnostico: {msg_704ILR}");
 
             // Esquema incompleto: con Users sola la base ya no es "vacia", pero le
-            // faltan las otras 19 tablas y las columnas migradas.
+            // faltan las otras 26 tablas y las columnas migradas.
             using (var cn_704ILR = new Microsoft.Data.SqlClient.SqlConnection(cs_704ILR))
             {
                 cn_704ILR.Open();
@@ -1982,9 +2053,13 @@ try
         Esperar_704ILR("pagos vivos", BLL_Pago_704ILR.GetByReserva_704ILR(idK_704ILR).Count, totalEsperado_704ILR == 0m ? 0 : 1);
         Esperar_704ILR("el total nunca supera la reserva", BLL_Pago_704ILR.TotalPagado_704ILR(idK_704ILR) <= 1000m, true);
 
-        // Limpieza: se anula lo que haya quedado y se cancela la reserva.
-        if (idSegundo_704ILR > 0)
-            Esperar_704ILR("limpieza (anular el cobro simultaneo)", BLL_Pago_704ILR.Eliminar_704ILR(idSegundo_704ILR, idK_704ILR), PagoResult_704ILR.Success_704ILR);
+        // Limpieza: se anula lo que haya quedado y se cancela la reserva. La
+        // verificacion corre siempre (la cantidad de verificaciones de la corrida no
+        // depende de quien gano la carrera).
+        PagoResult_704ILR rLimpia_704ILR = idSegundo_704ILR > 0
+            ? BLL_Pago_704ILR.Eliminar_704ILR(idSegundo_704ILR, idK_704ILR)
+            : PagoResult_704ILR.Success_704ILR;
+        Esperar_704ILR("limpieza (anular el cobro simultaneo, si entro)", rLimpia_704ILR, PagoResult_704ILR.Success_704ILR);
         Esperar_704ILR("limpieza (cancelar la reserva de [34])",
             BLL_Reserva_704ILR.Cancelar_704ILR(idK_704ILR, out _, out _), ReservaResult_704ILR.Success_704ILR);
     }
@@ -2233,6 +2308,21 @@ try
     Esperar_704ILR("marcadores en otro orden", EvenTech.BLL.BLL_Idioma_704ILR.PlantillaValida_704ILR(fabrica_704ILR, "Tentativa {1} de {0}."), true);
     Esperar_704ILR("marcador sobre una clave sin marcadores", EvenTech.BLL.BLL_Idioma_704ILR.PlantillaValida_704ILR("Hola", "Hola {0}"), false);
 
+    // Todo texto sembrado respeta el catalogo de marcadores del codigo. Una clave que
+    // se formatea con argumentos y no figura en ese catalogo queda imposible de editar:
+    // el editor rechaza cualquier texto suyo que conserve el marcador y lo acepta sin
+    // el, con lo que la pantalla pierde el dato. Se controla en los tres idiomas.
+    var idiomasSembrados_704ILR = EvenTech.BLL.BLL_Idioma_704ILR.GetIdiomas_704ILR();
+    foreach (string codigoSembrado_704ILR in new[] { "ES", "EN", "PT" })
+    {
+        var idiomaSembrado_704ILR = idiomasSembrados_704ILR.FirstOrDefault(i_704ILR => i_704ILR.Codigo_704ILR == codigoSembrado_704ILR);
+        string rechazada_704ILR = idiomaSembrado_704ILR == null
+            ? "(idioma sin sembrar)"
+            : EvenTech.BLL.BLL_Idioma_704ILR.PrimeraPlantillaInvalida_704ILR(
+                  EvenTech.BLL.BLL_Idioma_704ILR.GetTraducciones_704ILR(idiomaSembrado_704ILR.Id_704ILR)) ?? "ninguna";
+        Esperar_704ILR($"textos {codigoSembrado_704ILR} que el editor rechazaria por sus marcadores", rechazada_704ILR, "ninguna");
+    }
+
     var en_704ILR = EvenTech.BLL.BLL_Idioma_704ILR.GetIdiomas_704ILR().FirstOrDefault(i_704ILR => i_704ILR.Codigo_704ILR == "EN");
     if (en_704ILR == null)
     {
@@ -2442,6 +2532,1056 @@ try
 }
 catch (Exception ex42_704ILR) { Excepcion_704ILR("[42]", ex42_704ILR); }
 
+// ===========================================================================
+// Proceso 2 (RFN2): Asignacion de Personal y Cronograma de Eventos.
+// Los casos [43] a [49] recorren el proceso completo sobre eventos propios de la
+// corrida: personal, asignacion con control de superposicion, respuesta del
+// empleado, cronograma, tareas, ejecucion con incidencias y reprogramacion. Los
+// empleados, los eventos y las asignaciones se comparten entre casos (cada uno
+// continua lo que dejo el anterior); un caso que no encuentra lo que necesita se
+// declara omitido. Todo lo que crean se elimina en la limpieza final.
+// ===========================================================================
+var empleadosDeLaCorrida_704ILR = new List<int>();
+int empA_704ILR = 0, empB_704ILR = 0, empC_704ILR = 0;
+int evR1_704ILR = 0, evR2_704ILR = 0, evR3_704ILR = 0;
+int asigA1_704ILR = 0, asigA2_704ILR = 0, asigA3_704ILR = 0;
+
+TimeSpan H_704ILR(int hora_704ILR, int minuto_704ILR = 0) => new TimeSpan(hora_704ILR, minuto_704ILR, 0);
+
+EvenTech.BE.EstadoCoordinacion_704ILR EstadoCoord_704ILR(int reservaId_704ILR) =>
+    BLL_Coordinacion_704ILR.GetEvento_704ILR(reservaId_704ILR).EstadoCoordinacion_704ILR;
+
+EvenTech.BE.BE_AsignacionPersonal_704ILR Asignacion_704ILR(int reservaId_704ILR, int empleadoId_704ILR) =>
+    BLL_AsignacionPersonal_704ILR.GetByReserva_704ILR(reservaId_704ILR).FirstOrDefault(a_704ILR => a_704ILR.EmpleadoId_704ILR == empleadoId_704ILR);
+
+// Evento de prueba: una reserva que recorre el camino real hasta CONFIRMADA
+// (alta en cotizacion, adelanto y confirmacion). Devuelve 0 si no lo logra.
+int EventoConfirmado_704ILR(int clienteId_704ILR, int salonId_704ILR, int diasVista_704ILR)
+{
+    var rAlta_704ILR = BLL_Reserva_704ILR.Crear_704ILR(
+        NuevaReserva_704ILR(clienteId_704ILR, salonId_704ILR, diasVista_704ILR, EvenTech.BE.EstadoReserva_704ILR.COTIZACION, 900m, 20), out int id_704ILR);
+    Anotar_704ILR(id_704ILR);
+    if (rAlta_704ILR != ReservaResult_704ILR.Success_704ILR) return 0;
+    Adelanto_704ILR(id_704ILR, 300m);
+    var confirmar_704ILR = BLL_Reserva_704ILR.GetById_704ILR(id_704ILR);
+    confirmar_704ILR.Estado_704ILR = EvenTech.BE.EstadoReserva_704ILR.CONFIRMADA;
+    return BLL_Reserva_704ILR.Actualizar_704ILR(confirmar_704ILR) == ReservaResult_704ILR.Success_704ILR ? id_704ILR : 0;
+}
+
+// Sesion del usuario de prueba de [2], que [43] vincula con el empleado A: es la
+// identidad con la que ese empleado responde sus turnos y consulta sus tareas.
+bool SesionDelEmpleado_704ILR()
+{
+    if (SessionManager_704ILR.IsSessionActive_704ILR) BLL_Login_704ILR.Logout_704ILR();
+    return BLL_Login_704ILR.Authenticate_704ILR(newUser_704ILR, Encrypt_704ILR.HashValue_704ILR("pass1234")).Result_704ILR == LoginResult_704ILR.Success_704ILR;
+}
+
+void CerrarSesion_704ILR()
+{
+    if (SessionManager_704ILR.IsSessionActive_704ILR) BLL_Login_704ILR.Logout_704ILR();
+}
+
+// La cuenta de prueba pasa de representar a un empleado a representar a otro. Una
+// cuenta responde por una sola persona, asi que primero se la desvincula del primero.
+bool VincularCuenta_704ILR(int desde_704ILR, int hacia_704ILR)
+{
+    var origen_704ILR = BLL_Empleado_704ILR.GetById_704ILR(desde_704ILR);
+    int? cuenta_704ILR = origen_704ILR?.UserId_704ILR;
+    if (cuenta_704ILR == null) return false;
+    origen_704ILR.UserId_704ILR = null;
+    if (BLL_Empleado_704ILR.Actualizar_704ILR(origen_704ILR) != EmpleadoResult_704ILR.Success_704ILR) return false;
+    var destino_704ILR = BLL_Empleado_704ILR.GetById_704ILR(hacia_704ILR);
+    destino_704ILR.UserId_704ILR = cuenta_704ILR;
+    return BLL_Empleado_704ILR.Actualizar_704ILR(destino_704ILR) == EmpleadoResult_704ILR.Success_704ILR;
+}
+
+// Limpieza de lo que crea el Proceso 2 sobre las reservas de la corrida. Un
+// evento en ejecucion o cerrado congela su reserva (RN-13) y la aplicacion no da de
+// baja la coordinacion de un evento, asi que el rastro se borra directamente contra
+// la base (igual que los perfiles de [19]) antes de cancelar las reservas.
+void BorrarCoordinacionDePrueba_704ILR()
+{
+    if (reservasDeLaCorrida_704ILR.Count > 0)
+    {
+        string ids_704ILR = string.Join(",", reservasDeLaCorrida_704ILR);
+        Ejecutar_704ILR(
+            "DELETE FROM dbo.Incidencias WHERE ReservaId IN (" + ids_704ILR + "); " +
+            "DELETE t FROM dbo.Tareas t INNER JOIN dbo.Cronogramas c ON c.Id = t.CronogramaId WHERE c.ReservaId IN (" + ids_704ILR + "); " +
+            "DELETE a FROM dbo.CronogramaActividades a INNER JOIN dbo.Cronogramas c ON c.Id = a.CronogramaId WHERE c.ReservaId IN (" + ids_704ILR + "); " +
+            "DELETE FROM dbo.Cronogramas WHERE ReservaId IN (" + ids_704ILR + "); " +
+            "DELETE FROM dbo.AsignacionesPersonal WHERE ReservaId IN (" + ids_704ILR + "); " +
+            "UPDATE dbo.Reservas SET EstadoCoordinacion = 'SIN_ASIGNAR' WHERE Id IN (" + ids_704ILR + ");");
+    }
+    foreach (int idEmpleado_704ILR in empleadosDeLaCorrida_704ILR.ToList())
+    {
+        Ejecutar_704ILR(
+            "DELETE FROM dbo.Empleados WHERE Id = @id AND NOT EXISTS (SELECT 1 FROM dbo.AsignacionesPersonal WHERE EmpleadoId = @id)",
+            ("@id", idEmpleado_704ILR));
+        empleadosDeLaCorrida_704ILR.Remove(idEmpleado_704ILR);
+    }
+}
+
+// [43] Personal: alta con sus validaciones, DNI unico y vinculo con la cuenta con
+// la que el empleado ingresa (una cuenta representa a un solo empleado).
+Caso_704ILR("[43] Empleados: alta, validaciones y vinculo con la cuenta:");
+try
+{
+    var especialidades_704ILR = BLL_Empleado_704ILR.GetEspecialidades_704ILR();
+    var cuenta_704ILR = BLL_User_704ILR.GetAll_704ILR().FirstOrDefault(u_704ILR => u_704ILR.Username_704ILR == newUser_704ILR);
+    if (especialidades_704ILR.Count == 0 || cuenta_704ILR == null)
+    {
+        Omitir_704ILR("[43]", "faltan las especialidades seed (corre db/schema.sql) o el usuario de prueba de [2]");
+    }
+    else
+    {
+        int esp_704ILR = especialidades_704ILR[0].Id_704ILR;
+        int asientosAlta_704ILR = Asientos_704ILR("Empleados", "Alta de empleado");
+        EvenTech.BE.BE_Empleado_704ILR Nuevo_704ILR(string nombre_704ILR, string dni_704ILR) => new EvenTech.BE.BE_Empleado_704ILR
+        { Nombre_704ILR = nombre_704ILR, Apellido_704ILR = "Smoke" + suf_704ILR, Dni_704ILR = dni_704ILR, EspecialidadId_704ILR = esp_704ILR };
+
+        Esperar_704ILR("alta sin nombre", BLL_Empleado_704ILR.Crear_704ILR(Nuevo_704ILR(" ", "91" + suf_704ILR), out _), EmpleadoResult_704ILR.NombreInvalido_704ILR);
+        Esperar_704ILR("alta con DNI no numerico", BLL_Empleado_704ILR.Crear_704ILR(Nuevo_704ILR("Ana", "ABC123"), out _), EmpleadoResult_704ILR.DniInvalido_704ILR);
+        Esperar_704ILR("alta sin DNI", BLL_Empleado_704ILR.Crear_704ILR(Nuevo_704ILR("Ana", ""), out _), EmpleadoResult_704ILR.DniInvalido_704ILR);
+        var sinEspecialidad_704ILR = Nuevo_704ILR("Ana", "91" + suf_704ILR);
+        sinEspecialidad_704ILR.EspecialidadId_704ILR = 0;
+        Esperar_704ILR("alta sin especialidad", BLL_Empleado_704ILR.Crear_704ILR(sinEspecialidad_704ILR, out _), EmpleadoResult_704ILR.EspecialidadInvalida_704ILR);
+        Esperar_704ILR("alta con un nombre que no entra en su columna", BLL_Empleado_704ILR.Crear_704ILR(Nuevo_704ILR(new string('x', 61), "94" + suf_704ILR), out _), EmpleadoResult_704ILR.LongitudExcedida_704ILR);
+
+        Esperar_704ILR("alta del empleado A", BLL_Empleado_704ILR.Crear_704ILR(Nuevo_704ILR("Ana", "91" + suf_704ILR), out empA_704ILR), EmpleadoResult_704ILR.Success_704ILR);
+        if (empA_704ILR > 0) empleadosDeLaCorrida_704ILR.Add(empA_704ILR);
+        Esperar_704ILR("alta del empleado B", BLL_Empleado_704ILR.Crear_704ILR(Nuevo_704ILR("Bruno", "92" + suf_704ILR), out empB_704ILR), EmpleadoResult_704ILR.Success_704ILR);
+        if (empB_704ILR > 0) empleadosDeLaCorrida_704ILR.Add(empB_704ILR);
+        Esperar_704ILR("alta del empleado C", BLL_Empleado_704ILR.Crear_704ILR(Nuevo_704ILR("Carla", "93" + suf_704ILR), out empC_704ILR), EmpleadoResult_704ILR.Success_704ILR);
+        if (empC_704ILR > 0) empleadosDeLaCorrida_704ILR.Add(empC_704ILR);
+        Esperar_704ILR("asientos de alta de empleado", Asientos_704ILR("Empleados", "Alta de empleado") - asientosAlta_704ILR, 3);
+        Esperar_704ILR("los tres figuran entre los activos",
+            BLL_Empleado_704ILR.GetActivos_704ILR().Count(e_704ILR => e_704ILR.Apellido_704ILR == "Smoke" + suf_704ILR), 3);
+
+        // El mismo documento escrito con puntos es el mismo DNI.
+        string dniConPuntos_704ILR = "91." + suf_704ILR.Substring(0, 6) + "." + suf_704ILR.Substring(6);
+        Esperar_704ILR("alta con el DNI de A (con puntos)", BLL_Empleado_704ILR.Crear_704ILR(Nuevo_704ILR("Otra", dniConPuntos_704ILR), out _), EmpleadoResult_704ILR.DniDuplicado_704ILR);
+        Esperar_704ILR("DNI guardado solo con digitos", BLL_Empleado_704ILR.GetById_704ILR(empA_704ILR)?.Dni_704ILR, "91" + suf_704ILR);
+
+        // Vinculo con la cuenta: A queda vinculado al usuario de prueba.
+        var a_704ILR = BLL_Empleado_704ILR.GetById_704ILR(empA_704ILR);
+        a_704ILR.UserId_704ILR = cuenta_704ILR.Id_704ILR;
+        Esperar_704ILR("vincular A con la cuenta", BLL_Empleado_704ILR.Actualizar_704ILR(a_704ILR), EmpleadoResult_704ILR.Success_704ILR);
+        Esperar_704ILR("cuenta de A", BLL_Empleado_704ILR.GetById_704ILR(empA_704ILR)?.Username_704ILR, newUser_704ILR);
+
+        var b_704ILR = BLL_Empleado_704ILR.GetById_704ILR(empB_704ILR);
+        b_704ILR.UserId_704ILR = cuenta_704ILR.Id_704ILR;
+        Esperar_704ILR("vincular B con la misma cuenta", BLL_Empleado_704ILR.Actualizar_704ILR(b_704ILR), EmpleadoResult_704ILR.CuentaYaVinculada_704ILR);
+        b_704ILR.UserId_704ILR = int.MaxValue;
+        Esperar_704ILR("vincular B con una cuenta inexistente", BLL_Empleado_704ILR.Actualizar_704ILR(b_704ILR), EmpleadoResult_704ILR.CuentaInvalida_704ILR);
+
+        // Guardar sin cambiar nada no es una modificacion: no deja asiento.
+        int asientosMod_704ILR = Asientos_704ILR("Empleados", "Modificacion de empleado");
+        Esperar_704ILR("guardar A sin cambios", BLL_Empleado_704ILR.Actualizar_704ILR(BLL_Empleado_704ILR.GetById_704ILR(empA_704ILR)), EmpleadoResult_704ILR.Success_704ILR);
+        Esperar_704ILR("asientos por guardar sin cambios", Asientos_704ILR("Empleados", "Modificacion de empleado") - asientosMod_704ILR, 0);
+        Esperar_704ILR("modificar un empleado inexistente",
+            BLL_Empleado_704ILR.Actualizar_704ILR(new EvenTech.BE.BE_Empleado_704ILR { Id_704ILR = int.MaxValue, Nombre_704ILR = "X", Apellido_704ILR = "Y", Dni_704ILR = "12345678", EspecialidadId_704ILR = esp_704ILR }),
+            EmpleadoResult_704ILR.NotFound_704ILR);
+
+        // El empleado de la sesion sale de la cuenta vinculada.
+        Esperar_704ILR("sin sesion no hay empleado", BLL_Empleado_704ILR.GetDeLaSesion_704ILR() == null, true);
+        Esperar_704ILR("sesion del empleado A", SesionDelEmpleado_704ILR(), true);
+        Esperar_704ILR("empleado de la sesion", BLL_Empleado_704ILR.GetDeLaSesion_704ILR()?.Id_704ILR, (int?)empA_704ILR);
+        CerrarSesion_704ILR();
+    }
+}
+catch (Exception ex43_704ILR) { Excepcion_704ILR("[43]", ex43_704ILR); CerrarSesion_704ILR(); }
+
+// [44] CUN006 Asignar personal. RN-08: solo se coordina una reserva CONFIRMADA.
+// RN-09: la franja no puede pisarse con otro turno del empleado en otro evento,
+// tampoco cuando el turno cruza la medianoche y choca con el dia siguiente.
+Caso_704ILR("[44] CUN006 Asignar personal (RN-08 reserva confirmada, RN-09 superposicion):");
+try
+{
+    var cliOp_704ILR = BLL_Cliente_704ILR.GetAll_704ILR();
+    var salOp_704ILR = BLL_Salon_704ILR.GetAll_704ILR();
+    if (empA_704ILR == 0 || empB_704ILR == 0 || empC_704ILR == 0 || cliOp_704ILR.Count == 0 || salOp_704ILR.Count < 2
+        || BLL_Pago_704ILR.GetMetodos_704ILR().Count == 0)
+    {
+        Omitir_704ILR("[44]", "faltan los empleados de [43] o hacen falta un cliente, dos salones y un metodo de pago seed; corre db/schema.sql");
+    }
+    else
+    {
+        int cli_704ILR = cliOp_704ILR[0].Id_704ILR;
+
+        // RN-08: una cotizacion todavia no se coordina.
+        Esperar_704ILR("alta cotizacion", BLL_Reserva_704ILR.Crear_704ILR(
+            NuevaReserva_704ILR(cli_704ILR, salOp_704ILR[0].Id_704ILR, 8020, EvenTech.BE.EstadoReserva_704ILR.COTIZACION, 900m, 20), out int idCot_704ILR), ReservaResult_704ILR.Success_704ILR);
+        Anotar_704ILR(idCot_704ILR);
+        int asientosRn08_704ILR = Asientos_704ILR("Coordinacion", "Coordinacion rechazada");
+        Esperar_704ILR("asignar en una cotizacion (RN-08)",
+            BLL_AsignacionPersonal_704ILR.Asignar_704ILR(idCot_704ILR, empA_704ILR, "Mozo", H_704ILR(20), H_704ILR(23), out _, out _), CoordinacionResult_704ILR.ReservaNoConfirmada_704ILR);
+        Esperar_704ILR("asiento del rechazo RN-08", Asientos_704ILR("Coordinacion", "Coordinacion rechazada") - asientosRn08_704ILR, 1);
+        Esperar_704ILR("asignar en una reserva inexistente",
+            BLL_AsignacionPersonal_704ILR.Asignar_704ILR(int.MaxValue, empA_704ILR, "Mozo", H_704ILR(20), H_704ILR(23), out _, out _), CoordinacionResult_704ILR.ReservaInvalida_704ILR);
+        // RN-08: una reserva cancelada tampoco se coordina.
+        Esperar_704ILR("cancelar la cotizacion", BLL_Reserva_704ILR.Cancelar_704ILR(idCot_704ILR, out _, out _), ReservaResult_704ILR.Success_704ILR);
+        Esperar_704ILR("asignar en una reserva cancelada (RN-08)",
+            BLL_AsignacionPersonal_704ILR.Asignar_704ILR(idCot_704ILR, empA_704ILR, "Mozo", H_704ILR(20), H_704ILR(23), out _, out _), CoordinacionResult_704ILR.ReservaNoConfirmada_704ILR);
+        Esperar_704ILR("asientos de los dos rechazos RN-08", Asientos_704ILR("Coordinacion", "Coordinacion rechazada") - asientosRn08_704ILR, 2);
+
+        // Tres eventos: R1 y R2 el mismo dia en salones distintos, R3 al dia siguiente.
+        evR1_704ILR = EventoConfirmado_704ILR(cli_704ILR, salOp_704ILR[0].Id_704ILR, 8000);
+        evR2_704ILR = EventoConfirmado_704ILR(cli_704ILR, salOp_704ILR[1].Id_704ILR, 8000);
+        evR3_704ILR = EventoConfirmado_704ILR(cli_704ILR, salOp_704ILR[0].Id_704ILR, 8001);
+        Esperar_704ILR("eventos confirmados de la corrida", evR1_704ILR > 0 && evR2_704ILR > 0 && evR3_704ILR > 0, true);
+        Esperar_704ILR("estado inicial de coordinacion", EstadoCoord_704ILR(evR1_704ILR), EvenTech.BE.EstadoCoordinacion_704ILR.SIN_ASIGNAR);
+        Esperar_704ILR("el evento figura entre los eventos a coordinar",
+            BLL_Coordinacion_704ILR.GetEventos_704ILR().Any(e_704ILR => e_704ILR.ReservaId_704ILR == evR1_704ILR), true);
+
+        int asientosRechazo_704ILR = Asientos_704ILR("Coordinacion", "Asignacion rechazada");
+        int asientosAsig_704ILR = Asientos_704ILR("Coordinacion", "Asignacion de personal");
+
+        // Errores de lo tipeado.
+        Esperar_704ILR("rol vacio", BLL_AsignacionPersonal_704ILR.Asignar_704ILR(evR1_704ILR, empA_704ILR, "  ", H_704ILR(20), H_704ILR(2), out _, out _), CoordinacionResult_704ILR.RolInvalido_704ILR);
+        Esperar_704ILR("rol que no entra en su columna", BLL_AsignacionPersonal_704ILR.Asignar_704ILR(evR1_704ILR, empA_704ILR, new string('r', 61), H_704ILR(20), H_704ILR(2), out _, out _), CoordinacionResult_704ILR.RolInvalido_704ILR);
+        Esperar_704ILR("franja de duracion cero", BLL_AsignacionPersonal_704ILR.Asignar_704ILR(evR1_704ILR, empA_704ILR, "Mozo", H_704ILR(20), H_704ILR(20), out _, out _), CoordinacionResult_704ILR.FranjaInvalida_704ILR);
+        Esperar_704ILR("empleado inexistente", BLL_AsignacionPersonal_704ILR.Asignar_704ILR(evR1_704ILR, int.MaxValue, "Mozo", H_704ILR(20), H_704ILR(2), out _, out _), CoordinacionResult_704ILR.EmpleadoInvalido_704ILR);
+
+        // A queda asignado a R1 de 20:00 a 02:00 (el turno cruza la medianoche).
+        Esperar_704ILR("asignar A a R1 20:00-02:00", BLL_AsignacionPersonal_704ILR.Asignar_704ILR(evR1_704ILR, empA_704ILR, "Mozo de salon", H_704ILR(20), H_704ILR(2), out asigA1_704ILR, out _), CoordinacionResult_704ILR.Success_704ILR);
+        Esperar_704ILR("la asignacion nace pendiente", Asignacion_704ILR(evR1_704ILR, empA_704ILR)?.Estado_704ILR, (EvenTech.BE.EstadoAsignacion_704ILR?)EvenTech.BE.EstadoAsignacion_704ILR.PENDIENTE);
+        Esperar_704ILR("estado de coordinacion de R1", EstadoCoord_704ILR(evR1_704ILR), EvenTech.BE.EstadoCoordinacion_704ILR.EN_COORDINACION);
+        Esperar_704ILR("A otra vez en R1", BLL_AsignacionPersonal_704ILR.Asignar_704ILR(evR1_704ILR, empA_704ILR, "Mozo", H_704ILR(21), H_704ILR(23), out _, out _), CoordinacionResult_704ILR.YaAsignado_704ILR);
+
+        // RN-09 el mismo dia, en el otro evento.
+        Esperar_704ILR("A en R2 22:00-23:00 (se pisa con R1)",
+            BLL_AsignacionPersonal_704ILR.Asignar_704ILR(evR2_704ILR, empA_704ILR, "Mozo", H_704ILR(22), H_704ILR(23), out _, out var conflicto_704ILR), CoordinacionResult_704ILR.Superposicion_704ILR);
+        Esperar_704ILR("turno con el que se pisa", conflicto_704ILR?.ReservaId_704ILR, (int?)evR1_704ILR);
+        Esperar_704ILR("R2 sigue sin personal", EstadoCoord_704ILR(evR2_704ILR), EvenTech.BE.EstadoCoordinacion_704ILR.SIN_ASIGNAR);
+
+        // Quitar la unica asignacion devuelve el evento a SIN_ASIGNAR.
+        int asientosBajaAsig_704ILR = Asientos_704ILR("Coordinacion", "Baja de asignacion");
+        Esperar_704ILR("asignar B a R2", BLL_AsignacionPersonal_704ILR.Asignar_704ILR(evR2_704ILR, empB_704ILR, "Barra", H_704ILR(10), H_704ILR(12), out int asigB2_704ILR, out _), CoordinacionResult_704ILR.Success_704ILR);
+        Esperar_704ILR("R2 en coordinacion", EstadoCoord_704ILR(evR2_704ILR), EvenTech.BE.EstadoCoordinacion_704ILR.EN_COORDINACION);
+        Esperar_704ILR("quitar a B de R2", BLL_AsignacionPersonal_704ILR.Quitar_704ILR(asigB2_704ILR), CoordinacionResult_704ILR.Success_704ILR);
+        Esperar_704ILR("R2 vuelve a quedar sin personal", EstadoCoord_704ILR(evR2_704ILR), EvenTech.BE.EstadoCoordinacion_704ILR.SIN_ASIGNAR);
+        Esperar_704ILR("asiento de la baja de asignacion", Asientos_704ILR("Coordinacion", "Baja de asignacion") - asientosBajaAsig_704ILR, 1);
+        Esperar_704ILR("A en R2 10:00-18:00 (no se pisa)",
+            BLL_AsignacionPersonal_704ILR.Asignar_704ILR(evR2_704ILR, empA_704ILR, "Armado", H_704ILR(10), H_704ILR(18), out asigA2_704ILR, out _), CoordinacionResult_704ILR.Success_704ILR);
+
+        // RN-09 cruzando la medianoche: el turno de R1 termina a las 02:00 del dia de R3.
+        Esperar_704ILR("A en R3 01:00-03:00 (se pisa con el final de R1)",
+            BLL_AsignacionPersonal_704ILR.Asignar_704ILR(evR3_704ILR, empA_704ILR, "Mozo", H_704ILR(1), H_704ILR(3), out _, out var conflictoNoche_704ILR), CoordinacionResult_704ILR.Superposicion_704ILR);
+        Esperar_704ILR("turno con el que se pisa (medianoche)", conflictoNoche_704ILR?.ReservaId_704ILR, (int?)evR1_704ILR);
+        Esperar_704ILR("A en R3 02:00-06:00 (empieza donde termina R1)",
+            BLL_AsignacionPersonal_704ILR.Asignar_704ILR(evR3_704ILR, empA_704ILR, "Desarme", H_704ILR(2), H_704ILR(6), out asigA3_704ILR, out _), CoordinacionResult_704ILR.Success_704ILR);
+
+        // RN-09 en el otro sentido: el turno PEDIDO es el que cruza la medianoche y se
+        // pisa con un turno del empleado en el evento del dia siguiente.
+        Esperar_704ILR("asignar B a R3 02:00-06:00", BLL_AsignacionPersonal_704ILR.Asignar_704ILR(evR3_704ILR, empB_704ILR, "Desarme", H_704ILR(2), H_704ILR(6), out int asigB3_704ILR, out _), CoordinacionResult_704ILR.Success_704ILR);
+        Esperar_704ILR("B en R2 22:00-03:00 (cruza la medianoche y se pisa con su turno del dia siguiente)",
+            BLL_AsignacionPersonal_704ILR.Asignar_704ILR(evR2_704ILR, empB_704ILR, "Barra", H_704ILR(22), H_704ILR(3), out _, out var conflictoManana_704ILR), CoordinacionResult_704ILR.Superposicion_704ILR);
+        Esperar_704ILR("turno con el que se pisa (dia siguiente)", conflictoManana_704ILR?.ReservaId_704ILR, (int?)evR3_704ILR);
+        Esperar_704ILR("B en R2 22:00-02:00 (termina donde empieza su turno de R3)",
+            BLL_AsignacionPersonal_704ILR.Asignar_704ILR(evR2_704ILR, empB_704ILR, "Barra", H_704ILR(22), H_704ILR(2), out int asigB2b_704ILR, out _), CoordinacionResult_704ILR.Success_704ILR);
+        Esperar_704ILR("quitar a B de R2 y de R3",
+            BLL_AsignacionPersonal_704ILR.Quitar_704ILR(asigB2b_704ILR) + "," + BLL_AsignacionPersonal_704ILR.Quitar_704ILR(asigB3_704ILR),
+            CoordinacionResult_704ILR.Success_704ILR + "," + CoordinacionResult_704ILR.Success_704ILR);
+
+        Esperar_704ILR("asientos de asignacion", Asientos_704ILR("Coordinacion", "Asignacion de personal") - asientosAsig_704ILR, 6);
+        Esperar_704ILR("asientos de rechazo por superposicion (RN-09)", Asientos_704ILR("Coordinacion", "Asignacion rechazada") - asientosRechazo_704ILR, 3);
+
+        // Un empleado dado de baja no se asigna; uno con turnos vigentes no se da de baja.
+        var c_704ILR = BLL_Empleado_704ILR.GetById_704ILR(empC_704ILR);
+        c_704ILR.Activo_704ILR = false;
+        int asientosModEmp_704ILR = Asientos_704ILR("Empleados", "Modificacion de empleado");
+        int asientosBajaEmp_704ILR = Asientos_704ILR("Empleados", "Baja rechazada");
+        Esperar_704ILR("baja del empleado C (sin turnos)", BLL_Empleado_704ILR.Actualizar_704ILR(c_704ILR), EmpleadoResult_704ILR.Success_704ILR);
+        Esperar_704ILR("asiento de la baja", Asientos_704ILR("Empleados", "Modificacion de empleado") - asientosModEmp_704ILR, 1);
+        Esperar_704ILR("C ya no figura entre los activos", BLL_Empleado_704ILR.GetActivos_704ILR().Any(e_704ILR => e_704ILR.Id_704ILR == empC_704ILR), false);
+        Esperar_704ILR("asignar al empleado dado de baja",
+            BLL_AsignacionPersonal_704ILR.Asignar_704ILR(evR1_704ILR, empC_704ILR, "Mozo", H_704ILR(20), H_704ILR(23), out _, out _), CoordinacionResult_704ILR.EmpleadoInvalido_704ILR);
+        var aBaja_704ILR = BLL_Empleado_704ILR.GetById_704ILR(empA_704ILR);
+        aBaja_704ILR.Activo_704ILR = false;
+        Esperar_704ILR("baja de A con turnos vigentes", BLL_Empleado_704ILR.Actualizar_704ILR(aBaja_704ILR), EmpleadoResult_704ILR.ConAsignacionesVigentes_704ILR);
+        Esperar_704ILR("A sigue activo", BLL_Empleado_704ILR.GetById_704ILR(empA_704ILR)?.Activo_704ILR, (bool?)true);
+        Esperar_704ILR("asiento de la baja rechazada", Asientos_704ILR("Empleados", "Baja rechazada") - asientosBajaEmp_704ILR, 1);
+    }
+}
+catch (Exception ex44_704ILR) { Excepcion_704ILR("[44]", ex44_704ILR); }
+
+// [45] CUN007 Confirmar disponibilidad. RN-10: responde el propio empleado (la
+// cuenta de la sesion tiene que ser la suya) y el rechazo lleva motivo. Un turno
+// rechazado se le puede volver a ofrecer.
+Caso_704ILR("[45] CUN007 Confirmar disponibilidad (RN-10):");
+try
+{
+    if (asigA1_704ILR == 0 || asigA2_704ILR == 0 || asigA3_704ILR == 0)
+    {
+        Omitir_704ILR("[45]", "faltan las asignaciones de [44]");
+    }
+    else
+    {
+        // B queda pendiente en R1: es el turno ajeno que A no puede responder.
+        Esperar_704ILR("asignar B a R1", BLL_AsignacionPersonal_704ILR.Asignar_704ILR(evR1_704ILR, empB_704ILR, "Barra", H_704ILR(20), H_704ILR(2), out int asigB1_704ILR, out _), CoordinacionResult_704ILR.Success_704ILR);
+
+        CerrarSesion_704ILR();
+        int asientosSinFicha_704ILR = Asientos_704ILR("Coordinacion", "Respuesta rechazada");
+        Esperar_704ILR("confirmar sin sesion", BLL_AsignacionPersonal_704ILR.Confirmar_704ILR(asigA1_704ILR, out _), CoordinacionResult_704ILR.SinEmpleadoVinculado_704ILR);
+        // La sesion tiene que existir: sin ella las dos verificaciones siguientes darian
+        // lo mismo y no distinguirian "cuenta sin empleado" de "sin sesion".
+        Esperar_704ILR("sesion de una cuenta sin empleado (admin)",
+            BLL_Login_704ILR.Authenticate_704ILR("admin", Encrypt_704ILR.HashValue_704ILR("admin123")).Result_704ILR, LoginResult_704ILR.Success_704ILR);
+        Esperar_704ILR("confirmar con una cuenta que no es de un empleado", BLL_AsignacionPersonal_704ILR.Confirmar_704ILR(asigA1_704ILR, out _), CoordinacionResult_704ILR.SinEmpleadoVinculado_704ILR);
+        Esperar_704ILR("agenda de una cuenta sin empleado", BLL_AsignacionPersonal_704ILR.GetMisAsignaciones_704ILR().Count, 0);
+        // RN-10: responder sin ser el empleado del turno queda asentado en los dos intentos.
+        Esperar_704ILR("asientos de las respuestas de una cuenta sin ficha (RN-10)", Asientos_704ILR("Coordinacion", "Respuesta rechazada") - asientosSinFicha_704ILR, 2);
+        Esperar_704ILR("el turno sigue pendiente tras esos intentos", Asignacion_704ILR(evR1_704ILR, empA_704ILR)?.Estado_704ILR, (EvenTech.BE.EstadoAsignacion_704ILR?)EvenTech.BE.EstadoAsignacion_704ILR.PENDIENTE);
+        CerrarSesion_704ILR();
+
+        Esperar_704ILR("sesion del empleado A", SesionDelEmpleado_704ILR(), true);
+        Esperar_704ILR("agenda de A (turnos en eventos confirmados)", BLL_AsignacionPersonal_704ILR.GetMisAsignaciones_704ILR().Count, 3);
+
+        int asientosAjena_704ILR = Asientos_704ILR("Coordinacion", "Respuesta rechazada");
+        Esperar_704ILR("A responde el turno de B", BLL_AsignacionPersonal_704ILR.Confirmar_704ILR(asigB1_704ILR, out _), CoordinacionResult_704ILR.NoEsElEmpleado_704ILR);
+        Esperar_704ILR("asiento del intento de responder por otro", Asientos_704ILR("Coordinacion", "Respuesta rechazada") - asientosAjena_704ILR, 1);
+
+        // Una ficha dada de baja no responde turnos. La aplicacion no deja dar de baja
+        // a quien tiene turnos vigentes: la baja se fuerza en la base solo para probar
+        // la guarda, y se repone enseguida.
+        Ejecutar_704ILR("UPDATE dbo.Empleados SET Activo = 0 WHERE Id = @id", ("@id", empA_704ILR));
+        Esperar_704ILR("responder con la ficha dada de baja", BLL_AsignacionPersonal_704ILR.Confirmar_704ILR(asigA1_704ILR, out _), CoordinacionResult_704ILR.EmpleadoDeBaja_704ILR);
+        Ejecutar_704ILR("UPDATE dbo.Empleados SET Activo = 1 WHERE Id = @id", ("@id", empA_704ILR));
+        Esperar_704ILR("el turno sigue pendiente", Asignacion_704ILR(evR1_704ILR, empA_704ILR)?.Estado_704ILR, (EvenTech.BE.EstadoAsignacion_704ILR?)EvenTech.BE.EstadoAsignacion_704ILR.PENDIENTE);
+        Esperar_704ILR("asiento de la respuesta de una ficha dada de baja", Asientos_704ILR("Coordinacion", "Respuesta rechazada") - asientosAjena_704ILR, 2);
+        int asientosConfirma_704ILR = Asientos_704ILR("Coordinacion", "Disponibilidad confirmada");
+        int asientosRechaza_704ILR = Asientos_704ILR("Coordinacion", "Turno rechazado");
+        Esperar_704ILR("el turno de B sigue pendiente", Asignacion_704ILR(evR1_704ILR, empB_704ILR)?.Estado_704ILR, (EvenTech.BE.EstadoAsignacion_704ILR?)EvenTech.BE.EstadoAsignacion_704ILR.PENDIENTE);
+        Esperar_704ILR("confirmar una asignacion inexistente", BLL_AsignacionPersonal_704ILR.Confirmar_704ILR(int.MaxValue, out _), CoordinacionResult_704ILR.AsignacionInvalida_704ILR);
+
+        Esperar_704ILR("A confirma su turno de R1", BLL_AsignacionPersonal_704ILR.Confirmar_704ILR(asigA1_704ILR, out _), CoordinacionResult_704ILR.Success_704ILR);
+        var confirmada_704ILR = Asignacion_704ILR(evR1_704ILR, empA_704ILR);
+        Esperar_704ILR("estado del turno", confirmada_704ILR?.Estado_704ILR, (EvenTech.BE.EstadoAsignacion_704ILR?)EvenTech.BE.EstadoAsignacion_704ILR.CONFIRMADA);
+        Esperar_704ILR("queda la fecha de la respuesta", confirmada_704ILR?.FechaConfirmacion_704ILR.HasValue, (bool?)true);
+        Esperar_704ILR("confirmar dos veces", BLL_AsignacionPersonal_704ILR.Confirmar_704ILR(asigA1_704ILR, out _), CoordinacionResult_704ILR.AsignacionYaRespondida_704ILR);
+
+        Esperar_704ILR("rechazar sin motivo", BLL_AsignacionPersonal_704ILR.Rechazar_704ILR(asigA2_704ILR, "   "), CoordinacionResult_704ILR.MotivoObligatorio_704ILR);
+        Esperar_704ILR("A rechaza su turno de R2", BLL_AsignacionPersonal_704ILR.Rechazar_704ILR(asigA2_704ILR, "Tengo otro compromiso ese dia"), CoordinacionResult_704ILR.Success_704ILR);
+        var rechazada_704ILR = Asignacion_704ILR(evR2_704ILR, empA_704ILR);
+        Esperar_704ILR("estado del turno rechazado", rechazada_704ILR?.Estado_704ILR, (EvenTech.BE.EstadoAsignacion_704ILR?)EvenTech.BE.EstadoAsignacion_704ILR.RECHAZADA);
+        Esperar_704ILR("motivo guardado", rechazada_704ILR?.MotivoRechazo_704ILR, "Tengo otro compromiso ese dia");
+        // Con el unico turno rechazado, R2 sigue en coordinacion: hay un rechazo sin resolver.
+        Esperar_704ILR("estado de coordinacion de R2", EstadoCoord_704ILR(evR2_704ILR), EvenTech.BE.EstadoCoordinacion_704ILR.EN_COORDINACION);
+        Esperar_704ILR("asiento de la confirmacion", Asientos_704ILR("Coordinacion", "Disponibilidad confirmada") - asientosConfirma_704ILR, 1);
+        Esperar_704ILR("asiento del turno rechazado", Asientos_704ILR("Coordinacion", "Turno rechazado") - asientosRechaza_704ILR, 1);
+        CerrarSesion_704ILR();
+
+        // El coordinador le vuelve a ofrecer el turno con otra franja: es la misma asignacion.
+        Esperar_704ILR("reasignar a A en R2 con otra franja",
+            BLL_AsignacionPersonal_704ILR.Asignar_704ILR(evR2_704ILR, empA_704ILR, "Armado", H_704ILR(11), H_704ILR(17), out int asigReactivada_704ILR, out _), CoordinacionResult_704ILR.Success_704ILR);
+        Esperar_704ILR("es la misma asignacion", asigReactivada_704ILR, asigA2_704ILR);
+        var reactivada_704ILR = Asignacion_704ILR(evR2_704ILR, empA_704ILR);
+        Esperar_704ILR("vuelve a pendiente", reactivada_704ILR?.Estado_704ILR, (EvenTech.BE.EstadoAsignacion_704ILR?)EvenTech.BE.EstadoAsignacion_704ILR.PENDIENTE);
+        Esperar_704ILR("sin motivo ni respuesta", reactivada_704ILR?.MotivoRechazo_704ILR == null && reactivada_704ILR?.FechaConfirmacion_704ILR == null, true);
+        Esperar_704ILR("franja nueva", reactivada_704ILR?.HoraInicio_704ILR, (TimeSpan?)H_704ILR(11));
+    }
+}
+catch (Exception ex45_704ILR) { Excepcion_704ILR("[45]", ex45_704ILR); CerrarSesion_704ILR(); }
+
+// [46] CUN008 Generar cronograma. RN-11: con el equipo confirmado (personal
+// confirmado y ninguna respuesta pendiente) y con responsables confirmados; hay un
+// solo cronograma por reserva y el orden de las actividades es el del coordinador.
+Caso_704ILR("[46] CUN008 Generar cronograma (RN-11):");
+try
+{
+    var turnoA_704ILR = evR1_704ILR == 0 ? null : Asignacion_704ILR(evR1_704ILR, empA_704ILR);
+    var turnoB_704ILR = evR1_704ILR == 0 ? null : Asignacion_704ILR(evR1_704ILR, empB_704ILR);
+    if (turnoA_704ILR == null || turnoB_704ILR == null || turnoA_704ILR.Estado_704ILR != EvenTech.BE.EstadoAsignacion_704ILR.CONFIRMADA)
+    {
+        Omitir_704ILR("[46]", "depende de los turnos de [45] (A confirmado y B pendiente en R1)");
+    }
+    else
+    {
+        EvenTech.BE.BE_CronogramaActividad_704ILR Act_704ILR(int hora_704ILR, int minuto_704ILR, string descripcion_704ILR, int responsable_704ILR, int duracion_704ILR) =>
+            new EvenTech.BE.BE_CronogramaActividad_704ILR
+            { Hora_704ILR = H_704ILR(hora_704ILR, minuto_704ILR), Descripcion_704ILR = descripcion_704ILR, ResponsableId_704ILR = responsable_704ILR, DuracionMinutos_704ILR = duracion_704ILR };
+        var jornada_704ILR = new List<EvenTech.BE.BE_CronogramaActividad_704ILR>
+        {
+            Act_704ILR(20, 0, "Recepcion de invitados", empA_704ILR, 30),
+            Act_704ILR(21, 0, "Cena", empA_704ILR, 90),
+            Act_704ILR(0, 30, "Brindis", empA_704ILR, 15)
+        };
+
+        int asientosRn11_704ILR = Asientos_704ILR("Coordinacion", "Cronograma rechazado");
+        Esperar_704ILR("generar con una respuesta pendiente (RN-11)", BLL_Cronograma_704ILR.Guardar_704ILR(evR1_704ILR, jornada_704ILR), CoordinacionResult_704ILR.PersonalSinConfirmar_704ILR);
+        Esperar_704ILR("asiento del rechazo RN-11", Asientos_704ILR("Coordinacion", "Cronograma rechazado") - asientosRn11_704ILR, 1);
+
+        // El coordinador quita a B, que no respondio: el equipo queda confirmado.
+        Esperar_704ILR("quitar a B de R1", BLL_AsignacionPersonal_704ILR.Quitar_704ILR(turnoB_704ILR.Id_704ILR), CoordinacionResult_704ILR.Success_704ILR);
+        Esperar_704ILR("quitar una asignacion que ya no existe", BLL_AsignacionPersonal_704ILR.Quitar_704ILR(turnoB_704ILR.Id_704ILR), CoordinacionResult_704ILR.AsignacionInvalida_704ILR);
+        // Todos confirmados pero sin cronograma: todavia en coordinacion.
+        Esperar_704ILR("estado con el equipo confirmado y sin cronograma", EstadoCoord_704ILR(evR1_704ILR), EvenTech.BE.EstadoCoordinacion_704ILR.EN_COORDINACION);
+
+        Esperar_704ILR("cronograma sin actividades", BLL_Cronograma_704ILR.Guardar_704ILR(evR1_704ILR, new List<EvenTech.BE.BE_CronogramaActividad_704ILR>()), CoordinacionResult_704ILR.SinActividades_704ILR);
+        Esperar_704ILR("actividad sin descripcion",
+            BLL_Cronograma_704ILR.Guardar_704ILR(evR1_704ILR, new List<EvenTech.BE.BE_CronogramaActividad_704ILR> { Act_704ILR(20, 0, " ", empA_704ILR, 30) }), CoordinacionResult_704ILR.ActividadInvalida_704ILR);
+        Esperar_704ILR("actividad de duracion cero",
+            BLL_Cronograma_704ILR.Guardar_704ILR(evR1_704ILR, new List<EvenTech.BE.BE_CronogramaActividad_704ILR> { Act_704ILR(20, 0, "Recepcion", empA_704ILR, 0) }), CoordinacionResult_704ILR.ActividadInvalida_704ILR);
+        Esperar_704ILR("actividad con una descripcion que no entra en su columna",
+            BLL_Cronograma_704ILR.Guardar_704ILR(evR1_704ILR, new List<EvenTech.BE.BE_CronogramaActividad_704ILR> { Act_704ILR(20, 0, new string('d', 151), empA_704ILR, 30) }), CoordinacionResult_704ILR.ActividadInvalida_704ILR);
+        Esperar_704ILR("actividad de mas de un dia",
+            BLL_Cronograma_704ILR.Guardar_704ILR(evR1_704ILR, new List<EvenTech.BE.BE_CronogramaActividad_704ILR> { Act_704ILR(20, 0, "Recepcion", empA_704ILR, 1441) }), CoordinacionResult_704ILR.ActividadInvalida_704ILR);
+        Esperar_704ILR("responsable que no es del equipo (RN-11)",
+            BLL_Cronograma_704ILR.Guardar_704ILR(evR1_704ILR, new List<EvenTech.BE.BE_CronogramaActividad_704ILR> { Act_704ILR(20, 0, "Recepcion", empB_704ILR, 30) }), CoordinacionResult_704ILR.ResponsableInvalido_704ILR);
+        Esperar_704ILR("asiento del rechazo por el responsable (RN-11)", Asientos_704ILR("Coordinacion", "Cronograma rechazado") - asientosRn11_704ILR, 2);
+        Esperar_704ILR("nada de eso genero un cronograma", BLL_Cronograma_704ILR.GetByReserva_704ILR(evR1_704ILR) == null, true);
+
+        int asientosGen_704ILR = Asientos_704ILR("Coordinacion", "Generacion de cronograma");
+        int asientosMod_704ILR = Asientos_704ILR("Coordinacion", "Modificacion de cronograma");
+        Esperar_704ILR("generar el cronograma", BLL_Cronograma_704ILR.Guardar_704ILR(evR1_704ILR, jornada_704ILR), CoordinacionResult_704ILR.Success_704ILR);
+        var generado_704ILR = BLL_Cronograma_704ILR.GetByReserva_704ILR(evR1_704ILR);
+        Esperar_704ILR("actividades guardadas", generado_704ILR?.Actividades_704ILR.Count, (int?)3);
+        // El orden es el del coordinador: la actividad de las 00:30 va al final.
+        Esperar_704ILR("orden conservado (la de las 00:30 es la ultima)", generado_704ILR?.Actividades_704ILR.LastOrDefault()?.Hora_704ILR, (TimeSpan?)H_704ILR(0, 30));
+        Esperar_704ILR("estado de coordinacion de R1", EstadoCoord_704ILR(evR1_704ILR), EvenTech.BE.EstadoCoordinacion_704ILR.LISTO);
+
+        // Eliminar el cronograma devuelve el evento a coordinacion; se lo vuelve a generar.
+        int asientosElim_704ILR = Asientos_704ILR("Coordinacion", "Eliminacion de cronograma");
+        Esperar_704ILR("eliminar el cronograma", BLL_Cronograma_704ILR.Eliminar_704ILR(evR1_704ILR), CoordinacionResult_704ILR.Success_704ILR);
+        Esperar_704ILR("el evento queda sin cronograma", BLL_Cronograma_704ILR.GetByReserva_704ILR(evR1_704ILR) == null, true);
+        Esperar_704ILR("R1 vuelve a coordinacion", EstadoCoord_704ILR(evR1_704ILR), EvenTech.BE.EstadoCoordinacion_704ILR.EN_COORDINACION);
+        Esperar_704ILR("asiento de la eliminacion", Asientos_704ILR("Coordinacion", "Eliminacion de cronograma") - asientosElim_704ILR, 1);
+        Esperar_704ILR("generar el cronograma de nuevo", BLL_Cronograma_704ILR.Guardar_704ILR(evR1_704ILR, jornada_704ILR), CoordinacionResult_704ILR.Success_704ILR);
+        Esperar_704ILR("R1 listo otra vez", EstadoCoord_704ILR(evR1_704ILR), EvenTech.BE.EstadoCoordinacion_704ILR.LISTO);
+
+        // Guardar lo mismo no es una modificacion; cambiar la lista si.
+        Esperar_704ILR("guardar sin cambios", BLL_Cronograma_704ILR.Guardar_704ILR(evR1_704ILR, jornada_704ILR), CoordinacionResult_704ILR.Success_704ILR);
+        jornada_704ILR.RemoveAt(1);
+        Esperar_704ILR("guardar con una actividad menos", BLL_Cronograma_704ILR.Guardar_704ILR(evR1_704ILR, jornada_704ILR), CoordinacionResult_704ILR.Success_704ILR);
+        Esperar_704ILR("actividades tras la modificacion", BLL_Cronograma_704ILR.GetByReserva_704ILR(evR1_704ILR)?.Actividades_704ILR.Count, (int?)2);
+        Esperar_704ILR("asientos de generacion (el primero y el que siguio a la eliminacion)", Asientos_704ILR("Coordinacion", "Generacion de cronograma") - asientosGen_704ILR, 2);
+        Esperar_704ILR("asientos de modificacion", Asientos_704ILR("Coordinacion", "Modificacion de cronograma") - asientosMod_704ILR, 1);
+        Esperar_704ILR("un solo cronograma por reserva", Escalar_704ILR("SELECT COUNT(*) FROM dbo.Cronogramas WHERE ReservaId = @r", ("@r", evR1_704ILR)), 1);
+
+        // Quien tiene un tramo a cargo no se quita del equipo.
+        Esperar_704ILR("quitar a A, responsable de actividades", BLL_AsignacionPersonal_704ILR.Quitar_704ILR(turnoA_704ILR.Id_704ILR), CoordinacionResult_704ILR.TieneCarga_704ILR);
+        Esperar_704ILR("eliminar el cronograma de un evento que no lo tiene", BLL_Cronograma_704ILR.Eliminar_704ILR(evR2_704ILR), CoordinacionResult_704ILR.SinCronograma_704ILR);
+    }
+}
+catch (Exception ex46_704ILR) { Excepcion_704ILR("[46]", ex46_704ILR); }
+
+// [47] CUN009 Asignar tareas y CUN010 consultarlas. RN-12: la tarea va a personal
+// confirmado, cae dentro de su turno (que puede cruzar la medianoche) y no se pisa
+// con otra tarea del mismo empleado.
+Caso_704ILR("[47] CUN009 Asignar tareas y CUN010 consultarlas (RN-12):");
+try
+{
+    if (evR1_704ILR == 0 || BLL_Cronograma_704ILR.GetByReserva_704ILR(evR1_704ILR) == null)
+    {
+        Omitir_704ILR("[47]", "depende del cronograma de [46]");
+    }
+    else
+    {
+        EvenTech.BE.BE_Tarea_704ILR Tarea_704ILR(int reserva_704ILR, int empleado_704ILR, string descripcion_704ILR, TimeSpan desde_704ILR, TimeSpan hasta_704ILR) =>
+            new EvenTech.BE.BE_Tarea_704ILR
+            { ReservaId_704ILR = reserva_704ILR, EmpleadoId_704ILR = empleado_704ILR, Descripcion_704ILR = descripcion_704ILR, HoraInicio_704ILR = desde_704ILR, HoraFin_704ILR = hasta_704ILR, Prioridad_704ILR = EvenTech.BE.PrioridadTarea_704ILR.ALTA };
+
+        // Las tareas se asignan sobre el cronograma generado: sin el, el rechazo queda
+        // asentado (la pantalla no ofrece el alta, asi que solo llega por una carrera).
+        int asientosSinCrono_704ILR = Asientos_704ILR("Coordinacion", "Tarea rechazada");
+        Esperar_704ILR("tarea en un evento sin cronograma", BLL_Tarea_704ILR.Asignar_704ILR(Tarea_704ILR(evR3_704ILR, empA_704ILR, "Desarmar", H_704ILR(2), H_704ILR(3)), out _), CoordinacionResult_704ILR.SinCronograma_704ILR);
+        Esperar_704ILR("asiento del rechazo por falta de cronograma", Asientos_704ILR("Coordinacion", "Tarea rechazada") - asientosSinCrono_704ILR, 1);
+        Esperar_704ILR("tarea para quien no es del equipo", BLL_Tarea_704ILR.Asignar_704ILR(Tarea_704ILR(evR1_704ILR, empB_704ILR, "Armar mesas", H_704ILR(20), H_704ILR(21)), out _), CoordinacionResult_704ILR.ResponsableInvalido_704ILR);
+        Esperar_704ILR("tarea sin descripcion", BLL_Tarea_704ILR.Asignar_704ILR(Tarea_704ILR(evR1_704ILR, empA_704ILR, " ", H_704ILR(20), H_704ILR(21)), out _), CoordinacionResult_704ILR.DescripcionInvalida_704ILR);
+        Esperar_704ILR("tarea con una descripcion que no entra en su columna", BLL_Tarea_704ILR.Asignar_704ILR(Tarea_704ILR(evR1_704ILR, empA_704ILR, new string('t', 201), H_704ILR(20), H_704ILR(21)), out _), CoordinacionResult_704ILR.DescripcionInvalida_704ILR);
+        Esperar_704ILR("tarea de duracion cero", BLL_Tarea_704ILR.Asignar_704ILR(Tarea_704ILR(evR1_704ILR, empA_704ILR, "Armar mesas", H_704ILR(20), H_704ILR(20)), out _), CoordinacionResult_704ILR.FranjaInvalida_704ILR);
+
+        // El turno de A en R1 es de 20:00 a 02:00.
+        int asientosRn12_704ILR = Asientos_704ILR("Coordinacion", "Tarea rechazada");
+        int asientosAltaTarea_704ILR = Asientos_704ILR("Coordinacion", "Asignacion de tarea");
+        int asientosBajaTarea_704ILR = Asientos_704ILR("Coordinacion", "Baja de tarea");
+        Esperar_704ILR("tarea antes del turno (19:00-20:00)", BLL_Tarea_704ILR.Asignar_704ILR(Tarea_704ILR(evR1_704ILR, empA_704ILR, "Armar mesas", H_704ILR(19), H_704ILR(20)), out _), CoordinacionResult_704ILR.FueraDeFranja_704ILR);
+        Esperar_704ILR("tarea que termina despues del turno (01:30-02:30)", BLL_Tarea_704ILR.Asignar_704ILR(Tarea_704ILR(evR1_704ILR, empA_704ILR, "Cierre", H_704ILR(1, 30), H_704ILR(2, 30)), out _), CoordinacionResult_704ILR.FueraDeFranja_704ILR);
+        Esperar_704ILR("tarea 20:00-21:00", BLL_Tarea_704ILR.Asignar_704ILR(Tarea_704ILR(evR1_704ILR, empA_704ILR, "Armar mesas", H_704ILR(20), H_704ILR(21)), out int tarea1_704ILR), CoordinacionResult_704ILR.Success_704ILR);
+        Esperar_704ILR("tarea 20:30-21:30 (se pisa)", BLL_Tarea_704ILR.Asignar_704ILR(Tarea_704ILR(evR1_704ILR, empA_704ILR, "Servir entrada", H_704ILR(20, 30), H_704ILR(21, 30)), out _), CoordinacionResult_704ILR.TareaSuperpuesta_704ILR);
+        // La ultima tarea de la jornada (00:30-02:00) se carga ANTES que la que la precede
+        // (23:30-00:30): asi el orden de alta no coincide con el orden dentro del turno y la
+        // verificacion del orden, mas abajo, falla si la lista saliera por orden de alta o por
+        // la hora a secas.
+        Esperar_704ILR("tarea 00:30-02:00 (despues de la medianoche, hasta el fin del turno)", BLL_Tarea_704ILR.Asignar_704ILR(Tarea_704ILR(evR1_704ILR, empA_704ILR, "Desarmar", H_704ILR(0, 30), H_704ILR(2)), out int tarea3_704ILR), CoordinacionResult_704ILR.Success_704ILR);
+        Esperar_704ILR("tarea 23:30-00:30 (cruza la medianoche, pegada a la siguiente)", BLL_Tarea_704ILR.Asignar_704ILR(Tarea_704ILR(evR1_704ILR, empA_704ILR, "Servir el brindis", H_704ILR(23, 30), H_704ILR(0, 30)), out int tarea2_704ILR), CoordinacionResult_704ILR.Success_704ILR);
+        Esperar_704ILR("tarea 00:00-01:00 (se pisa con las dos que rodean la medianoche)", BLL_Tarea_704ILR.Asignar_704ILR(Tarea_704ILR(evR1_704ILR, empA_704ILR, "Retirar copas", H_704ILR(0), H_704ILR(1)), out _), CoordinacionResult_704ILR.TareaSuperpuesta_704ILR);
+        Esperar_704ILR("asientos de rechazo RN-12", Asientos_704ILR("Coordinacion", "Tarea rechazada") - asientosRn12_704ILR, 4);
+
+        var tareas_704ILR = BLL_Tarea_704ILR.GetByReserva_704ILR(evR1_704ILR);
+        Esperar_704ILR("tareas del evento", tareas_704ILR.Count, 3);
+        // Ordenadas como ocurren dentro del turno: 20:00, 23:30 y 00:30, aunque la de las
+        // 00:30 se haya cargado antes que la de las 23:30.
+        Esperar_704ILR("el orden de alta no es el orden dentro del turno", tarea3_704ILR < tarea2_704ILR, true);
+        Esperar_704ILR("orden dentro del turno", string.Join(",", tareas_704ILR.Select(t_704ILR => t_704ILR.Id_704ILR)), tarea1_704ILR + "," + tarea2_704ILR + "," + tarea3_704ILR);
+        Esperar_704ILR("prioridad guardada", tareas_704ILR[0].Prioridad_704ILR, EvenTech.BE.PrioridadTarea_704ILR.ALTA);
+
+        // CUN010: el empleado consulta sus tareas; otra cuenta no ve ninguna.
+        Esperar_704ILR("mis tareas sin sesion", BLL_Tarea_704ILR.GetMisTareas_704ILR(evR1_704ILR).Count, 0);
+        Esperar_704ILR("sesion del empleado A", SesionDelEmpleado_704ILR(), true);
+        Esperar_704ILR("mis tareas (empleado A)", BLL_Tarea_704ILR.GetMisTareas_704ILR(evR1_704ILR).Count, 3);
+        CerrarSesion_704ILR();
+
+        // B se suma al equipo: mientras no responde, el evento deja de estar listo y B no
+        // recibe tareas. Para que B responda, la cuenta de prueba pasa a representarlo.
+        Esperar_704ILR("asignar B a R1 (pendiente)", BLL_AsignacionPersonal_704ILR.Asignar_704ILR(evR1_704ILR, empB_704ILR, "Barra", H_704ILR(20), H_704ILR(2), out int asigB1b_704ILR, out _), CoordinacionResult_704ILR.Success_704ILR);
+        Esperar_704ILR("R1 deja de estar listo", EstadoCoord_704ILR(evR1_704ILR), EvenTech.BE.EstadoCoordinacion_704ILR.EN_COORDINACION);
+        Esperar_704ILR("tarea para quien todavia no confirmo (RN-12)", BLL_Tarea_704ILR.Asignar_704ILR(Tarea_704ILR(evR1_704ILR, empB_704ILR, "Atender la barra", H_704ILR(20), H_704ILR(21)), out _), CoordinacionResult_704ILR.ResponsableInvalido_704ILR);
+        Esperar_704ILR("la cuenta de prueba pasa a representar a B", VincularCuenta_704ILR(empA_704ILR, empB_704ILR), true);
+        Esperar_704ILR("sesion del empleado B", SesionDelEmpleado_704ILR(), true);
+        Esperar_704ILR("B confirma su turno de R1", BLL_AsignacionPersonal_704ILR.Confirmar_704ILR(asigB1b_704ILR, out _), CoordinacionResult_704ILR.Success_704ILR);
+        Esperar_704ILR("R1 listo con B confirmado", EstadoCoord_704ILR(evR1_704ILR), EvenTech.BE.EstadoCoordinacion_704ILR.LISTO);
+        Esperar_704ILR("tarea para B", BLL_Tarea_704ILR.Asignar_704ILR(Tarea_704ILR(evR1_704ILR, empB_704ILR, "Atender la barra", H_704ILR(20), H_704ILR(21)), out int tareaB_704ILR), CoordinacionResult_704ILR.Success_704ILR);
+        // Cada empleado ve solo sus tareas.
+        Esperar_704ILR("mis tareas (empleado B)", BLL_Tarea_704ILR.GetMisTareas_704ILR(evR1_704ILR).Count, 1);
+        CerrarSesion_704ILR();
+        // Quien tiene tareas no se quita del equipo, aunque no tenga actividades a cargo.
+        Esperar_704ILR("quitar a B, que tiene una tarea", BLL_AsignacionPersonal_704ILR.Quitar_704ILR(asigB1b_704ILR), CoordinacionResult_704ILR.TieneCarga_704ILR);
+        Esperar_704ILR("quitar la tarea de B", BLL_Tarea_704ILR.Quitar_704ILR(tareaB_704ILR), CoordinacionResult_704ILR.Success_704ILR);
+        Esperar_704ILR("quitar a B sin carga", BLL_AsignacionPersonal_704ILR.Quitar_704ILR(asigB1b_704ILR), CoordinacionResult_704ILR.Success_704ILR);
+        Esperar_704ILR("la cuenta de prueba vuelve a representar a A", VincularCuenta_704ILR(empB_704ILR, empA_704ILR), true);
+
+        // El cronograma con tareas no se elimina, y el rechazo queda asentado (la pantalla
+        // ofrece la operacion y el plan la impide); una tarea se quita una sola vez.
+        int asientosCroConTareas_704ILR = Asientos_704ILR("Coordinacion", "Cronograma rechazado");
+        Esperar_704ILR("eliminar un cronograma con tareas", BLL_Cronograma_704ILR.Eliminar_704ILR(evR1_704ILR), CoordinacionResult_704ILR.CronogramaConTareas_704ILR);
+        Esperar_704ILR("asiento del rechazo de la eliminacion", Asientos_704ILR("Coordinacion", "Cronograma rechazado") - asientosCroConTareas_704ILR, 1);
+        Esperar_704ILR("el cronograma sigue estando", BLL_Cronograma_704ILR.GetByReserva_704ILR(evR1_704ILR) != null, true);
+        Esperar_704ILR("quitar una tarea", BLL_Tarea_704ILR.Quitar_704ILR(tarea3_704ILR), CoordinacionResult_704ILR.Success_704ILR);
+        Esperar_704ILR("quitar la misma tarea otra vez", BLL_Tarea_704ILR.Quitar_704ILR(tarea3_704ILR), CoordinacionResult_704ILR.TareaInvalida_704ILR);
+        Esperar_704ILR("tareas que quedan", BLL_Tarea_704ILR.GetByReserva_704ILR(evR1_704ILR).Count, 2);
+        // Las tareas no cambian el estado de coordinacion.
+        Esperar_704ILR("estado de coordinacion de R1", EstadoCoord_704ILR(evR1_704ILR), EvenTech.BE.EstadoCoordinacion_704ILR.LISTO);
+        Esperar_704ILR("asientos de asignacion de tarea (tres de A y una de B)", Asientos_704ILR("Coordinacion", "Asignacion de tarea") - asientosAltaTarea_704ILR, 4);
+        Esperar_704ILR("asientos de baja de tarea", Asientos_704ILR("Coordinacion", "Baja de tarea") - asientosBajaTarea_704ILR, 2);
+
+        // La franja que la pantalla propone para la proxima tarea es la primera hora libre
+        // del turno (BLL_Tarea_704ILR.PrimeraFranjaLibre_704ILR): proponer siempre el
+        // inicio del turno ofrecia una franja que la asignacion rechazaba. A tiene el turno
+        // de 20:00 a 02:00 con tareas de 20:00 a 21:00 y de 23:30 a 00:30; cada franja
+        // propuesta se asigna, hasta completar el turno.
+        string Franja_704ILR(TimeSpan desde_704ILR, TimeSpan hasta_704ILR) => desde_704ILR.ToString(@"hh\:mm") + "-" + hasta_704ILR.ToString(@"hh\:mm");
+        string Propuesta_704ILR(out TimeSpan desde_704ILR, out TimeSpan hasta_704ILR)
+        {
+            var turno_704ILR = BLL_AsignacionPersonal_704ILR.GetByReserva_704ILR(evR1_704ILR).First(a_704ILR => a_704ILR.EmpleadoId_704ILR == empA_704ILR);
+            BLL_Tarea_704ILR.PrimeraFranjaLibre_704ILR(turno_704ILR, BLL_Tarea_704ILR.GetByReserva_704ILR(evR1_704ILR), out desde_704ILR, out hasta_704ILR);
+            return Franja_704ILR(desde_704ILR, hasta_704ILR);
+        }
+        var propuestas_704ILR = new List<int>();
+        foreach (string esperada_704ILR in new[] { "21:00-22:00", "22:00-23:00", "23:00-23:30", "00:30-01:30", "01:30-02:00" })
+        {
+            Esperar_704ILR("franja propuesta para la proxima tarea de A", Propuesta_704ILR(out TimeSpan pDesde_704ILR, out TimeSpan pHasta_704ILR), esperada_704ILR);
+            Esperar_704ILR("la franja propuesta " + esperada_704ILR + " se asigna", BLL_Tarea_704ILR.Asignar_704ILR(Tarea_704ILR(evR1_704ILR, empA_704ILR, "Tarea en la franja propuesta", pDesde_704ILR, pHasta_704ILR), out int tareaPropuesta_704ILR), CoordinacionResult_704ILR.Success_704ILR);
+            propuestas_704ILR.Add(tareaPropuesta_704ILR);
+        }
+        // Con el turno completo se propone su primera hora y la asignacion dice por que no.
+        Esperar_704ILR("franja propuesta con el turno completo", Propuesta_704ILR(out TimeSpan llenoDesde_704ILR, out TimeSpan llenoHasta_704ILR), "20:00-21:00");
+        Esperar_704ILR("asignar con el turno completo", BLL_Tarea_704ILR.Asignar_704ILR(Tarea_704ILR(evR1_704ILR, empA_704ILR, "Sin lugar", llenoDesde_704ILR, llenoHasta_704ILR), out _), CoordinacionResult_704ILR.TareaSuperpuesta_704ILR);
+        foreach (int tareaPropuesta_704ILR in propuestas_704ILR)
+            Esperar_704ILR("quitar la tarea #" + tareaPropuesta_704ILR + " de la franja propuesta", BLL_Tarea_704ILR.Quitar_704ILR(tareaPropuesta_704ILR), CoordinacionResult_704ILR.Success_704ILR);
+        Esperar_704ILR("tareas del evento tras probar las franjas propuestas", BLL_Tarea_704ILR.GetByReserva_704ILR(evR1_704ILR).Count, 2);
+
+        // Sin tocar la base: turno sin tareas, turno mas corto que una hora, tareas de otro
+        // empleado y un turno que empieza despues de la medianoche.
+        EvenTech.BE.BE_AsignacionPersonal_704ILR TurnoDe_704ILR(int empleado_704ILR, TimeSpan desde_704ILR, TimeSpan hasta_704ILR) =>
+            new EvenTech.BE.BE_AsignacionPersonal_704ILR { ReservaId_704ILR = evR1_704ILR, EmpleadoId_704ILR = empleado_704ILR, HoraInicio_704ILR = desde_704ILR, HoraFin_704ILR = hasta_704ILR };
+        string PropuestaDe_704ILR(EvenTech.BE.BE_AsignacionPersonal_704ILR turno_704ILR, params EvenTech.BE.BE_Tarea_704ILR[] tareasDadas_704ILR)
+        {
+            BLL_Tarea_704ILR.PrimeraFranjaLibre_704ILR(turno_704ILR, tareasDadas_704ILR, out TimeSpan desde_704ILR, out TimeSpan hasta_704ILR);
+            return Franja_704ILR(desde_704ILR, hasta_704ILR);
+        }
+        Esperar_704ILR("propuesta sin tareas", PropuestaDe_704ILR(TurnoDe_704ILR(empA_704ILR, H_704ILR(20), H_704ILR(2))), "20:00-21:00");
+        Esperar_704ILR("propuesta sin lista de tareas", PropuestaSinLista_704ILR(), "20:00-21:00");
+        Esperar_704ILR("propuesta en un turno de 40 minutos", PropuestaDe_704ILR(TurnoDe_704ILR(empA_704ILR, H_704ILR(12), H_704ILR(12, 40))), "12:00-12:40");
+        Esperar_704ILR("las tareas de otro empleado no cuentan", PropuestaDe_704ILR(TurnoDe_704ILR(empA_704ILR, H_704ILR(20), H_704ILR(2)),
+            Tarea_704ILR(evR1_704ILR, empB_704ILR, "De otro", H_704ILR(20), H_704ILR(22))), "20:00-21:00");
+        Esperar_704ILR("propuesta que cruza la medianoche", PropuestaDe_704ILR(TurnoDe_704ILR(empA_704ILR, H_704ILR(22), H_704ILR(4)),
+            Tarea_704ILR(evR1_704ILR, empA_704ILR, "Primera", H_704ILR(22), H_704ILR(23, 30))), "23:30-00:30");
+        Esperar_704ILR("hueco antes de una tarea que no arranca con el turno", PropuestaDe_704ILR(TurnoDe_704ILR(empA_704ILR, H_704ILR(20), H_704ILR(2)),
+            Tarea_704ILR(evR1_704ILR, empA_704ILR, "Mas tarde", H_704ILR(20, 20), H_704ILR(21))), "20:00-20:20");
+
+        string PropuestaSinLista_704ILR()
+        {
+            BLL_Tarea_704ILR.PrimeraFranjaLibre_704ILR(TurnoDe_704ILR(empA_704ILR, H_704ILR(20), H_704ILR(2)), null, out TimeSpan desde_704ILR, out TimeSpan hasta_704ILR);
+            return Franja_704ILR(desde_704ILR, hasta_704ILR);
+        }
+    }
+}
+catch (Exception ex47_704ILR) { Excepcion_704ILR("[47]", ex47_704ILR); CerrarSesion_704ILR(); }
+
+// [48] CUN011 Supervisar la ejecucion. RN-13: la ejecucion empieza con el evento
+// LISTO; desde ahi el plan y la reserva quedan congelados, lo que se sale del plan
+// se registra como incidencia y el evento se cierra con todas resueltas.
+Caso_704ILR("[48] CUN011 Ejecucion, incidencias y cierre (RN-13):");
+try
+{
+    if (evR1_704ILR == 0 || evR2_704ILR == 0 || EstadoCoord_704ILR(evR1_704ILR) != EvenTech.BE.EstadoCoordinacion_704ILR.LISTO)
+    {
+        Omitir_704ILR("[48]", "depende del evento listo de [46]");
+    }
+    else
+    {
+        EvenTech.BE.BE_Incidencia_704ILR Incidencia_704ILR(string descripcion_704ILR, int? reporta_704ILR) => new EvenTech.BE.BE_Incidencia_704ILR
+        { ReservaId_704ILR = evR1_704ILR, Tipo_704ILR = EvenTech.BE.TipoIncidencia_704ILR.EQUIPAMIENTO, Descripcion_704ILR = descripcion_704ILR, EmpleadoReportaId_704ILR = reporta_704ILR };
+
+        int asientosNoListo_704ILR = Asientos_704ILR("Coordinacion", "Ejecucion rechazada");
+        int asientosCierreRech_704ILR = Asientos_704ILR("Coordinacion", "Cierre rechazado");
+        int asientosRegla_704ILR = Asientos_704ILR("Coordinacion", "Coordinacion rechazada");
+        int asientosInicio_704ILR = Asientos_704ILR("Coordinacion", "Inicio de ejecucion");
+        int asientosCierre_704ILR = Asientos_704ILR("Coordinacion", "Cierre de evento");
+        int asientosResol_704ILR = Asientos_704ILR("Coordinacion", "Resolucion de incidencia");
+        int asientosModRech_704ILR = Asientos_704ILR("Reservas", "Modificacion rechazada");
+        int asientosCanRech_704ILR = Asientos_704ILR("Reservas", "Cancelacion rechazada");
+        int asientosResRech_704ILR = Asientos_704ILR("Reservas", "Restauracion rechazada");
+        Esperar_704ILR("iniciar un evento que no esta listo", BLL_Coordinacion_704ILR.IniciarEjecucion_704ILR(evR2_704ILR, true), CoordinacionResult_704ILR.NoListo_704ILR);
+        Esperar_704ILR("incidencia antes de iniciar", BLL_Incidencia_704ILR.Registrar_704ILR(Incidencia_704ILR("Falla de sonido", null), out _), CoordinacionResult_704ILR.NoEnEjecucion_704ILR);
+        Esperar_704ILR("cerrar antes de iniciar", BLL_Coordinacion_704ILR.CerrarEvento_704ILR(evR1_704ILR), CoordinacionResult_704ILR.NoEnEjecucion_704ILR);
+
+        // El evento esta agendado a anios vista: iniciar hoy exige confirmarlo.
+        Esperar_704ILR("iniciar fuera de fecha sin confirmar", BLL_Coordinacion_704ILR.IniciarEjecucion_704ILR(evR1_704ILR, false), CoordinacionResult_704ILR.FueraDeFecha_704ILR);
+        Esperar_704ILR("el evento sigue listo", EstadoCoord_704ILR(evR1_704ILR), EvenTech.BE.EstadoCoordinacion_704ILR.LISTO);
+        Esperar_704ILR("iniciar confirmando", BLL_Coordinacion_704ILR.IniciarEjecucion_704ILR(evR1_704ILR, true), CoordinacionResult_704ILR.Success_704ILR);
+        Esperar_704ILR("estado de coordinacion", EstadoCoord_704ILR(evR1_704ILR), EvenTech.BE.EstadoCoordinacion_704ILR.EN_EJECUCION);
+        // Iniciar fuera de la fecha del evento es un desvio: se asienta como advertencia
+        // (el inicio en fecha, como informacion: caso [51]).
+        Esperar_704ILR("iniciar fuera de fecha se asienta como advertencia",
+            Bitacora_704ILR("Coordinacion", "Inicio de ejecucion").FirstOrDefault()?.Criticidad_704ILR,
+            (EvenTech.BE.CriticidadBitacora_704ILR?)EvenTech.BE.CriticidadBitacora_704ILR.Advertencia);
+        Esperar_704ILR("iniciar dos veces", BLL_Coordinacion_704ILR.IniciarEjecucion_704ILR(evR1_704ILR, true), CoordinacionResult_704ILR.EventoEnEjecucion_704ILR);
+
+        // El plan queda congelado.
+        Esperar_704ILR("asignar personal con el evento en ejecucion",
+            BLL_AsignacionPersonal_704ILR.Asignar_704ILR(evR1_704ILR, empB_704ILR, "Barra", H_704ILR(20), H_704ILR(23), out _, out _), CoordinacionResult_704ILR.EventoEnEjecucion_704ILR);
+        Esperar_704ILR("quitar personal con el evento en ejecucion", BLL_AsignacionPersonal_704ILR.Quitar_704ILR(asigA1_704ILR), CoordinacionResult_704ILR.EventoEnEjecucion_704ILR);
+        Esperar_704ILR("modificar el cronograma con el evento en ejecucion",
+            BLL_Cronograma_704ILR.Guardar_704ILR(evR1_704ILR, new List<EvenTech.BE.BE_CronogramaActividad_704ILR>
+            { new EvenTech.BE.BE_CronogramaActividad_704ILR { Hora_704ILR = H_704ILR(22), Descripcion_704ILR = "Baile", ResponsableId_704ILR = empA_704ILR, DuracionMinutos_704ILR = 60 } }),
+            CoordinacionResult_704ILR.EventoEnEjecucion_704ILR);
+        Esperar_704ILR("asignar una tarea con el evento en ejecucion",
+            BLL_Tarea_704ILR.Asignar_704ILR(new EvenTech.BE.BE_Tarea_704ILR { ReservaId_704ILR = evR1_704ILR, EmpleadoId_704ILR = empA_704ILR, Descripcion_704ILR = "Extra", HoraInicio_704ILR = H_704ILR(22), HoraFin_704ILR = H_704ILR(23) }, out _),
+            CoordinacionResult_704ILR.EventoEnEjecucion_704ILR);
+        Esperar_704ILR("sesion del empleado A", SesionDelEmpleado_704ILR(), true);
+        Esperar_704ILR("responder un turno con el evento en ejecucion", BLL_AsignacionPersonal_704ILR.Confirmar_704ILR(asigA1_704ILR, out _), CoordinacionResult_704ILR.EventoEnEjecucion_704ILR);
+        CerrarSesion_704ILR();
+
+        // La reserva tambien: no se modifica ni se cancela; el saldo se sigue cobrando.
+        var congelada_704ILR = BLL_Reserva_704ILR.GetById_704ILR(evR1_704ILR);
+        congelada_704ILR.CantidadInvitados_704ILR = 25;
+        Esperar_704ILR("modificar la reserva de un evento en ejecucion", BLL_Reserva_704ILR.Actualizar_704ILR(congelada_704ILR), ReservaResult_704ILR.EventoIniciado_704ILR);
+        Esperar_704ILR("cancelar la reserva de un evento en ejecucion", BLL_Reserva_704ILR.Cancelar_704ILR(evR1_704ILR, out _, out _), ReservaResult_704ILR.EventoIniciado_704ILR);
+        var versionPrevia_704ILR = CaretakerReserva_704ILR.GetVersiones_704ILR(evR1_704ILR).FirstOrDefault();
+        Esperar_704ILR("R1 tiene una version anterior", versionPrevia_704ILR != null, true);
+        if (versionPrevia_704ILR != null)
+            Esperar_704ILR("restaurar una version con el evento en ejecucion", BLL_Reserva_704ILR.RestaurarVersion_704ILR(evR1_704ILR, versionPrevia_704ILR.Id_704ILR), ReservaResult_704ILR.EventoIniciado_704ILR);
+        Esperar_704ILR("la reserva sigue confirmada", BLL_Reserva_704ILR.GetById_704ILR(evR1_704ILR).Estado_704ILR, EvenTech.BE.EstadoReserva_704ILR.CONFIRMADA);
+        Esperar_704ILR("cobrar saldo con el evento en ejecucion", Adelanto_704ILR(evR1_704ILR, 100m) > 0, true);
+        Esperar_704ILR("asientos de la reserva congelada (modificacion, cancelacion y restauracion)",
+            (Asientos_704ILR("Reservas", "Modificacion rechazada") - asientosModRech_704ILR) + "," +
+            (Asientos_704ILR("Reservas", "Cancelacion rechazada") - asientosCanRech_704ILR) + "," +
+            (Asientos_704ILR("Reservas", "Restauracion rechazada") - asientosResRech_704ILR), "1,1," + (versionPrevia_704ILR != null ? 1 : 0));
+        Esperar_704ILR("asiento del inicio de la ejecucion", Asientos_704ILR("Coordinacion", "Inicio de ejecucion") - asientosInicio_704ILR, 1);
+
+        // Incidencias.
+        int asientosInc_704ILR = Asientos_704ILR("Coordinacion", "Registro de incidencia");
+        Esperar_704ILR("incidencia sin descripcion", BLL_Incidencia_704ILR.Registrar_704ILR(Incidencia_704ILR("  ", null), out _), CoordinacionResult_704ILR.DescripcionInvalida_704ILR);
+        Esperar_704ILR("incidencia con una descripcion que no entra en su columna", BLL_Incidencia_704ILR.Registrar_704ILR(Incidencia_704ILR(new string('i', 501), null), out _), CoordinacionResult_704ILR.DescripcionInvalida_704ILR);
+        Esperar_704ILR("incidencia informada por quien no es del equipo", BLL_Incidencia_704ILR.Registrar_704ILR(Incidencia_704ILR("Falla de sonido", empB_704ILR), out _), CoordinacionResult_704ILR.EmpleadoInvalido_704ILR);
+        Esperar_704ILR("incidencia informada por A", BLL_Incidencia_704ILR.Registrar_704ILR(Incidencia_704ILR("Falla de sonido en la pista", empA_704ILR), out int inc1_704ILR), CoordinacionResult_704ILR.Success_704ILR);
+        Esperar_704ILR("incidencia observada por el supervisor", BLL_Incidencia_704ILR.Registrar_704ILR(Incidencia_704ILR("Demora en el servicio de la cena", null), out int inc2_704ILR), CoordinacionResult_704ILR.Success_704ILR);
+        Esperar_704ILR("asientos de incidencia", Asientos_704ILR("Coordinacion", "Registro de incidencia") - asientosInc_704ILR, 2);
+        var incidencias_704ILR = BLL_Incidencia_704ILR.GetByReserva_704ILR(evR1_704ILR);
+        Esperar_704ILR("incidencias del evento", incidencias_704ILR.Count, 2);
+        Esperar_704ILR("nacen abiertas", incidencias_704ILR.All(i_704ILR => i_704ILR.Estado_704ILR == EvenTech.BE.EstadoIncidencia_704ILR.ABIERTA), true);
+        Esperar_704ILR("tipo guardado", incidencias_704ILR[0].Tipo_704ILR, EvenTech.BE.TipoIncidencia_704ILR.EQUIPAMIENTO);
+
+        // Cierre: exige todas las incidencias resueltas.
+        Esperar_704ILR("cerrar con incidencias abiertas", BLL_Coordinacion_704ILR.CerrarEvento_704ILR(evR1_704ILR), CoordinacionResult_704ILR.IncidenciasAbiertas_704ILR);
+        Esperar_704ILR("resolver sin decir como", BLL_Incidencia_704ILR.Resolver_704ILR(inc1_704ILR, " "), CoordinacionResult_704ILR.ResolucionObligatoria_704ILR);
+        Esperar_704ILR("resolver una incidencia inexistente", BLL_Incidencia_704ILR.Resolver_704ILR(int.MaxValue, "x"), CoordinacionResult_704ILR.IncidenciaInvalida_704ILR);
+        Esperar_704ILR("resolver la primera", BLL_Incidencia_704ILR.Resolver_704ILR(inc1_704ILR, "Se reemplazo el cable"), CoordinacionResult_704ILR.Success_704ILR);
+        Esperar_704ILR("resolver la primera otra vez", BLL_Incidencia_704ILR.Resolver_704ILR(inc1_704ILR, "Otra vez"), CoordinacionResult_704ILR.IncidenciaYaResuelta_704ILR);
+        Esperar_704ILR("cerrar con una abierta", BLL_Coordinacion_704ILR.CerrarEvento_704ILR(evR1_704ILR), CoordinacionResult_704ILR.IncidenciasAbiertas_704ILR);
+        Esperar_704ILR("resolver la segunda", BLL_Incidencia_704ILR.Resolver_704ILR(inc2_704ILR, "Se sumo un mozo al servicio"), CoordinacionResult_704ILR.Success_704ILR);
+        Esperar_704ILR("resolucion guardada", BLL_Incidencia_704ILR.GetByReserva_704ILR(evR1_704ILR).First(i_704ILR => i_704ILR.Id_704ILR == inc1_704ILR).Resolucion_704ILR, "Se reemplazo el cable");
+        Esperar_704ILR("cerrar el evento", BLL_Coordinacion_704ILR.CerrarEvento_704ILR(evR1_704ILR), CoordinacionResult_704ILR.Success_704ILR);
+        Esperar_704ILR("estado de coordinacion", EstadoCoord_704ILR(evR1_704ILR), EvenTech.BE.EstadoCoordinacion_704ILR.CERRADO);
+
+        // CERRADO es terminal.
+        Esperar_704ILR("incidencia en un evento cerrado", BLL_Incidencia_704ILR.Registrar_704ILR(Incidencia_704ILR("Tarde", null), out _), CoordinacionResult_704ILR.EventoCerrado_704ILR);
+        Esperar_704ILR("iniciar un evento cerrado", BLL_Coordinacion_704ILR.IniciarEjecucion_704ILR(evR1_704ILR, true), CoordinacionResult_704ILR.EventoCerrado_704ILR);
+        Esperar_704ILR("cerrar dos veces", BLL_Coordinacion_704ILR.CerrarEvento_704ILR(evR1_704ILR), CoordinacionResult_704ILR.EventoCerrado_704ILR);
+        Esperar_704ILR("cancelar la reserva de un evento cerrado", BLL_Reserva_704ILR.Cancelar_704ILR(evR1_704ILR, out _, out _), ReservaResult_704ILR.EventoIniciado_704ILR);
+        var cerrada_704ILR = BLL_Reserva_704ILR.GetById_704ILR(evR1_704ILR);
+        cerrada_704ILR.CantidadInvitados_704ILR = 26;
+        Esperar_704ILR("modificar la reserva de un evento cerrado", BLL_Reserva_704ILR.Actualizar_704ILR(cerrada_704ILR), ReservaResult_704ILR.EventoIniciado_704ILR);
+        // El plan de un evento cerrado tampoco se toca.
+        Esperar_704ILR("asignar personal a un evento cerrado",
+            BLL_AsignacionPersonal_704ILR.Asignar_704ILR(evR1_704ILR, empB_704ILR, "Barra", H_704ILR(20), H_704ILR(23), out _, out _), CoordinacionResult_704ILR.EventoCerrado_704ILR);
+        Esperar_704ILR("quitar personal de un evento cerrado", BLL_AsignacionPersonal_704ILR.Quitar_704ILR(asigA1_704ILR), CoordinacionResult_704ILR.EventoCerrado_704ILR);
+        Esperar_704ILR("modificar el cronograma de un evento cerrado",
+            BLL_Cronograma_704ILR.Guardar_704ILR(evR1_704ILR, new List<EvenTech.BE.BE_CronogramaActividad_704ILR>
+            { new EvenTech.BE.BE_CronogramaActividad_704ILR { Hora_704ILR = H_704ILR(22), Descripcion_704ILR = "Baile", ResponsableId_704ILR = empA_704ILR, DuracionMinutos_704ILR = 60 } }),
+            CoordinacionResult_704ILR.EventoCerrado_704ILR);
+        Esperar_704ILR("eliminar el cronograma de un evento cerrado", BLL_Cronograma_704ILR.Eliminar_704ILR(evR1_704ILR), CoordinacionResult_704ILR.EventoCerrado_704ILR);
+        Esperar_704ILR("asignar una tarea en un evento cerrado",
+            BLL_Tarea_704ILR.Asignar_704ILR(new EvenTech.BE.BE_Tarea_704ILR { ReservaId_704ILR = evR1_704ILR, EmpleadoId_704ILR = empA_704ILR, Descripcion_704ILR = "Extra", HoraInicio_704ILR = H_704ILR(22), HoraFin_704ILR = H_704ILR(23) }, out _),
+            CoordinacionResult_704ILR.EventoCerrado_704ILR);
+        Esperar_704ILR("el plan del evento cerrado quedo como estaba (asignaciones, actividades y tareas)",
+            BLL_AsignacionPersonal_704ILR.GetByReserva_704ILR(evR1_704ILR).Count + "," + BLL_Cronograma_704ILR.GetByReserva_704ILR(evR1_704ILR)?.Actividades_704ILR.Count + "," + BLL_Tarea_704ILR.GetByReserva_704ILR(evR1_704ILR).Count, "1,2,2");
+
+        Esperar_704ILR("asientos de rechazo de ejecucion (el evento que no estaba listo)", Asientos_704ILR("Coordinacion", "Ejecucion rechazada") - asientosNoListo_704ILR, 1);
+        Esperar_704ILR("asientos de cierre rechazado (dos intentos con incidencias abiertas)", Asientos_704ILR("Coordinacion", "Cierre rechazado") - asientosCierreRech_704ILR, 2);
+        Esperar_704ILR("asientos de resolucion de incidencia", Asientos_704ILR("Coordinacion", "Resolucion de incidencia") - asientosResol_704ILR, 2);
+        Esperar_704ILR("asiento del cierre", Asientos_704ILR("Coordinacion", "Cierre de evento") - asientosCierre_704ILR, 1);
+        // RN-13 asentada en cada rechazo: 2 antes de iniciar (incidencia y cierre), 6 con
+        // el evento en ejecucion (iniciar otra vez, asignar, quitar, cronograma, tarea y
+        // responder) y 8 con el evento cerrado (incidencia, iniciar, cerrar, asignar,
+        // quitar, cronograma, eliminar cronograma y tarea).
+        Esperar_704ILR("asientos de las operaciones rechazadas por RN-13", Asientos_704ILR("Coordinacion", "Coordinacion rechazada") - asientosRegla_704ILR, 16);
+    }
+}
+catch (Exception ex48_704ILR) { Excepcion_704ILR("[48]", ex48_704ILR); }
+
+// [49] Reprogramacion. Las confirmaciones del personal valen para una fecha y
+// para una reserva firme: si la reserva cambia de dia o deja de estar confirmada,
+// vuelven a PENDIENTE; y al confirmar de nuevo se vuelve a controlar la RN-09.
+Caso_704ILR("[49] Reprogramacion del evento y vigencia de las confirmaciones:");
+try
+{
+    var salRep_704ILR = BLL_Salon_704ILR.GetAll_704ILR();
+    if (evR3_704ILR == 0 || asigA3_704ILR == 0 || salRep_704ILR.Count < 3 || BLL_Cliente_704ILR.GetAll_704ILR().Count == 0)
+    {
+        Omitir_704ILR("[49]", "depende de los eventos de [44] y hacen falta tres salones seed; corre db/schema.sql");
+    }
+    else
+    {
+        int cli_704ILR = BLL_Cliente_704ILR.GetAll_704ILR()[0].Id_704ILR;
+        var unaActividad_704ILR = new List<EvenTech.BE.BE_CronogramaActividad_704ILR>
+        { new EvenTech.BE.BE_CronogramaActividad_704ILR { Hora_704ILR = H_704ILR(2), Descripcion_704ILR = "Desarme del salon", ResponsableId_704ILR = empA_704ILR, DuracionMinutos_704ILR = 120 } };
+
+        // R3 queda LISTO: A confirma y se genera el cronograma.
+        Esperar_704ILR("sesion del empleado A", SesionDelEmpleado_704ILR(), true);
+        Esperar_704ILR("A confirma su turno de R3", BLL_AsignacionPersonal_704ILR.Confirmar_704ILR(asigA3_704ILR, out _), CoordinacionResult_704ILR.Success_704ILR);
+        CerrarSesion_704ILR();
+        Esperar_704ILR("cronograma de R3", BLL_Cronograma_704ILR.Guardar_704ILR(evR3_704ILR, unaActividad_704ILR), CoordinacionResult_704ILR.Success_704ILR);
+        Esperar_704ILR("R3 listo", EstadoCoord_704ILR(evR3_704ILR), EvenTech.BE.EstadoCoordinacion_704ILR.LISTO);
+        Esperar_704ILR("tarea de A en R3 (02:00-03:00)",
+            BLL_Tarea_704ILR.Asignar_704ILR(new EvenTech.BE.BE_Tarea_704ILR { ReservaId_704ILR = evR3_704ILR, EmpleadoId_704ILR = empA_704ILR, Descripcion_704ILR = "Desarmar la pista", HoraInicio_704ILR = H_704ILR(2), HoraFin_704ILR = H_704ILR(3) }, out _),
+            CoordinacionResult_704ILR.Success_704ILR);
+
+        // Un cambio que no toca la fecha conserva las confirmaciones.
+        int asientosReinicio_704ILR = Asientos_704ILR("Coordinacion", "Confirmaciones reiniciadas");
+        var mismoDia_704ILR = BLL_Reserva_704ILR.GetById_704ILR(evR3_704ILR);
+        mismoDia_704ILR.CantidadInvitados_704ILR = 30;
+        Esperar_704ILR("cambiar los invitados de R3", BLL_Reserva_704ILR.Actualizar_704ILR(mismoDia_704ILR), ReservaResult_704ILR.Success_704ILR);
+        Esperar_704ILR("el turno sigue confirmado", Asignacion_704ILR(evR3_704ILR, empA_704ILR)?.Estado_704ILR, (EvenTech.BE.EstadoAsignacion_704ILR?)EvenTech.BE.EstadoAsignacion_704ILR.CONFIRMADA);
+        Esperar_704ILR("R3 sigue listo", EstadoCoord_704ILR(evR3_704ILR), EvenTech.BE.EstadoCoordinacion_704ILR.LISTO);
+
+        // Cambiar el dia del evento reinicia las confirmaciones.
+        var otroDia_704ILR = BLL_Reserva_704ILR.GetById_704ILR(evR3_704ILR);
+        otroDia_704ILR.FechaEvento_704ILR = otroDia_704ILR.FechaEvento_704ILR.AddDays(9);
+        Esperar_704ILR("reprogramar R3", BLL_Reserva_704ILR.Actualizar_704ILR(otroDia_704ILR), ReservaResult_704ILR.Success_704ILR);
+        Esperar_704ILR("el turno vuelve a pendiente", Asignacion_704ILR(evR3_704ILR, empA_704ILR)?.Estado_704ILR, (EvenTech.BE.EstadoAsignacion_704ILR?)EvenTech.BE.EstadoAsignacion_704ILR.PENDIENTE);
+        Esperar_704ILR("sin fecha de respuesta", Asignacion_704ILR(evR3_704ILR, empA_704ILR)?.FechaConfirmacion_704ILR == null, true);
+        Esperar_704ILR("R3 vuelve a coordinacion", EstadoCoord_704ILR(evR3_704ILR), EvenTech.BE.EstadoCoordinacion_704ILR.EN_COORDINACION);
+        Esperar_704ILR("el cronograma se conserva", BLL_Cronograma_704ILR.GetByReserva_704ILR(evR3_704ILR)?.Actividades_704ILR.Count, (int?)1);
+        Esperar_704ILR("asiento de confirmaciones reiniciadas", Asientos_704ILR("Coordinacion", "Confirmaciones reiniciadas") - asientosReinicio_704ILR, 1);
+        Esperar_704ILR("iniciar un evento que dejo de estar listo", BLL_Coordinacion_704ILR.IniciarEjecucion_704ILR(evR3_704ILR, true), CoordinacionResult_704ILR.NoListo_704ILR);
+
+        // A rechaza el turno reprogramado. Volver a ofrecerselo con otra franja no puede
+        // dejar afuera la tarea que ya tiene en el evento (RN-12).
+        Esperar_704ILR("sesion del empleado A", SesionDelEmpleado_704ILR(), true);
+        Esperar_704ILR("A rechaza el turno reprogramado de R3", BLL_AsignacionPersonal_704ILR.Rechazar_704ILR(asigA3_704ILR, "Ese dia no puedo"), CoordinacionResult_704ILR.Success_704ILR);
+        CerrarSesion_704ILR();
+        int asientosReoferta_704ILR = Asientos_704ILR("Coordinacion", "Asignacion rechazada");
+        Esperar_704ILR("volver a ofrecer el turno con una franja que deja afuera su tarea",
+            BLL_AsignacionPersonal_704ILR.Asignar_704ILR(evR3_704ILR, empA_704ILR, "Desarme", H_704ILR(4), H_704ILR(6), out _, out _), CoordinacionResult_704ILR.TieneCarga_704ILR);
+        Esperar_704ILR("el turno sigue rechazado", Asignacion_704ILR(evR3_704ILR, empA_704ILR)?.Estado_704ILR, (EvenTech.BE.EstadoAsignacion_704ILR?)EvenTech.BE.EstadoAsignacion_704ILR.RECHAZADA);
+        Esperar_704ILR("asiento del rechazo de la reoferta (RN-12)", Asientos_704ILR("Coordinacion", "Asignacion rechazada") - asientosReoferta_704ILR, 1);
+        Esperar_704ILR("el asiento nombra la regla",
+            Bitacora_704ILR("Coordinacion", "Asignacion rechazada").FirstOrDefault()?.Detalle_704ILR.Contains("RN-12"), (bool?)true);
+        Esperar_704ILR("volver a ofrecerlo con la franja que contiene la tarea",
+            BLL_AsignacionPersonal_704ILR.Asignar_704ILR(evR3_704ILR, empA_704ILR, "Desarme", H_704ILR(2), H_704ILR(6), out _, out _), CoordinacionResult_704ILR.Success_704ILR);
+
+        // RN-09 al confirmar. R4 nace otro dia, con A confirmado de 12:00 a 16:00, y se
+        // reprograma al dia de R2, donde A tiene pendiente un turno de 11:00 a 17:00: los
+        // dos turnos quedan pendientes y pisados, y solo uno se puede confirmar.
+        int evR4_704ILR = EventoConfirmado_704ILR(cli_704ILR, salRep_704ILR[2].Id_704ILR, 8004);
+        Esperar_704ILR("evento R4 confirmado", evR4_704ILR > 0, true);
+        Esperar_704ILR("asignar A a R4 12:00-16:00", BLL_AsignacionPersonal_704ILR.Asignar_704ILR(evR4_704ILR, empA_704ILR, "Armado", H_704ILR(12), H_704ILR(16), out int asigA4_704ILR, out _), CoordinacionResult_704ILR.Success_704ILR);
+        Esperar_704ILR("sesion del empleado A", SesionDelEmpleado_704ILR(), true);
+        Esperar_704ILR("A confirma su turno de R4", BLL_AsignacionPersonal_704ILR.Confirmar_704ILR(asigA4_704ILR, out _), CoordinacionResult_704ILR.Success_704ILR);
+        CerrarSesion_704ILR();
+
+        var alDiaDeR2_704ILR = BLL_Reserva_704ILR.GetById_704ILR(evR4_704ILR);
+        alDiaDeR2_704ILR.FechaEvento_704ILR = BLL_Reserva_704ILR.GetById_704ILR(evR2_704ILR).FechaEvento_704ILR;
+        Esperar_704ILR("reprogramar R4 al dia de R2", BLL_Reserva_704ILR.Actualizar_704ILR(alDiaDeR2_704ILR), ReservaResult_704ILR.Success_704ILR);
+        Esperar_704ILR("el turno de R4 vuelve a pendiente", Asignacion_704ILR(evR4_704ILR, empA_704ILR)?.Estado_704ILR, (EvenTech.BE.EstadoAsignacion_704ILR?)EvenTech.BE.EstadoAsignacion_704ILR.PENDIENTE);
+
+        Esperar_704ILR("sesion del empleado A", SesionDelEmpleado_704ILR(), true);
+        Esperar_704ILR("A confirma su turno de R2 (11:00-17:00)", BLL_AsignacionPersonal_704ILR.Confirmar_704ILR(asigA2_704ILR, out _), CoordinacionResult_704ILR.Success_704ILR);
+        Esperar_704ILR("A confirma su turno de R4 (se pisa con el de R2)",
+            BLL_AsignacionPersonal_704ILR.Confirmar_704ILR(asigA4_704ILR, out var conflictoConf_704ILR), CoordinacionResult_704ILR.Superposicion_704ILR);
+        Esperar_704ILR("turno con el que se pisa", conflictoConf_704ILR?.ReservaId_704ILR, (int?)evR2_704ILR);
+        Esperar_704ILR("A rechaza el turno de R4", BLL_AsignacionPersonal_704ILR.Rechazar_704ILR(asigA4_704ILR, "Ese dia ya tengo otro turno"), CoordinacionResult_704ILR.Success_704ILR);
+        CerrarSesion_704ILR();
+
+        // Una reserva que deja de estar confirmada (se le repone la version en
+        // cotizacion) tambien reinicia las confirmaciones, y deja de coordinarse (RN-08).
+        var versionCot_704ILR = CaretakerReserva_704ILR.GetVersiones_704ILR(evR2_704ILR)
+            .FirstOrDefault(v_704ILR => v_704ILR.Estado_704ILR == EvenTech.BE.EstadoReserva_704ILR.COTIZACION);
+        Esperar_704ILR("R2 tiene una version en cotizacion", versionCot_704ILR != null, true);
+        if (versionCot_704ILR != null)
+        {
+            Esperar_704ILR("restaurar R2 a la version en cotizacion", BLL_Reserva_704ILR.RestaurarVersion_704ILR(evR2_704ILR, versionCot_704ILR.Id_704ILR), ReservaResult_704ILR.Success_704ILR);
+            Esperar_704ILR("R2 ya no esta confirmada", BLL_Reserva_704ILR.GetById_704ILR(evR2_704ILR).Estado_704ILR, EvenTech.BE.EstadoReserva_704ILR.COTIZACION);
+            Esperar_704ILR("el turno de R2 vuelve a pendiente", Asignacion_704ILR(evR2_704ILR, empA_704ILR)?.Estado_704ILR, (EvenTech.BE.EstadoAsignacion_704ILR?)EvenTech.BE.EstadoAsignacion_704ILR.PENDIENTE);
+            // Una reserva que deja de estar confirmada ya no se coordina: el asiento dice
+            // que el personal queda liberado, no que tiene que responder de nuevo.
+            Esperar_704ILR("el asiento informa que el personal queda liberado",
+                Bitacora_704ILR("Coordinacion", "Confirmaciones reiniciadas").FirstOrDefault()?.Detalle_704ILR.Contains("queda liberado"), (bool?)true);
+            Esperar_704ILR("asignar en R2, que ya no esta confirmada (RN-08)",
+                BLL_AsignacionPersonal_704ILR.Asignar_704ILR(evR2_704ILR, empB_704ILR, "Barra", H_704ILR(11), H_704ILR(17), out _, out _), CoordinacionResult_704ILR.ReservaNoConfirmada_704ILR);
+            Esperar_704ILR("R2 ya no figura entre los eventos a coordinar",
+                BLL_Coordinacion_704ILR.GetEventos_704ILR().Any(e_704ILR => e_704ILR.ReservaId_704ILR == evR2_704ILR), false);
+            Esperar_704ILR("sesion del empleado A", SesionDelEmpleado_704ILR(), true);
+            Esperar_704ILR("responder un turno de una reserva que ya no esta confirmada (RN-08)",
+                BLL_AsignacionPersonal_704ILR.Confirmar_704ILR(asigA2_704ILR, out _), CoordinacionResult_704ILR.ReservaNoConfirmada_704ILR);
+            Esperar_704ILR("la agenda no trae turnos de reservas sin confirmar",
+                BLL_AsignacionPersonal_704ILR.GetMisAsignaciones_704ILR().Any(a_704ILR => a_704ILR.ReservaId_704ILR == evR2_704ILR), false);
+            CerrarSesion_704ILR();
+            // El turno de una reserva que no esta confirmada no compromete al empleado:
+            // ahora el de R4 (rechazado) se le puede volver a ofrecer en la misma franja.
+            Esperar_704ILR("reasignar a A en R4 con R2 fuera de coordinacion",
+                BLL_AsignacionPersonal_704ILR.Asignar_704ILR(evR4_704ILR, empA_704ILR, "Armado", H_704ILR(12), H_704ILR(16), out _, out _), CoordinacionResult_704ILR.Success_704ILR);
+        }
+
+        // Un turno rechazado no compromete al empleado (RN-09), y cancelar una reserva
+        // libera a su equipo. R5 y R6 son dos eventos del mismo dia en salones distintos.
+        int evR5_704ILR = EventoConfirmado_704ILR(cli_704ILR, salRep_704ILR[0].Id_704ILR, 8030);
+        int evR6_704ILR = EventoConfirmado_704ILR(cli_704ILR, salRep_704ILR[1].Id_704ILR, 8030);
+        Esperar_704ILR("eventos R5 y R6 confirmados", evR5_704ILR > 0 && evR6_704ILR > 0, true);
+        Esperar_704ILR("asignar A a R5 09:00-13:00", BLL_AsignacionPersonal_704ILR.Asignar_704ILR(evR5_704ILR, empA_704ILR, "Armado", H_704ILR(9), H_704ILR(13), out int asigA5_704ILR, out _), CoordinacionResult_704ILR.Success_704ILR);
+        Esperar_704ILR("A en R6 10:00-12:00 con el turno de R5 pendiente (se pisa)",
+            BLL_AsignacionPersonal_704ILR.Asignar_704ILR(evR6_704ILR, empA_704ILR, "Armado", H_704ILR(10), H_704ILR(12), out _, out _), CoordinacionResult_704ILR.Superposicion_704ILR);
+        Esperar_704ILR("sesion del empleado A", SesionDelEmpleado_704ILR(), true);
+        Esperar_704ILR("A rechaza el turno de R5", BLL_AsignacionPersonal_704ILR.Rechazar_704ILR(asigA5_704ILR, "No llego a tiempo"), CoordinacionResult_704ILR.Success_704ILR);
+        CerrarSesion_704ILR();
+        Esperar_704ILR("A en R6 10:00-12:00 con el turno de R5 rechazado (RN-09 no lo cuenta)",
+            BLL_AsignacionPersonal_704ILR.Asignar_704ILR(evR6_704ILR, empA_704ILR, "Armado", H_704ILR(10), H_704ILR(12), out int asigA6_704ILR, out _), CoordinacionResult_704ILR.Success_704ILR);
+        Esperar_704ILR("sesion del empleado A", SesionDelEmpleado_704ILR(), true);
+        Esperar_704ILR("A confirma su turno de R6", BLL_AsignacionPersonal_704ILR.Confirmar_704ILR(asigA6_704ILR, out _), CoordinacionResult_704ILR.Success_704ILR);
+        CerrarSesion_704ILR();
+        Esperar_704ILR("cronograma de R6", BLL_Cronograma_704ILR.Guardar_704ILR(evR6_704ILR, new List<EvenTech.BE.BE_CronogramaActividad_704ILR>
+            { new EvenTech.BE.BE_CronogramaActividad_704ILR { Hora_704ILR = H_704ILR(10), Descripcion_704ILR = "Armado del salon", ResponsableId_704ILR = empA_704ILR, DuracionMinutos_704ILR = 60 } }),
+            CoordinacionResult_704ILR.Success_704ILR);
+        Esperar_704ILR("R6 listo", EstadoCoord_704ILR(evR6_704ILR), EvenTech.BE.EstadoCoordinacion_704ILR.LISTO);
+
+        int asientosLiberado_704ILR = Asientos_704ILR("Coordinacion", "Confirmaciones reiniciadas");
+        Esperar_704ILR("cancelar R6 con el equipo confirmado", BLL_Reserva_704ILR.Cancelar_704ILR(evR6_704ILR, out _, out _), ReservaResult_704ILR.Success_704ILR);
+        Esperar_704ILR("el turno de la reserva cancelada vuelve a pendiente", Asignacion_704ILR(evR6_704ILR, empA_704ILR)?.Estado_704ILR, (EvenTech.BE.EstadoAsignacion_704ILR?)EvenTech.BE.EstadoAsignacion_704ILR.PENDIENTE);
+        Esperar_704ILR("la reserva cancelada deja de figurar lista", EstadoCoord_704ILR(evR6_704ILR), EvenTech.BE.EstadoCoordinacion_704ILR.EN_COORDINACION);
+        Esperar_704ILR("asiento del personal liberado por la cancelacion", Asientos_704ILR("Coordinacion", "Confirmaciones reiniciadas") - asientosLiberado_704ILR, 1);
+        Esperar_704ILR("sesion del empleado A", SesionDelEmpleado_704ILR(), true);
+        Esperar_704ILR("la agenda no trae el turno de la reserva cancelada",
+            BLL_AsignacionPersonal_704ILR.GetMisAsignaciones_704ILR().Any(a_704ILR => a_704ILR.ReservaId_704ILR == evR6_704ILR), false);
+        CerrarSesion_704ILR();
+        Esperar_704ILR("volver a ofrecer a A el turno de R5 (el de R6 ya no lo compromete)",
+            BLL_AsignacionPersonal_704ILR.Asignar_704ILR(evR5_704ILR, empA_704ILR, "Armado", H_704ILR(9), H_704ILR(13), out _, out _), CoordinacionResult_704ILR.Success_704ILR);
+
+        // RN-08 al restaurar: reponer una version CONFIRMADA con OTRA fecha tambien cambia
+        // el dia del evento, asi que las confirmaciones se reinician y el personal tiene
+        // que responder de nuevo (la reserva sigue confirmada: no queda liberado).
+        Esperar_704ILR("sesion del empleado A", SesionDelEmpleado_704ILR(), true);
+        Esperar_704ILR("A confirma su turno de R3 reprogramado", BLL_AsignacionPersonal_704ILR.Confirmar_704ILR(asigA3_704ILR, out _), CoordinacionResult_704ILR.Success_704ILR);
+        CerrarSesion_704ILR();
+        DateTime fechaR3_704ILR = BLL_Reserva_704ILR.GetById_704ILR(evR3_704ILR).FechaEvento_704ILR.Date;
+        var versionOtraFecha_704ILR = CaretakerReserva_704ILR.GetVersiones_704ILR(evR3_704ILR)
+            .FirstOrDefault(v_704ILR => v_704ILR.Estado_704ILR == EvenTech.BE.EstadoReserva_704ILR.CONFIRMADA && v_704ILR.FechaEvento_704ILR.Date != fechaR3_704ILR);
+        Esperar_704ILR("R3 tiene una version confirmada con otra fecha", versionOtraFecha_704ILR != null, true);
+        int asientosRestaura_704ILR = Asientos_704ILR("Coordinacion", "Confirmaciones reiniciadas");
+        Esperar_704ILR("restaurar R3 a la version confirmada con la fecha anterior",
+            versionOtraFecha_704ILR == null ? (ReservaResult_704ILR?)null : BLL_Reserva_704ILR.RestaurarVersion_704ILR(evR3_704ILR, versionOtraFecha_704ILR.Id_704ILR),
+            (ReservaResult_704ILR?)ReservaResult_704ILR.Success_704ILR);
+        Esperar_704ILR("R3 sigue confirmada", BLL_Reserva_704ILR.GetById_704ILR(evR3_704ILR).Estado_704ILR, EvenTech.BE.EstadoReserva_704ILR.CONFIRMADA);
+        Esperar_704ILR("el turno de R3 vuelve a pendiente", Asignacion_704ILR(evR3_704ILR, empA_704ILR)?.Estado_704ILR, (EvenTech.BE.EstadoAsignacion_704ILR?)EvenTech.BE.EstadoAsignacion_704ILR.PENDIENTE);
+        Esperar_704ILR("asiento de las confirmaciones reiniciadas por la restauracion", Asientos_704ILR("Coordinacion", "Confirmaciones reiniciadas") - asientosRestaura_704ILR, 1);
+        Esperar_704ILR("el asiento pide una nueva respuesta",
+            Bitacora_704ILR("Coordinacion", "Confirmaciones reiniciadas").FirstOrDefault()?.Detalle_704ILR.Contains("responder de nuevo"), (bool?)true);
+    }
+}
+catch (Exception ex49_704ILR) { Excepcion_704ILR("[49]", ex49_704ILR); CerrarSesion_704ILR(); }
+
+// [50] Cronograma de un evento reprogramado. RN-11 exige el equipo sin respuestas
+// pendientes para GENERAR el cronograma; uno ya generado se puede seguir modificando,
+// siempre con responsables confirmados. Es lo que destraba un evento reprogramado
+// cuando un integrante con actividades a cargo no vuelve a responder: sus actividades
+// pasan a otro integrante confirmado y recien entonces se lo quita del equipo.
+Caso_704ILR("[50] Cronograma de un evento reprogramado (RN-08, RN-11):");
+try
+{
+    if (empA_704ILR == 0 || empB_704ILR == 0 || salones_704ILR.Count == 0 || clientes_704ILR.Count == 0)
+    {
+        Omitir_704ILR("[50]", "faltan los empleados de [43] o los catalogos seed; corre db/schema.sql");
+    }
+    else
+    {
+        int cli_704ILR = clientes_704ILR[0].Id_704ILR;
+        List<EvenTech.BE.BE_CronogramaActividad_704ILR> Jornada_704ILR(int primero_704ILR, int segundo_704ILR) => new List<EvenTech.BE.BE_CronogramaActividad_704ILR>
+        {
+            new EvenTech.BE.BE_CronogramaActividad_704ILR { Hora_704ILR = H_704ILR(20), Descripcion_704ILR = "Recepcion", ResponsableId_704ILR = primero_704ILR, DuracionMinutos_704ILR = 60 },
+            new EvenTech.BE.BE_CronogramaActividad_704ILR { Hora_704ILR = H_704ILR(21), Descripcion_704ILR = "Cena", ResponsableId_704ILR = segundo_704ILR, DuracionMinutos_704ILR = 60 }
+        };
+
+        // RN-11: sin ningun confirmado no hay cronograma, aunque no quede ninguna respuesta
+        // pendiente (el unico integrante rechazo el turno).
+        int evR7_704ILR = EventoConfirmado_704ILR(cli_704ILR, salones_704ILR[0].Id_704ILR, 8050);
+        Esperar_704ILR("evento R7 confirmado", evR7_704ILR > 0, true);
+        Esperar_704ILR("asignar A a R7", BLL_AsignacionPersonal_704ILR.Asignar_704ILR(evR7_704ILR, empA_704ILR, "Mozo", H_704ILR(20), H_704ILR(23), out int asigA7_704ILR, out _), CoordinacionResult_704ILR.Success_704ILR);
+        Esperar_704ILR("sesion del empleado A", SesionDelEmpleado_704ILR(), true);
+        Esperar_704ILR("A rechaza el turno de R7", BLL_AsignacionPersonal_704ILR.Rechazar_704ILR(asigA7_704ILR, "Ese dia no puedo"), CoordinacionResult_704ILR.Success_704ILR);
+        CerrarSesion_704ILR();
+        int asientosSinEquipo_704ILR = Asientos_704ILR("Coordinacion", "Cronograma rechazado");
+        Esperar_704ILR("generar sin ningun confirmado y sin pendientes (RN-11)", BLL_Cronograma_704ILR.Guardar_704ILR(evR7_704ILR, Jornada_704ILR(empA_704ILR, empA_704ILR)), CoordinacionResult_704ILR.PersonalSinConfirmar_704ILR);
+        Esperar_704ILR("asiento del rechazo RN-11", Asientos_704ILR("Coordinacion", "Cronograma rechazado") - asientosSinEquipo_704ILR, 1);
+
+        // Un rechazo sin resolver no impide generar el cronograma con los confirmados,
+        // pero el evento no queda LISTO hasta que el coordinador lo resuelve.
+        Esperar_704ILR("asignar B a R7", BLL_AsignacionPersonal_704ILR.Asignar_704ILR(evR7_704ILR, empB_704ILR, "Barra", H_704ILR(20), H_704ILR(23), out int asigB7_704ILR, out _), CoordinacionResult_704ILR.Success_704ILR);
+        Esperar_704ILR("la cuenta de prueba pasa a representar a B", VincularCuenta_704ILR(empA_704ILR, empB_704ILR), true);
+        Esperar_704ILR("sesion del empleado B", SesionDelEmpleado_704ILR(), true);
+        Esperar_704ILR("B confirma su turno de R7", BLL_AsignacionPersonal_704ILR.Confirmar_704ILR(asigB7_704ILR, out _), CoordinacionResult_704ILR.Success_704ILR);
+        CerrarSesion_704ILR();
+        Esperar_704ILR("generar con B confirmado y A rechazado", BLL_Cronograma_704ILR.Guardar_704ILR(evR7_704ILR, Jornada_704ILR(empB_704ILR, empB_704ILR)), CoordinacionResult_704ILR.Success_704ILR);
+        Esperar_704ILR("con un rechazo sin resolver el evento sigue en coordinacion", EstadoCoord_704ILR(evR7_704ILR), EvenTech.BE.EstadoCoordinacion_704ILR.EN_COORDINACION);
+        Esperar_704ILR("quitar al integrante que rechazo", BLL_AsignacionPersonal_704ILR.Quitar_704ILR(asigA7_704ILR), CoordinacionResult_704ILR.Success_704ILR);
+        Esperar_704ILR("resuelto el rechazo, el evento queda listo", EstadoCoord_704ILR(evR7_704ILR), EvenTech.BE.EstadoCoordinacion_704ILR.LISTO);
+        Esperar_704ILR("la cuenta de prueba vuelve a representar a A", VincularCuenta_704ILR(empB_704ILR, empA_704ILR), true);
+
+        // El evento se reprograma: la confirmacion de B se reinicia y B no vuelve a
+        // responder. A se suma al equipo y confirma.
+        var reprogramada_704ILR = BLL_Reserva_704ILR.GetById_704ILR(evR7_704ILR);
+        reprogramada_704ILR.FechaEvento_704ILR = reprogramada_704ILR.FechaEvento_704ILR.AddDays(3);
+        Esperar_704ILR("reprogramar R7", BLL_Reserva_704ILR.Actualizar_704ILR(reprogramada_704ILR), ReservaResult_704ILR.Success_704ILR);
+        Esperar_704ILR("el turno de B vuelve a pendiente", Asignacion_704ILR(evR7_704ILR, empB_704ILR)?.Estado_704ILR, (EvenTech.BE.EstadoAsignacion_704ILR?)EvenTech.BE.EstadoAsignacion_704ILR.PENDIENTE);
+        Esperar_704ILR("asignar A a R7 reprogramado", BLL_AsignacionPersonal_704ILR.Asignar_704ILR(evR7_704ILR, empA_704ILR, "Mozo", H_704ILR(20), H_704ILR(23), out int asigA7b_704ILR, out _), CoordinacionResult_704ILR.Success_704ILR);
+        Esperar_704ILR("sesion del empleado A", SesionDelEmpleado_704ILR(), true);
+        Esperar_704ILR("A confirma su turno de R7", BLL_AsignacionPersonal_704ILR.Confirmar_704ILR(asigA7b_704ILR, out _), CoordinacionResult_704ILR.Success_704ILR);
+        CerrarSesion_704ILR();
+
+        // B sigue pendiente y tiene las dos actividades a cargo: no se lo puede quitar...
+        Esperar_704ILR("quitar a B, pendiente y con actividades a cargo", BLL_AsignacionPersonal_704ILR.Quitar_704ILR(asigB7_704ILR), CoordinacionResult_704ILR.TieneCarga_704ILR);
+        // ...pero el cronograma ya generado se puede modificar con esa respuesta pendiente,
+        // siempre que cada responsable sea personal confirmado.
+        int asientosModCro_704ILR = Asientos_704ILR("Coordinacion", "Modificacion de cronograma");
+        Esperar_704ILR("modificar dejando una actividad a cargo del pendiente (RN-11)", BLL_Cronograma_704ILR.Guardar_704ILR(evR7_704ILR, Jornada_704ILR(empA_704ILR, empB_704ILR)), CoordinacionResult_704ILR.ResponsableInvalido_704ILR);
+        Esperar_704ILR("pasar las actividades al integrante confirmado", BLL_Cronograma_704ILR.Guardar_704ILR(evR7_704ILR, Jornada_704ILR(empA_704ILR, empA_704ILR)), CoordinacionResult_704ILR.Success_704ILR);
+        Esperar_704ILR("asiento de la modificacion del cronograma", Asientos_704ILR("Coordinacion", "Modificacion de cronograma") - asientosModCro_704ILR, 1);
+        Esperar_704ILR("con B pendiente el evento sigue en coordinacion", EstadoCoord_704ILR(evR7_704ILR), EvenTech.BE.EstadoCoordinacion_704ILR.EN_COORDINACION);
+        Esperar_704ILR("quitar a B, ya sin carga", BLL_AsignacionPersonal_704ILR.Quitar_704ILR(asigB7_704ILR), CoordinacionResult_704ILR.Success_704ILR);
+        Esperar_704ILR("el evento reprogramado vuelve a quedar listo", EstadoCoord_704ILR(evR7_704ILR), EvenTech.BE.EstadoCoordinacion_704ILR.LISTO);
+
+        // Generar (a diferencia de modificar) sigue exigiendo que no haya respuestas pendientes.
+        Esperar_704ILR("eliminar el cronograma de R7", BLL_Cronograma_704ILR.Eliminar_704ILR(evR7_704ILR), CoordinacionResult_704ILR.Success_704ILR);
+        Esperar_704ILR("asignar B a R7 otra vez (pendiente)", BLL_AsignacionPersonal_704ILR.Asignar_704ILR(evR7_704ILR, empB_704ILR, "Barra", H_704ILR(20), H_704ILR(23), out _, out _), CoordinacionResult_704ILR.Success_704ILR);
+        Esperar_704ILR("generar de nuevo con una respuesta pendiente (RN-11)", BLL_Cronograma_704ILR.Guardar_704ILR(evR7_704ILR, Jornada_704ILR(empA_704ILR, empA_704ILR)), CoordinacionResult_704ILR.PersonalSinConfirmar_704ILR);
+    }
+}
+catch (Exception ex50_704ILR) { Excepcion_704ILR("[50]", ex50_704ILR); CerrarSesion_704ILR(); }
+
+// [51] RN-13 el dia del evento. Iniciar la ejecucion en la fecha del evento no exige
+// confirmacion y se asienta como informacion (fuera de fecha, como advertencia: [48]).
+// Con el evento en ejecucion o cerrado tampoco se quitan tareas, no se elimina el
+// cronograma, no se rechaza un turno, no se resuelve una incidencia ni se restaura una
+// version; los movimientos de cobro (cobrar y anular) siguen admitidos. De paso, RN-07:
+// el unico pago de una reserva confirmada no se anula.
+Caso_704ILR("[51] RN-13 el dia del evento: inicio sin confirmacion y plan congelado:");
+try
+{
+    var libresHoy_704ILR = clientes_704ILR.Count == 0 ? null
+        : BLL_Disponibilidad_704ILR.Consultar_704ILR(DateTime.Today, 0).Where(d_704ILR => d_704ILR.Libre_704ILR).ToList();
+    if (empA_704ILR == 0 || libresHoy_704ILR == null || libresHoy_704ILR.Count == 0)
+    {
+        Omitir_704ILR("[51]", "hacen falta el empleado de [43], un cliente seed y un salon libre en la fecha de hoy");
+    }
+    else
+    {
+        var reservaHoy_704ILR = new EvenTech.BE.BE_Reserva_704ILR
+        {
+            ClienteId_704ILR = clientes_704ILR[0].Id_704ILR,
+            SalonId_704ILR = libresHoy_704ILR[0].SalonId_704ILR,
+            FechaEvento_704ILR = DateTime.Today,
+            Estado_704ILR = EvenTech.BE.EstadoReserva_704ILR.COTIZACION,
+            CantidadInvitados_704ILR = 20,
+            Monto_704ILR = 900m
+        };
+        Esperar_704ILR("alta de una reserva para hoy", BLL_Reserva_704ILR.Crear_704ILR(reservaHoy_704ILR, out int evHoy_704ILR), ReservaResult_704ILR.Success_704ILR);
+        Anotar_704ILR(evHoy_704ILR);
+        int adelantoHoy_704ILR = Adelanto_704ILR(evHoy_704ILR, 300m);
+        var confirmarHoy_704ILR = BLL_Reserva_704ILR.GetById_704ILR(evHoy_704ILR);
+        confirmarHoy_704ILR.Estado_704ILR = EvenTech.BE.EstadoReserva_704ILR.CONFIRMADA;
+        Esperar_704ILR("confirmar la reserva de hoy", BLL_Reserva_704ILR.Actualizar_704ILR(confirmarHoy_704ILR), ReservaResult_704ILR.Success_704ILR);
+        // RN-07: una reserva confirmada no puede quedar sin adelanto.
+        Esperar_704ILR("anular el unico pago de una reserva confirmada (RN-07)",
+            BLL_Pago_704ILR.Eliminar_704ILR(adelantoHoy_704ILR, evHoy_704ILR), PagoResult_704ILR.ConfirmadaSinAdelanto_704ILR);
+
+        Esperar_704ILR("asignar A al evento de hoy", BLL_AsignacionPersonal_704ILR.Asignar_704ILR(evHoy_704ILR, empA_704ILR, "Mozo", H_704ILR(20), H_704ILR(23), out int asigHoy_704ILR, out _), CoordinacionResult_704ILR.Success_704ILR);
+        Esperar_704ILR("sesion del empleado A", SesionDelEmpleado_704ILR(), true);
+        Esperar_704ILR("A confirma su turno de hoy", BLL_AsignacionPersonal_704ILR.Confirmar_704ILR(asigHoy_704ILR, out _), CoordinacionResult_704ILR.Success_704ILR);
+        CerrarSesion_704ILR();
+        Esperar_704ILR("cronograma del evento de hoy", BLL_Cronograma_704ILR.Guardar_704ILR(evHoy_704ILR, new List<EvenTech.BE.BE_CronogramaActividad_704ILR>
+            { new EvenTech.BE.BE_CronogramaActividad_704ILR { Hora_704ILR = H_704ILR(20), Descripcion_704ILR = "Recepcion", ResponsableId_704ILR = empA_704ILR, DuracionMinutos_704ILR = 60 } }),
+            CoordinacionResult_704ILR.Success_704ILR);
+        Esperar_704ILR("tarea del evento de hoy",
+            BLL_Tarea_704ILR.Asignar_704ILR(new EvenTech.BE.BE_Tarea_704ILR { ReservaId_704ILR = evHoy_704ILR, EmpleadoId_704ILR = empA_704ILR, Descripcion_704ILR = "Recibir a los invitados", HoraInicio_704ILR = H_704ILR(20), HoraFin_704ILR = H_704ILR(21) }, out int tareaHoy_704ILR),
+            CoordinacionResult_704ILR.Success_704ILR);
+        Esperar_704ILR("evento de hoy listo", EstadoCoord_704ILR(evHoy_704ILR), EvenTech.BE.EstadoCoordinacion_704ILR.LISTO);
+
+        int asientosInicioHoy_704ILR = Asientos_704ILR("Coordinacion", "Inicio de ejecucion");
+        Esperar_704ILR("iniciar el dia del evento, sin confirmacion", BLL_Coordinacion_704ILR.IniciarEjecucion_704ILR(evHoy_704ILR, false), CoordinacionResult_704ILR.Success_704ILR);
+        Esperar_704ILR("estado de coordinacion", EstadoCoord_704ILR(evHoy_704ILR), EvenTech.BE.EstadoCoordinacion_704ILR.EN_EJECUCION);
+        Esperar_704ILR("asiento del inicio", Asientos_704ILR("Coordinacion", "Inicio de ejecucion") - asientosInicioHoy_704ILR, 1);
+        Esperar_704ILR("iniciar en fecha se asienta como informacion",
+            Bitacora_704ILR("Coordinacion", "Inicio de ejecucion").FirstOrDefault()?.Criticidad_704ILR,
+            (EvenTech.BE.CriticidadBitacora_704ILR?)EvenTech.BE.CriticidadBitacora_704ILR.Info);
+
+        // Plan congelado: las operaciones que [48] no recorre.
+        int asientosRn13_704ILR = Asientos_704ILR("Coordinacion", "Coordinacion rechazada");
+        Esperar_704ILR("quitar una tarea con el evento en ejecucion", BLL_Tarea_704ILR.Quitar_704ILR(tareaHoy_704ILR), CoordinacionResult_704ILR.EventoEnEjecucion_704ILR);
+        Esperar_704ILR("eliminar el cronograma con el evento en ejecucion", BLL_Cronograma_704ILR.Eliminar_704ILR(evHoy_704ILR), CoordinacionResult_704ILR.EventoEnEjecucion_704ILR);
+        Esperar_704ILR("sesion del empleado A", SesionDelEmpleado_704ILR(), true);
+        Esperar_704ILR("rechazar un turno con el evento en ejecucion", BLL_AsignacionPersonal_704ILR.Rechazar_704ILR(asigHoy_704ILR, "Llego tarde"), CoordinacionResult_704ILR.EventoEnEjecucion_704ILR);
+        CerrarSesion_704ILR();
+
+        // Los movimientos de cobro siguen admitidos: se cobra y se anula.
+        int cobroEnEjecucion_704ILR = Adelanto_704ILR(evHoy_704ILR, 100m);
+        Esperar_704ILR("cobrar con el evento en ejecucion", cobroEnEjecucion_704ILR > 0, true);
+        Esperar_704ILR("anular ese cobro con el evento en ejecucion", BLL_Pago_704ILR.Eliminar_704ILR(cobroEnEjecucion_704ILR, evHoy_704ILR), PagoResult_704ILR.Success_704ILR);
+
+        Esperar_704ILR("incidencia del evento de hoy",
+            BLL_Incidencia_704ILR.Registrar_704ILR(new EvenTech.BE.BE_Incidencia_704ILR { ReservaId_704ILR = evHoy_704ILR, Tipo_704ILR = EvenTech.BE.TipoIncidencia_704ILR.OTRO, Descripcion_704ILR = "Un invitado llego antes de hora" }, out int incHoy_704ILR),
+            CoordinacionResult_704ILR.Success_704ILR);
+        Esperar_704ILR("resolver la incidencia", BLL_Incidencia_704ILR.Resolver_704ILR(incHoy_704ILR, "Se lo ubico en la recepcion"), CoordinacionResult_704ILR.Success_704ILR);
+        Esperar_704ILR("cerrar el evento de hoy", BLL_Coordinacion_704ILR.CerrarEvento_704ILR(evHoy_704ILR), CoordinacionResult_704ILR.Success_704ILR);
+
+        Esperar_704ILR("quitar una tarea de un evento cerrado", BLL_Tarea_704ILR.Quitar_704ILR(tareaHoy_704ILR), CoordinacionResult_704ILR.EventoCerrado_704ILR);
+        Esperar_704ILR("resolver una incidencia de un evento cerrado", BLL_Incidencia_704ILR.Resolver_704ILR(incHoy_704ILR, "Otra vez"), CoordinacionResult_704ILR.EventoCerrado_704ILR);
+        var versionHoy_704ILR = CaretakerReserva_704ILR.GetVersiones_704ILR(evHoy_704ILR).FirstOrDefault();
+        Esperar_704ILR("restaurar una version con el evento cerrado",
+            versionHoy_704ILR == null ? (ReservaResult_704ILR?)null : BLL_Reserva_704ILR.RestaurarVersion_704ILR(evHoy_704ILR, versionHoy_704ILR.Id_704ILR),
+            (ReservaResult_704ILR?)ReservaResult_704ILR.EventoIniciado_704ILR);
+        int cobroCerrado_704ILR = Adelanto_704ILR(evHoy_704ILR, 50m);
+        Esperar_704ILR("cobrar con el evento cerrado", cobroCerrado_704ILR > 0, true);
+        Esperar_704ILR("anular ese cobro con el evento cerrado", BLL_Pago_704ILR.Eliminar_704ILR(cobroCerrado_704ILR, evHoy_704ILR), PagoResult_704ILR.Success_704ILR);
+        // 3 con el evento en ejecucion (tarea, cronograma y turno) y 2 con el evento cerrado
+        // (tarea e incidencia).
+        Esperar_704ILR("asientos de las operaciones rechazadas por RN-13", Asientos_704ILR("Coordinacion", "Coordinacion rechazada") - asientosRn13_704ILR, 5);
+        Esperar_704ILR("el plan del evento cerrado quedo como estaba (asignaciones, actividades y tareas)",
+            BLL_AsignacionPersonal_704ILR.GetByReserva_704ILR(evHoy_704ILR).Count + "," + BLL_Cronograma_704ILR.GetByReserva_704ILR(evHoy_704ILR)?.Actividades_704ILR.Count + "," + BLL_Tarea_704ILR.GetByReserva_704ILR(evHoy_704ILR).Count, "1,1,1");
+    }
+}
+catch (Exception ex51_704ILR) { Excepcion_704ILR("[51]", ex51_704ILR); CerrarSesion_704ILR(); }
+
 // ---------------------------------------------------------------------------
 // Limpieza final: lo que cada caso no alcanzo a limpiar (por una excepcion en el
 // medio) se cancela o se borra aca, con asercion. Las reservas de prueba quedan
@@ -2453,6 +3593,22 @@ catch (Exception ex42_704ILR) { Excepcion_704ILR("[42]", ex42_704ILR); }
 Caso_704ILR("[limpieza] Rastro de la corrida:");
 try
 {
+    // Primero el Proceso 2: un evento en ejecucion o cerrado congela su reserva y
+    // los empleados de prueba referencian al usuario de prueba.
+    CerrarSesion_704ILR();
+    // En su propio bloque: si falla, el resto de la limpieza (reservas, perfiles,
+    // cliente, idioma y usuario) se ejecuta igual.
+    try { BorrarCoordinacionDePrueba_704ILR(); }
+    catch (Exception exCoordinacion_704ILR) { Excepcion_704ILR("[limpieza] coordinacion", exCoordinacion_704ILR); }
+    Esperar_704ILR("empleados de prueba restantes",
+        Escalar_704ILR("SELECT COUNT(*) FROM dbo.Empleados WHERE Apellido = @ap", ("@ap", "Smoke" + suf_704ILR)), 0);
+    Esperar_704ILR("filas de coordinacion de la corrida restantes",
+        reservasDeLaCorrida_704ILR.Count == 0 ? 0 : Escalar_704ILR(
+            "SELECT (SELECT COUNT(*) FROM dbo.AsignacionesPersonal WHERE ReservaId IN (" + string.Join(",", reservasDeLaCorrida_704ILR) + ")) + " +
+            "(SELECT COUNT(*) FROM dbo.Cronogramas WHERE ReservaId IN (" + string.Join(",", reservasDeLaCorrida_704ILR) + ")) + " +
+            "(SELECT COUNT(*) FROM dbo.Incidencias WHERE ReservaId IN (" + string.Join(",", reservasDeLaCorrida_704ILR) + ")) + " +
+            "(SELECT COUNT(*) FROM dbo.Reservas WHERE EstadoCoordinacion <> 'SIN_ASIGNAR' AND Id IN (" + string.Join(",", reservasDeLaCorrida_704ILR) + "))"), 0);
+
     int vivas_704ILR = 0;
     foreach (int id_704ILR in reservasDeLaCorrida_704ILR)
     {
@@ -2480,7 +3636,7 @@ try
 
     if (idiomaDeLaCorrida_704ILR > 0) BorrarIdiomaDePrueba_704ILR(idiomaDeLaCorrida_704ILR);
     Esperar_704ILR("idiomas de prueba restantes",
-        Escalar_704ILR("SELECT COUNT(*) FROM dbo.Idiomas WHERE Nombre = 'Idioma smoke'"), 0);
+        Escalar_704ILR("SELECT COUNT(*) FROM dbo.Idiomas WHERE Nombre = @n", ("@n", "Idioma smoke " + suf_704ILR)), 0);
 
     // El usuario de prueba se elimina (la aplicacion no da de baja usuarios). Sus
     // movimientos quedan en la auditoria de acceso, que no referencia la cuenta.
@@ -2505,7 +3661,7 @@ catch (Exception exLimpieza_704ILR) { Excepcion_704ILR("[limpieza]", exLimpieza_
 
 // ---------------------------------------------------------------------------
 // Cierre: la linea base de integridad tiene que seguir sana DESPUES de todas las
-// altas, ediciones, cancelaciones y restauraciones de los casos [7] a [42] — que
+// altas, ediciones, cancelaciones y restauraciones de los casos [7] a [49] — que
 // son justamente las operaciones que recalculan los digitos verificadores. Hasta
 // ahora [16] la verificaba una sola vez, antes de que ocurriera nada de eso.
 // ---------------------------------------------------------------------------

@@ -243,8 +243,9 @@ namespace EvenTech.BLL
         // Validacion de plantillas
         // ------------------------------------------------------------------
 
-        // Ninguna clave usa mas de dos argumentos: un indice mayor no es de ninguna
-        // clave y string.Format necesitaria un arreglo de ese tamano para probarlo.
+        // Ninguna clave usa mas de cinco argumentos (ver MarcadoresPorClave_704ILR): un
+        // indice de tres cifras no es de ninguna clave y string.Format necesitaria un
+        // arreglo de ese tamano para probarlo.
         private const int MaxIndice_704ILR = 99;
 
         // Marcador de una plantilla compuesta: {indice[,alineacion][:formato]}. Solo
@@ -261,12 +262,17 @@ namespace EvenTech.BLL
         // falta, el editor rechaza cualquier texto suyo que conserve el marcador.
         private static readonly Dictionary<string, string> MarcadoresPorClave_704ILR = new Dictionary<string, string>(StringComparer.Ordinal)
         {
+            { "AGE_EVENTO",                 "{0} {1} {2}" },    // fecha del evento, salon, numero de reserva
             { "ALERT_DVH_FALTANTE",         "{0}" },            // numero de reserva sin DV horizontal almacenado
             { "ALERT_DVH_NO_COINCIDE",      "{0}" },            // numero de reserva con el DV horizontal alterado
             { "ALERT_ESTADO_FUERA_DOMINIO", "{0}" },            // numero de reserva con el estado fuera del dominio
             { "ALERT_NO_VERIFICADA",        "{0}" },            // causa de la falla de la verificacion
+            { "ASG_QUITAR_CONF",            "{0}" },            // empleado que se quita del equipo
+            { "ASG_RESUMEN",                "{0} {1} {2} {3}" },// asignados, confirmados, pendientes, rechazados
+            { "ASG_SIN_CUENTA_CONF",        "{0}" },            // empleado sin cuenta vinculada
             { "AUD_RECALC_OK",              "{0} {1}" },        // reservas recalculadas, inconsistencias
             { "CONN_ESQUEMA_INCOMPLETO",    "{0} {1}" },        // base, objetos faltantes
+            { "COORD_EVENTO",               "{0} {1} {2} {3} {4}" }, // reserva, fecha, salon, cliente, invitados
             { "CRYPTO_CLAVE_INVALIDA",      "{0}" },            // ruta del archivo de clave
             { "DISP_RESUMEN_OK",            "{0}" },            // salones disponibles
             { "DISP_RESUMEN_SIN_CAPACIDAD", "{0}" },            // invitados pedidos, sin salon que los admita
@@ -278,13 +284,24 @@ namespace EvenTech.BLL
             { "IDI_PLANTILLA_INVALIDA",     "{0}" },            // clave rechazada
             { "IDI_TEXTO_VACIO",            "{0}" },            // clave rechazada
             { "LOGIN_INTENTOS",             "{0} {1}" },        // intento, maximo de intentos
+            { "MSG_COORD_SUPERPOSICION_DET", "{0} {1} {2} {3}" }, // RN-09: empleado y reserva, fecha y franja del turno con el que se superpone
+            { "MSG_CRO_RESPONSABLE_ACTIVIDAD", "{0} {1}" },     // RN-11: actividad a corregir y su responsable
             { "MSG_PAGO_ANULAR_CONF",       "{0}" },            // importe ya formateado
             { "MSG_RES_CANCELADA",          "{0:N2} {1:N2}" },  // RN-02: retenido, reintegro
             { "MSG_RES_CANCELAR",           "{0}" },            // numero de reserva
             { "MSG_RES_CANCELAR_DETALLE",   "{0:N2} {1:N2}" },  // RN-02: retenido, reintegro
+            { "MSG_RES_CONFIRMACIONES_REINICIADAS", "{0}" },    // RN-08: confirmaciones que vuelven a pendiente
             { "MSG_RES_MONTO",              "{0}" },            // monto maximo admitido, ya formateado
             { "MSG_RES_TRANSICION",         "{0} {1}" },        // RN-05: estado actual, estado pedido
             { "MSG_SRV_PRECIO_MAX",         "{0}" },            // precio maximo admitido, ya formateado
+            { "OPE_AVANCE_CRONOGRAMA",      "{0}" },            // actividades del cronograma
+            { "OPE_AVANCE_INCIDENCIAS",     "{0} {1}" },        // incidencias, abiertas
+            { "OPE_AVANCE_PERSONAL",        "{0} {1} {2} {3}" },// asignados, confirmados, pendientes, rechazados
+            { "OPE_AVANCE_TAREAS",          "{0}" },            // tareas asignadas
+            { "SUP_FUERA_FECHA",            "{0} {1}" },        // RN-13: fecha del evento, fecha de hoy
+            { "SUP_RESUMEN",                "{0} {1}" },        // incidencias, abiertas
+            { "TAR_QUITAR_CONF",            "{0}" },            // empleado de la tarea que se quita
+            { "TAR_RESUMEN",                "{0}" },            // tareas asignadas
         };
 
         // Marcadores de una plantilla, sin las llaves escapadas ("{{" y "}}"), o null

@@ -25,6 +25,8 @@ namespace EvenTech.UI
         private Label _btnMax_704ILR;
 
         private SideMenuItem_704ILR _itInicio_704ILR, _itReservas_704ILR, _itClientes_704ILR, _itServicios_704ILR, _itPerfiles_704ILR, _itAuditoria_704ILR;
+        // Proceso 2: operaciones de los eventos, agenda del empleado y personal.
+        private SideMenuItem_704ILR _itOperaciones_704ILR, _itAgenda_704ILR, _itEmpleados_704ILR;
         private SideMenuItem_704ILR _activo_704ILR;
         private readonly List<SideMenuItem_704ILR> _items_704ILR = new List<SideMenuItem_704ILR>();
 
@@ -85,6 +87,11 @@ namespace EvenTech.UI
         private static readonly string[] PermisosServicios_704ILR = { "SERVICIOS_GESTION" };
         private static readonly string[] PermisosPerfiles_704ILR  = { "PERFILES_GESTION" };
         private static readonly string[] PermisosAuditoria_704ILR = { "BITACORA_VER", "AUDIT_LOGIN_VER", "INTEGRIDAD_RECALC" };
+        // Proceso 2. Operaciones reune los pasos del coordinador y la supervision de la
+        // ejecucion; Mi agenda es la vista del empleado sobre sus propios turnos.
+        private static readonly string[] PermisosOperaciones_704ILR = { "PERSONAL_ASIGNAR", "CRONOGRAMA_GESTION", "TAREAS_ASIGNAR", "EJECUCION_SUPERVISAR" };
+        private static readonly string[] PermisosAgenda_704ILR      = { "DISPONIBILIDAD_CONFIRMAR", "AGENDA_CONSULTAR" };
+        private static readonly string[] PermisosEmpleados_704ILR   = { "EMPLEADOS_GESTION" };
 
         // Control de acceso (T04), primera capa: muestra/oculta cada seccion segun
         // los permisos efectivos del perfil. Toda seccion exige su permiso; la
@@ -98,6 +105,9 @@ namespace EvenTech.UI
             _itServicios_704ILR.Visible = Permisos_704ILR.TieneAlguno_704ILR(PermisosServicios_704ILR);
             _itPerfiles_704ILR.Visible  = Permisos_704ILR.TieneAlguno_704ILR(PermisosPerfiles_704ILR);
             _itAuditoria_704ILR.Visible = Permisos_704ILR.TieneAlguno_704ILR(PermisosAuditoria_704ILR);
+            _itOperaciones_704ILR.Visible = Permisos_704ILR.TieneAlguno_704ILR(PermisosOperaciones_704ILR);
+            _itAgenda_704ILR.Visible      = Permisos_704ILR.TieneAlguno_704ILR(PermisosAgenda_704ILR);
+            _itEmpleados_704ILR.Visible   = Permisos_704ILR.TieneAlguno_704ILR(PermisosEmpleados_704ILR);
             // La gestion de idiomas (ABM de traducciones) cuelga del globo del pie.
             if (_lang_704ILR != null) _lang_704ILR.PermitirGestion_704ILR = Permisos_704ILR.Tiene_704ILR("IDIOMAS_GESTION");
         }
@@ -111,6 +121,9 @@ namespace EvenTech.UI
             if (item_704ILR == _itServicios_704ILR) return PermisosServicios_704ILR;
             if (item_704ILR == _itPerfiles_704ILR)  return PermisosPerfiles_704ILR;
             if (item_704ILR == _itAuditoria_704ILR) return PermisosAuditoria_704ILR;
+            if (item_704ILR == _itOperaciones_704ILR) return PermisosOperaciones_704ILR;
+            if (item_704ILR == _itAgenda_704ILR)      return PermisosAgenda_704ILR;
+            if (item_704ILR == _itEmpleados_704ILR)   return PermisosEmpleados_704ILR;
             return null;   // Inicio: sin restriccion
         }
 
@@ -195,12 +208,19 @@ namespace EvenTech.UI
             _itServicios_704ILR = new SideMenuItem_704ILR(Theme_704ILR.IcoServicio_704ILR, "MENU_SERVICIOS", (s_704ILR, e_704ILR) => Navegar_704ILR(_itServicios_704ILR));
             _itPerfiles_704ILR  = new SideMenuItem_704ILR(Theme_704ILR.IcoPeople_704ILR,   "MENU_PERFILES",  (s_704ILR, e_704ILR) => Navegar_704ILR(_itPerfiles_704ILR));
             _itAuditoria_704ILR = new SideMenuItem_704ILR(Theme_704ILR.IcoHistory_704ILR,  "MENU_AUDITORIA", (s_704ILR, e_704ILR) => Navegar_704ILR(_itAuditoria_704ILR));
-            _items_704ILR.AddRange(new[] { _itInicio_704ILR, _itReservas_704ILR, _itClientes_704ILR, _itServicios_704ILR, _itPerfiles_704ILR, _itAuditoria_704ILR });
+            _itOperaciones_704ILR = new SideMenuItem_704ILR(Theme_704ILR.IcoOperaciones_704ILR, "MENU_OPERACIONES", (s_704ILR, e_704ILR) => Navegar_704ILR(_itOperaciones_704ILR));
+            _itAgenda_704ILR      = new SideMenuItem_704ILR(Theme_704ILR.IcoAgenda_704ILR,      "MENU_AGENDA",      (s_704ILR, e_704ILR) => Navegar_704ILR(_itAgenda_704ILR));
+            _itEmpleados_704ILR   = new SideMenuItem_704ILR(Theme_704ILR.IcoEmpleado_704ILR,    "MENU_EMPLEADOS",   (s_704ILR, e_704ILR) => Navegar_704ILR(_itEmpleados_704ILR));
+            _items_704ILR.AddRange(new[] { _itInicio_704ILR, _itReservas_704ILR, _itClientes_704ILR, _itServicios_704ILR,
+                                           _itOperaciones_704ILR, _itAgenda_704ILR, _itEmpleados_704ILR, _itPerfiles_704ILR, _itAuditoria_704ILR });
 
             // Dock=Top se apila en orden inverso al de agregado.
             // Idiomas salio del menu (se gestiona desde el globo del pie).
             pnlMenu_704ILR.Controls.Add(_itAuditoria_704ILR);
             pnlMenu_704ILR.Controls.Add(_itPerfiles_704ILR);
+            pnlMenu_704ILR.Controls.Add(_itEmpleados_704ILR);
+            pnlMenu_704ILR.Controls.Add(_itAgenda_704ILR);
+            pnlMenu_704ILR.Controls.Add(_itOperaciones_704ILR);
             pnlMenu_704ILR.Controls.Add(_itServicios_704ILR);
             pnlMenu_704ILR.Controls.Add(_itClientes_704ILR);
             pnlMenu_704ILR.Controls.Add(_itReservas_704ILR);
@@ -350,6 +370,9 @@ namespace EvenTech.UI
             else if (item_704ILR == _itClientes_704ILR)  vista_704ILR = new ucClientes_704ILR();
             else if (item_704ILR == _itServicios_704ILR) vista_704ILR = new ucServicios_704ILR();
             else if (item_704ILR == _itPerfiles_704ILR)  vista_704ILR = new ucPerfiles_704ILR();
+            else if (item_704ILR == _itOperaciones_704ILR) vista_704ILR = new ucOperaciones_704ILR();
+            else if (item_704ILR == _itAgenda_704ILR)      vista_704ILR = new ucMiAgenda_704ILR();
+            else if (item_704ILR == _itEmpleados_704ILR)   vista_704ILR = new ucEmpleados_704ILR();
             else                           vista_704ILR = new ucAuditoriaHub_704ILR();
 
             vista_704ILR.Dock = DockStyle.Fill;
@@ -550,6 +573,9 @@ namespace EvenTech.UI
                 case "MENU_SERVICIOS": return T_704ILR(clave_704ILR, "Servicios");
                 case "MENU_PERFILES": return T_704ILR(clave_704ILR, "Perfiles");
                 case "MENU_AUDITORIA": return T_704ILR(clave_704ILR, "Auditoría");
+                case "MENU_OPERACIONES": return T_704ILR(clave_704ILR, "Operaciones");
+                case "MENU_AGENDA": return T_704ILR(clave_704ILR, "Mi agenda");
+                case "MENU_EMPLEADOS": return T_704ILR(clave_704ILR, "Empleados");
                 default: return Tr_704ILR.T_704ILR(clave_704ILR);
             }
         }

@@ -961,7 +961,12 @@ namespace EvenTech.UI
             // Tambien cuando la reserva no se pudo mostrar entera (ver CargarEnForm): la ficha no
             // ofrece guardar datos que no son los de la reserva, y su aviso va primero.
             bool modificable_704ILR = _fichaIncompleta_704ILR == null && !_estadoDesconocido_704ILR && BLL_Reserva_704ILR.PuedeModificar_704ILR(r_704ILR);
-            AplicarPermisosFicha_704ILR(modificable_704ILR && _serviciosLeidos_704ILR);
+            // RN-13: con el evento en ejecucion o cerrado la reserva queda congelada. Sus
+            // datos y sus servicios ya no se editan (la capa de negocio rechaza el
+            // guardado), pero el saldo se sigue cobrando y la documentacion se sigue
+            // emitiendo: por eso es un modo aparte del de la reserva cancelada.
+            bool congelada_704ILR = modificable_704ILR && BLL_Coordinacion_704ILR.PlanCongelado_704ILR(r_704ILR.EstadoCoordinacion_704ILR);
+            AplicarPermisosFicha_704ILR(modificable_704ILR && _serviciosLeidos_704ILR, congelada_704ILR);
             if (_fichaIncompleta_704ILR != null)
                 ShowError_704ILR(_fichaIncompleta_704ILR);
             else if (_estadoDesconocido_704ILR)
@@ -970,6 +975,8 @@ namespace EvenTech.UI
                 ShowError_704ILR(MensajeServiciosNoLeidos_704ILR);
             else if (!modificable_704ILR)
                 ShowError_704ILR(() => T_704ILR("MSG_RES_NO_MODIFICABLE", "La reserva está cancelada: no admite modificaciones."));
+            else if (congelada_704ILR)
+                ShowError_704ILR(() => MensajeError_704ILR(ReservaResult_704ILR.EventoIniciado_704ILR));
             else
                 _lblError_704ILR.Visible = false;
         }
@@ -1030,9 +1037,11 @@ namespace EvenTech.UI
         // "sin permiso" y en un asiento de advertencia en la bitacora por navegar
         // normalmente. La segunda capa (Exigir al ejecutar) se mantiene intacta.
         // 'editable' es la condicion de la reserva (una cancelada no admite cambios):
-        // se combina con el permiso, nunca lo reemplaza.
-        private void AplicarPermisosFicha_704ILR(bool editable_704ILR)
+        // se combina con el permiso, nunca lo reemplaza. 'congelada' (RN-13) apaga la
+        // edicion de los datos y de los servicios y deja los cobros y la documentacion.
+        private void AplicarPermisosFicha_704ILR(bool editable_704ILR, bool congelada_704ILR = false)
         {
+            bool edicion_704ILR = editable_704ILR && !congelada_704ILR;
             // Alta y edicion exigen permisos distintos; Servicios sigue al mismo
             // criterio porque cambia el monto de la operacion (CUN003, precondicion).
             bool gestion_704ILR = Permisos_704ILR.Tiene_704ILR(_editId_704ILR == 0 ? "RESERVA_CREAR" : "RESERVA_EDITAR");
@@ -1040,9 +1049,9 @@ namespace EvenTech.UI
             // Pagos, documentacion, historial y versiones actuan sobre una reserva ya
             // registrada (CUN004, precondicion): en el alta solo podian mostrar un error.
             bool registrada_704ILR = _editId_704ILR > 0;
-            _puedeGuardar_704ILR           = editable_704ILR && gestion_704ILR;
+            _puedeGuardar_704ILR           = edicion_704ILR && gestion_704ILR;
             _btnGuardar_704ILR.Enabled     = _puedeGuardar_704ILR;
-            _btnServicios_704ILR.Enabled   = editable_704ILR && gestion_704ILR;
+            _btnServicios_704ILR.Enabled   = edicion_704ILR && gestion_704ILR;
             _btnPagos_704ILR.Enabled       = registrada_704ILR && editable_704ILR && Permisos_704ILR.TieneAlguno_704ILR("PAGOS_REGISTRAR", "PAGOS_ANULAR");
             _btnComprobante_704ILR.Enabled = registrada_704ILR && editable_704ILR && documenta_704ILR;
             _btnEmail_704ILR.Enabled       = registrada_704ILR && editable_704ILR && documenta_704ILR;
@@ -1057,7 +1066,7 @@ namespace EvenTech.UI
             // quedaban editables, lo tipeado no contaba como cambio pendiente y se perdia sin
             // aviso, con la ficha mostrando datos distintos de los de la base. El alta rapida de
             // cliente sigue la misma regla: elige al cliente en la ficha.
-            bool camposEditables_704ILR = editable_704ILR && gestion_704ILR;
+            bool camposEditables_704ILR = edicion_704ILR && gestion_704ILR;
             _cboCliente_704ILR.Enabled      = camposEditables_704ILR;
             _cboSalon_704ILR.Enabled        = camposEditables_704ILR;
             _dtFecha_704ILR.Enabled         = camposEditables_704ILR;
@@ -1723,7 +1732,10 @@ namespace EvenTech.UI
                         out ret_704ILR, out reem_704ILR);
                     if (rc_704ILR != ReservaResult_704ILR.Success_704ILR)
                     {
-                        if (rc_704ILR == ReservaResult_704ILR.NoModificable_704ILR) RefrescarReserva_704ILR(idReserva_704ILR);
+                        // Cancelada o con el evento iniciado desde otra estacion: la ficha se
+                        // refresca para mostrarla como quedo (de solo lectura).
+                        if (rc_704ILR == ReservaResult_704ILR.NoModificable_704ILR || rc_704ILR == ReservaResult_704ILR.EventoIniciado_704ILR)
+                            RefrescarReserva_704ILR(idReserva_704ILR);
                         ShowError_704ILR(() => MensajeError_704ILR(rc_704ILR));
                         return;
                     }
@@ -1743,6 +1755,11 @@ namespace EvenTech.UI
             // La reserva y sus servicios contratados se guardan JUNTOS, en una sola
             // transaccion orquestada por la capa de negocio: el monto de la cabecera
             // y las lineas que lo componen no pueden quedar desfasados.
+            // Cambiar el dia de un evento con personal confirmado reinicia esas
+            // confirmaciones (el equipo responde de nuevo): se toma el avance previo para
+            // avisarlo despues del guardado.
+            BE_EventoCoordinacion_704ILR coordinacionPrevia_704ILR = _editId_704ILR == 0 ? null : BLL_Coordinacion_704ILR.GetEvento_704ILR(_editId_704ILR);
+
             ReservaResult_704ILR result_704ILR = _editId_704ILR == 0
                 ? BLL_Reserva_704ILR.Crear_704ILR(reserva_704ILR, _serviciosReserva_704ILR, out idReserva_704ILR)
                 : BLL_Reserva_704ILR.Actualizar_704ILR(reserva_704ILR, _serviciosReserva_704ILR);
@@ -1795,14 +1812,22 @@ namespace EvenTech.UI
                 // mostrando la operacion sobre la que se trabajo.
                 SafeLoadData_704ILR();
                 SeleccionarReserva_704ILR(idReserva_704ILR);
+                if (coordinacionPrevia_704ILR != null && coordinacionPrevia_704ILR.Estado_704ILR == EstadoReserva_704ILR.CONFIRMADA
+                    && coordinacionPrevia_704ILR.Confirmados_704ILR > 0
+                    && coordinacionPrevia_704ILR.FechaEvento_704ILR.Date != reserva_704ILR.FechaEvento_704ILR.Date)
+                    MessageBox.Show(Tr_704ILR.F_704ILR("MSG_RES_CONFIRMACIONES_REINICIADAS",
+                            "El evento cambió de fecha: {0} confirmación(es) del personal volvieron a pendiente y el equipo tiene que responder de nuevo.",
+                            coordinacionPrevia_704ILR.Confirmados_704ILR),
+                        "EvenTech", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             else
             {
                 ReservaResult_704ILR rechazo_704ILR = result_704ILR;
-                // Otra sesion cancelo la reserva con la ficha abierta: la ficha se refresca para
-                // mostrarla como quedo (de solo lectura y sin cambios pendientes), igual que al
-                // emitir su documentacion. Sin refrescar seguia editable, con Guardar habilitado.
-                if (rechazo_704ILR == ReservaResult_704ILR.NoModificable_704ILR && idReserva_704ILR != 0)
+                // Otra sesion cancelo la reserva o inicio su evento con la ficha abierta: la ficha
+                // se refresca para mostrarla como quedo (de solo lectura y sin cambios pendientes),
+                // igual que al emitir su documentacion. Sin refrescar seguia editable, con Guardar habilitado.
+                if ((rechazo_704ILR == ReservaResult_704ILR.NoModificable_704ILR || rechazo_704ILR == ReservaResult_704ILR.EventoIniciado_704ILR)
+                    && idReserva_704ILR != 0)
                     RefrescarReserva_704ILR(idReserva_704ILR);
                 ShowError_704ILR(() => MensajeError_704ILR(rechazo_704ILR), AvisoResueltoPorPrecarga_704ILR(rechazo_704ILR));
             }
@@ -1837,12 +1862,14 @@ namespace EvenTech.UI
                 case ReservaResult_704ILR.SalonOcupado_704ILR:   return T_704ILR("MSG_RES_SALON_OCUPADO", "El salón ya está reservado para esa fecha.");
                 case ReservaResult_704ILR.NoModificable_704ILR:  return T_704ILR("MSG_RES_NO_MODIFICABLE", "La reserva está cancelada: no admite modificaciones.");
                 case ReservaResult_704ILR.Vencida_704ILR:        return T_704ILR("MSG_RES_VENCIDA", "La operación venció: renovala antes de cambiar su estado.");
+                case ReservaResult_704ILR.SinPlazo_704ILR:       return T_704ILR("MSG_RES_SIN_PLAZO", "La operación no tiene un plazo de vigencia que renovar.");
                 case ReservaResult_704ILR.InvalidInvitados_704ILR: return T_704ILR("MSG_RES_INVITADOS", "Indica la cantidad de invitados estimada: hace falta para confirmar y no puede ser negativa.");
                 case ReservaResult_704ILR.CapacidadInsuficiente_704ILR: return T_704ILR("MSG_RES_CAPACIDAD", "El salón no alcanza para la cantidad de invitados indicada.");
                 case ReservaResult_704ILR.TransicionInvalida_704ILR: return T_704ILR("MSG_RES_TRANSICION_GEN", "El cambio de estado solicitado no está admitido.");
                 case ReservaResult_704ILR.MontoInferiorPagado_704ILR: return T_704ILR("MSG_RES_MONTO_PAGADO", "El total de la reserva no puede quedar por debajo de lo ya cobrado.");
                 case ReservaResult_704ILR.SinAdelanto_704ILR:    return T_704ILR("MSG_RES_SIN_ADELANTO", "Para confirmar la reserva hay que registrar el adelanto: guardala y cobra el pago desde Pagos.");
                 case ReservaResult_704ILR.NotFound_704ILR:       return T_704ILR("MSG_RES_NOTFOUND", "La reserva ya no existe.");
+                case ReservaResult_704ILR.EventoIniciado_704ILR: return T_704ILR("MSG_RES_EVENTO_INICIADO", "El evento de esta reserva está en ejecución o cerrado: la reserva ya no admite modificaciones ni cancelación.");
                 default:                           return T_704ILR("MSG_RES_ERROR", "No se pudo guardar la reserva.");
             }
         }

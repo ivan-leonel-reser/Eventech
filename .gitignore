@@ -1,8 +1,6 @@
 # Notas locales del entorno de desarrollo (nunca subir al repo).
 NOTES_LOCAL.md
-CLAUDE.md
 .notes-local/
-.claude/
 
 # Build output
 bin/

@@ -43,6 +43,12 @@ namespace EvenTech.BE
         // verificadores ya calculados sobre las reservas existentes.
         public DateTime? VenceEl_704ILR { get; set; }
 
+        // Estado de coordinacion del evento (Proceso 2): segundo eje, independiente del
+        // estado comercial. Lo mantiene BLL_Coordinacion; las escrituras de la reserva
+        // no lo tocan. Como VenceEl, NO forma parte de ObtenerCamposParaDV: es un dato
+        // operativo y sumarlo invalidaria los digitos verificadores ya calculados.
+        public EstadoCoordinacion_704ILR EstadoCoordinacion_704ILR { get; set; }
+
         // True si la operacion tiene plazo y ya expiro.
         public bool EstaVencida_704ILR =>
             VenceEl_704ILR.HasValue && VenceEl_704ILR.Value < DateTime.Now;

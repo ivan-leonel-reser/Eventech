@@ -47,13 +47,22 @@ namespace EvenTech.UI
         // El fondo se fija explicitamente: un combo Flat sin BackColor queda gris y en
         // pantalla se lee como deshabilitado, al lado de los que dibuja DibujarEnum
         // (que los repinta con el color de superficie). Un solo estilo para todos.
-        public static ComboBox Combo_704ILR() => new ComboBox
+        public static ComboBox Combo_704ILR()
         {
-            Font = Theme_704ILR.FontInput_704ILR,
-            DropDownStyle = ComboBoxStyle.DropDownList,
-            FlatStyle = FlatStyle.Flat,
-            BackColor = Theme_704ILR.Surface_704ILR
-        };
+            var cbo_704ILR = new ComboBox
+            {
+                Font = Theme_704ILR.FontInput_704ILR,
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Theme_704ILR.Surface_704ILR
+            };
+            // Un combo plano no se repinta entero cuando la disposicion lo ensancha: Windows
+            // invalida solo la franja nueva y ahi queda a la vista el combo nativo (borde y
+            // flecha del tema), con la flecha plana anterior en el medio del control. Al
+            // cambiar de tamano se repinta completo.
+            cbo_704ILR.Resize += (s_704ILR, e_704ILR) => cbo_704ILR.Invalidate();
+            return cbo_704ILR;
+        }
 
         // Hace que un ComboBox dibuje cada item con texto traducido EN VIVO: como el
         // texto se resuelve en cada repintado, al cambiar el idioma basta con un
@@ -104,6 +113,19 @@ namespace EvenTech.UI
             Font = Theme_704ILR.FontInput_704ILR,
             Format = DateTimePickerFormat.Custom,
             CustomFormat = "yyyy-MM-dd"
+        };
+
+        // Selector de hora (HH:mm, 24 horas) con flechas: las franjas de trabajo y las
+        // horas del cronograma se cargan sin fecha. La fecha interna del control no se
+        // usa: se lee Value.TimeOfDay. El formato es fijo, como el de las fechas.
+        public static DateTimePicker TimePicker_704ILR(int hora_704ILR = 0, int minuto_704ILR = 0) => new DateTimePicker
+        {
+            Font = Theme_704ILR.FontInput_704ILR,
+            Format = DateTimePickerFormat.Custom,
+            CustomFormat = "HH:mm",
+            ShowUpDown = true,
+            Width = 78,
+            Value = new System.DateTime(2000, 1, 1, hora_704ILR, minuto_704ILR, 0)
         };
 
         // ---------- Campo etiquetado (caption arriba, input abajo) ----------

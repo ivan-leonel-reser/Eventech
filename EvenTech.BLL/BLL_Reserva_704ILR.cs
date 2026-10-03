@@ -24,6 +24,7 @@ namespace EvenTech.BLL
         MontoInferiorPagado_704ILR,   // RN-04: el total quedaria por debajo de lo ya cobrado
         SinAdelanto_704ILR,           // RN-07: se quiso confirmar sin ningun pago registrado
         SinPlazo_704ILR,              // RN-01: la operacion no tiene plazo de vigencia que renovar
+        EventoIniciado_704ILR,        // RN-13: el evento esta en ejecucion o cerrado, la reserva queda congelada
         NotFound_704ILR
     }
 
@@ -228,6 +229,7 @@ namespace EvenTech.BLL
             BE_Reserva_704ILR antes_704ILR, cancelada_704ILR;
             bool dvhAlterado_704ILR;
             string estadoAlterado_704ILR;
+            int confirmacionesReiniciadas_704ILR = 0;
             using (var cn_704ILR = new DAL_DB_Connection_704ILR())
             {
                 SqlConnection conn_704ILR = cn_704ILR.OpenConnection_704ILR();
@@ -236,6 +238,7 @@ namespace EvenTech.BLL
                     antes_704ILR = DAL_Reserva_704ILR.GetById_704ILR(reservaId_704ILR, conn_704ILR, tx_704ILR);
                     if (antes_704ILR == null) return ReservaResult_704ILR.NotFound_704ILR;
                     if (!PuedeModificar_704ILR(antes_704ILR)) return ReservaResult_704ILR.NoModificable_704ILR;
+                    if (EventoIniciado_704ILR(antes_704ILR, "Cancelacion rechazada")) return ReservaResult_704ILR.EventoIniciado_704ILR;
 
                     // RN-05: un estado almacenado que no figura en el ciclo de vida no
                     // tiene transicion a CANCELADA ni una foto valida que versionar.
@@ -258,6 +261,10 @@ namespace EvenTech.BLL
                     // La version previa entra en la misma transaccion que la baja.
                     CaretakerReserva_704ILR.GuardarVersion_704ILR(antes_704ILR, conn_704ILR, tx_704ILR);
                     DAL_Reserva_704ILR.Update_704ILR(cancelada_704ILR, conn_704ILR, tx_704ILR);
+                    // Un evento cancelado ya no compromete a nadie: el personal que habia
+                    // confirmado queda liberado en la misma transaccion que la baja.
+                    if (ConfirmacionesCaducan_704ILR(antes_704ILR, cancelada_704ILR))
+                        confirmacionesReiniciadas_704ILR = BLL_Coordinacion_704ILR.ReiniciarConfirmaciones_704ILR(antes_704ILR, conn_704ILR, tx_704ILR);
                     // La constancia del estado alterado va antes de confirmar: sin ella la
                     // baja no se aplica (ver AsentarEstadoFueraDeDominio_704ILR).
                     if (estadoAlterado_704ILR != null)
@@ -276,6 +283,8 @@ namespace EvenTech.BLL
                 CriticidadBitacora_704ILR.Advertencia,
                 $"Reserva #{reservaId_704ILR} cancelada. Retenido {ImporteBitacora_704ILR(retenido_704ILR)}, " +
                 $"reintegro {ImporteBitacora_704ILR(reembolsable_704ILR)} (RN-02).");
+            BLL_Coordinacion_704ILR.AsentarConfirmacionesReiniciadas_704ILR(reservaId_704ILR, confirmacionesReiniciadas_704ILR,
+                "la cancelacion de la reserva", personalLiberado_704ILR: true);
             try
             {
                 RegistradorDeCambios_704ILR.RegistrarCambios_704ILR("Reserva", reservaId_704ILR,
@@ -441,6 +450,7 @@ namespace EvenTech.BLL
             bool lineasCambiaron_704ILR = false;
             bool dvhAlterado_704ILR = false;
             string estadoAlterado_704ILR = null;
+            int confirmacionesReiniciadas_704ILR = 0;
             try
             {
                 using (var cn_704ILR = new DAL_DB_Connection_704ILR())
@@ -459,6 +469,10 @@ namespace EvenTech.BLL
                                 $"Reserva #{reserva_704ILR.Id_704ILR} cancelada: no admite modificaciones.");
                             return ReservaResult_704ILR.NoModificable_704ILR;
                         }
+
+                        // RN-13: con el evento en ejecucion o cerrado la reserva queda congelada.
+                        if (EventoIniciado_704ILR(antes_704ILR, "Modificacion rechazada"))
+                            return ReservaResult_704ILR.EventoIniciado_704ILR;
 
                         // RN-05: el estado almacenado y el pedido tienen que ser dos de los cuatro
                         // del ciclo de vida (ver Crear_704ILR). Se controlan antes que la tabla de
@@ -593,6 +607,10 @@ namespace EvenTech.BLL
                         DAL_Reserva_704ILR.Update_704ILR(reserva_704ILR, conn_704ILR, tx_704ILR);
                         if (servicios_704ILR != null)
                             DAL_ReservaServicio_704ILR.ReplaceForReserva_704ILR(reserva_704ILR.Id_704ILR, servicios_704ILR, conn_704ILR, tx_704ILR);
+                        // Reprogramar un evento ya coordinado deja sin efecto las confirmaciones
+                        // del personal, que valian para la fecha anterior (Proceso 2).
+                        if (ConfirmacionesCaducan_704ILR(antes_704ILR, reserva_704ILR))
+                            confirmacionesReiniciadas_704ILR = BLL_Coordinacion_704ILR.ReiniciarConfirmaciones_704ILR(antes_704ILR, conn_704ILR, tx_704ILR);
                         // Sin la constancia del estado alterado la modificacion no se aplica
                         // (ver AsentarEstadoFueraDeDominio_704ILR).
                         if (estadoAlterado_704ILR != null)
@@ -610,6 +628,7 @@ namespace EvenTech.BLL
             // Evidencia posterior al commit (ver Crear_704ILR): la modificacion ya
             // esta guardada, un fallo aca se asienta y no se informa como error.
             if (dvhAlterado_704ILR) AsentarDvhNoCoincidente_704ILR(reserva_704ILR.Id_704ILR, "la modificacion");
+            BLL_Coordinacion_704ILR.AsentarConfirmacionesReiniciadas_704ILR(reserva_704ILR.Id_704ILR, confirmacionesReiniciadas_704ILR, "la reprogramacion del evento");
             try
             {
                 BLL_Integridad_704ILR.RecalcularDVVerticalReservas_704ILR();
@@ -651,6 +670,7 @@ namespace EvenTech.BLL
             bool lineasCambian_704ILR = false;
             bool dvhAlterado_704ILR = false;
             string estadoAlterado_704ILR = null;
+            int confirmacionesReiniciadas_704ILR = 0;
             try
             {
                 using (var cn_704ILR = new DAL_DB_Connection_704ILR())
@@ -672,6 +692,10 @@ namespace EvenTech.BLL
                                 $"Reserva #{reservaId_704ILR} cancelada: no admite restaurar versiones (RN-05).");
                             return ReservaResult_704ILR.NoModificable_704ILR;
                         }
+
+                        // RN-13: con el evento en ejecucion o cerrado la reserva queda congelada.
+                        if (EventoIniciado_704ILR(actual_704ILR, "Restauracion rechazada"))
+                            return ReservaResult_704ILR.EventoIniciado_704ILR;
 
                         memento_704ILR = CaretakerReserva_704ILR.GetVersion_704ILR(mementoId_704ILR);
                         if (memento_704ILR == null || memento_704ILR.ReservaId_704ILR != reservaId_704ILR) return ReservaResult_704ILR.NotFound_704ILR;
@@ -785,6 +809,10 @@ namespace EvenTech.BLL
                         DAL_Reserva_704ILR.Update_704ILR(restaurada_704ILR, conn_704ILR, tx_704ILR);
                         DAL_ReservaServicio_704ILR.ReplaceForReserva_704ILR(
                             reservaId_704ILR, memento_704ILR.Servicios_704ILR, conn_704ILR, tx_704ILR);
+                        // La version repuesta cambia la fecha o deja a la reserva sin confirmar:
+                        // las confirmaciones del personal dejan de valer (Proceso 2).
+                        if (ConfirmacionesCaducan_704ILR(actual_704ILR, restaurada_704ILR))
+                            confirmacionesReiniciadas_704ILR = BLL_Coordinacion_704ILR.ReiniciarConfirmaciones_704ILR(actual_704ILR, conn_704ILR, tx_704ILR);
                         // Sin la constancia del estado alterado la restauracion no se aplica
                         // (ver AsentarEstadoFueraDeDominio_704ILR).
                         if (estadoAlterado_704ILR != null)
@@ -802,6 +830,10 @@ namespace EvenTech.BLL
             // Evidencia posterior al commit (ver Crear_704ILR): la version ya esta
             // repuesta, un fallo aca se asienta y no se informa como error.
             if (dvhAlterado_704ILR) AsentarDvhNoCoincidente_704ILR(reservaId_704ILR, "la restauracion");
+            // Si la version repuesta deja a la reserva sin confirmar, su evento ya no se
+            // coordina: el personal queda liberado, igual que en una cancelacion.
+            BLL_Coordinacion_704ILR.AsentarConfirmacionesReiniciadas_704ILR(reservaId_704ILR, confirmacionesReiniciadas_704ILR, "la restauracion de una version",
+                personalLiberado_704ILR: restaurada_704ILR.Estado_704ILR != EstadoReserva_704ILR.CONFIRMADA);
             try
             {
                 BLL_Integridad_704ILR.RecalcularDVVerticalReservas_704ILR();
@@ -826,6 +858,26 @@ namespace EvenTech.BLL
 
         // ---------------------------------------------------------------
         // Helpers privados de las reglas.
+
+        // RN-13: una reserva cuyo evento esta en ejecucion o cerrado queda congelada: no
+        // se modifica, no se cancela y no se le restaura una version (los cobros del
+        // saldo siguen admitidos, van por BLL_Pago). Se evalua sobre la cabecera leida
+        // con bloqueo y el rechazo se asienta: es una regla de negocio, no un error de tipeo.
+        private static bool EventoIniciado_704ILR(BE_Reserva_704ILR persistida_704ILR, string accion_704ILR)
+        {
+            if (!BLL_Coordinacion_704ILR.PlanCongelado_704ILR(persistida_704ILR.EstadoCoordinacion_704ILR)) return false;
+            BLL_Bitacora_704ILR.Registrar_704ILR("Reservas", accion_704ILR, CriticidadBitacora_704ILR.Advertencia,
+                $"Reserva #{persistida_704ILR.Id_704ILR}: el evento esta {persistida_704ILR.EstadoCoordinacion_704ILR}, " +
+                "la reserva queda congelada (RN-13).");
+            return true;
+        }
+
+        // Las confirmaciones del personal valen para una reserva CONFIRMADA y para su
+        // fecha: caducan si la reserva estaba confirmada y cambia de dia o deja de estarlo.
+        private static bool ConfirmacionesCaducan_704ILR(BE_Reserva_704ILR persistida_704ILR, BE_Reserva_704ILR nueva_704ILR)
+            => persistida_704ILR.Estado_704ILR == EstadoReserva_704ILR.CONFIRMADA
+               && (nueva_704ILR.Estado_704ILR != EstadoReserva_704ILR.CONFIRMADA
+                   || nueva_704ILR.FechaEvento_704ILR.Date != persistida_704ILR.FechaEvento_704ILR.Date);
 
         // RN-01: true si la operacion persistida ya vencio y se la quiere llevar a
         // OTRO estado. Es el unico criterio de vigencia y lo comparten la edicion y

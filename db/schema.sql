@@ -5,21 +5,26 @@
 -- Se ejecuta SOBRE la base que indica -d (no crea la base ni cambia de
 -- contexto); la base se crea aparte, ver db/README.md.
 --
--- Inventario (20 tablas):
+-- Inventario (27 tablas):
 --   Seguridad y acceso ...... Users, LoginAuditLog, Perfiles, Permisos,
 --                             PerfilPermiso, PerfilIncluido
 --   Negocio (RFN1) .......... Clientes, Salones, Reservas, Servicios,
 --                             ReservaServicio, MetodosPago, Pagos
+--   Operaciones (RFN2) ...... Especialidades, Empleados, AsignacionesPersonal,
+--                             Cronogramas, CronogramaActividades, Tareas,
+--                             Incidencias
 --   Auditoria e integridad .. Bitacora, HistorialCambios, ReservaMemento,
 --                             ReservaMementoServicio, DVVertical
 --   Idiomas ................. Idiomas, Traducciones
 -- Semillas: usuario admin/admin123, arbol de permisos, perfiles Administrador,
--- Vendedor, Supervisor y Gerencial, catalogos de ejemplo (salones, servicios,
--- metodos de pago, dos clientes) y las traducciones ES/EN/PT de la interfaz.
+-- Vendedor, Supervisor, Gerencial, Coordinador y Empleado, catalogos de ejemplo
+-- (salones, servicios, metodos de pago, especialidades del personal, dos
+-- clientes) y las traducciones ES/EN/PT de la interfaz.
 
--- Los indices filtrados (UX_Clientes_Dni, UX_Reservas_SalonFecha_Confirmada)
--- exigen QUOTED_IDENTIFIER ON. El sqlcmd que instala SQL Server arranca con
--- OFF salvo que se pase -I, asi que se fija aca para no depender del cliente.
+-- Los indices filtrados (UX_Clientes_Dni, UX_Reservas_SalonFecha_Confirmada,
+-- UX_Empleados_UserId) exigen QUOTED_IDENTIFIER ON. El sqlcmd ODBC (el de las
+-- utilidades de linea de comandos de SQL Server) arranca con OFF salvo que se
+-- pase -I, asi que se fija aca para no depender del cliente.
 -- NOEXEC OFF va primero: si en la misma sesion (una ventana de SSMS) una corrida
 -- anterior cayo en la guarda de abajo, la sesion quedo con NOEXEC ON y todo lo
 -- que sigue se compilaria sin ejecutarse, guarda incluida: volver a ejecutar
@@ -40,6 +45,22 @@ BEGIN
     RAISERROR(N'schema.sql: la base actual es "%s". Ejecutar con -d <base> sobre la base de EvenTech; en SSMS, elegir esa base en el combo y volver a ejecutar (ver db/README.md).', 16, 1, @baseActual);
     SET NOEXEC ON;
 END
+GO
+
+-- Lecturas por version (READ_COMMITTED_SNAPSHOT). El sistema se usa desde mas de
+-- un puesto: las operaciones que validan y escriben leen la cabecera de la
+-- reserva con bloqueo y se ejecutan una detras de la otra; las consultas de las
+-- pantallas (operaciones, agenda, equipo del evento) solo leen. Con el
+-- aislamiento por bloqueos, una de esas consultas y una escritura sobre el mismo
+-- evento podian esperarse entre si y el motor cortaba una de las dos (error
+-- 1205). Con las lecturas por version, quien consulta ve el ultimo dato
+-- confirmado sin esperar a quien escribe, y los bloqueos pedidos de forma
+-- explicita por las escrituras se siguen respetando.
+-- Es una opcion de la base (viaja con el respaldo). El cambio exige que no haya
+-- otra sesion a mitad de una transaccion: ROLLBACK IMMEDIATE la deshace en lugar
+-- de dejar el script esperando. Solo se aplica si todavia no esta activa.
+IF EXISTS (SELECT 1 FROM sys.databases WHERE database_id = DB_ID() AND is_read_committed_snapshot_on = 0)
+    ALTER DATABASE CURRENT SET READ_COMMITTED_SNAPSHOT ON WITH ROLLBACK IMMEDIATE;
 GO
 
 -- Tabla de usuarios.
@@ -288,8 +309,8 @@ GO
 IF NOT EXISTS (SELECT 1 FROM dbo.Clientes)
 BEGIN
     INSERT INTO dbo.Clientes (Nombre, Apellido, Dni, Email, Telefono) VALUES
-        (N'Juan',  N'Perez', N'30111222', N'juan.perez@mail.com',  N'11-5555-1111'),
-        (N'Maria', N'Gomez', N'28999333', N'maria.gomez@mail.com', N'11-5555-2222');
+        (N'Juan',  N'Pérez', N'30111222', N'juan.perez@mail.com',  N'11-5555-1111'),
+        (N'María', N'Gómez', N'28999333', N'maria.gomez@mail.com', N'11-5555-2222');
 END
 GO
 
@@ -330,12 +351,12 @@ GO
 IF NOT EXISTS (SELECT 1 FROM dbo.Servicios)
 BEGIN
     INSERT INTO dbo.Servicios (Nombre, Descripcion, Precio) VALUES
-        (N'Catering por persona', N'Menu completo por invitado',        8500),
-        (N'Decoracion tematica',  N'Ambientacion del salon',           60000),
-        (N'DJ y sonido',          N'Servicio de musica y sonido',      90000),
-        (N'Fotografia y video',   N'Cobertura del evento',            120000),
+        (N'Catering por persona', N'Menú completo por invitado',        8500),
+        (N'Decoración temática',  N'Ambientación del salón',           60000),
+        (N'DJ y sonido',          N'Servicio de música y sonido',      90000),
+        (N'Fotografía y video',   N'Cobertura del evento',            120000),
         (N'Barra de tragos',      N'Barra libre de bebidas',           75000),
-        (N'Servicio de mozos',    N'Personal de atencion (por mozo)',  25000);
+        (N'Servicio de mozos',    N'Personal de atención (por mozo)',  25000);
 END
 GO
 
@@ -374,8 +395,8 @@ GO
 IF NOT EXISTS (SELECT 1 FROM dbo.Salones)
 BEGIN
     INSERT INTO dbo.Salones (Nombre, Capacidad) VALUES
-        (N'Salon Principal', 250),
-        (N'Salon Jardin',    120),
+        (N'Salón Principal', 250),
+        (N'Salón Jardín',    120),
         (N'Terraza',          80);
 END
 GO
@@ -1626,7 +1647,8 @@ GO
 -- ===========================================================================
 -- 1. Perfiles operativos (roles de G04) sobre el Composite de dos niveles:
 --   Vendedor   : opera la venta (disponibilidad, clientes, reservas, cobros).
---   Supervisor : incluye a Vendedor y suma auditoria y anulacion de pagos.
+--   Supervisor : incluye a Vendedor y suma auditoria y anulacion de pagos (y, con
+--                el Proceso 2, la supervision de la ejecucion de los eventos).
 --   Gerencial  : incluye a Supervisor y suma el recalculo de la linea base.
 --   Restaurar versiones queda reservado al Administrador (RN-05 de la Carpeta).
 -- Idempotente y guardado por nombre: el perfil que falte se da de alta y SOLO ese
@@ -1650,7 +1672,7 @@ BEGIN TRY
     ;WITH Perf(Nombre, Descripcion) AS (
         SELECT * FROM (VALUES
             (N'Vendedor',   N'Atiende la venta: disponibilidad, clientes, cotizaciones, reservas y cobros'),
-            (N'Supervisor', N'Incluye al perfil Vendedor y suma la consulta de auditoría y la anulación de pagos'),
+            (N'Supervisor', N'Incluye al perfil Vendedor y suma la consulta de auditoría, la anulación de pagos y la supervisión de la ejecución de los eventos'),
             (N'Gerencial',  N'Incluye al perfil Supervisor y suma la corrección administrativa de la línea base de integridad')
         ) AS v(Nombre, Descripcion)
     )
@@ -1671,6 +1693,10 @@ BEGIN TRY
             (N'Supervisor', N'BITACORA_VER'),
             (N'Supervisor', N'AUDIT_LOGIN_VER'),
             (N'Supervisor', N'PAGOS_ANULAR'),
+            -- Proceso 2. En una base nueva el permiso todavia no existe en este punto y
+            -- lo asigna el bloque del Proceso 2; esta fila cubre al perfil que se vuelve
+            -- a dar de alta sobre una base que ya lo tiene.
+            (N'Supervisor', N'EJECUCION_SUPERVISAR'),
             (N'Gerencial',  N'INTEGRIDAD_RECALC')
         ) AS v(Perfil, Clave)
     )
@@ -2976,6 +3002,667 @@ WHERE NOT EXISTS (
     SELECT 1 FROM dbo.Traducciones x WHERE x.IdiomaId = i.Id AND x.Clave = t.Clave
 )
 GROUP BY i.Id, t.Clave;
+GO
+
+-- ===========================================================================
+-- Proceso 2 (RFN2): Asignacion de Personal y Cronograma de Eventos.
+-- Tablas del personal, de la coordinacion del evento y de su ejecucion, el
+-- estado de coordinacion de la reserva, los permisos y los perfiles operativos.
+-- Idempotente, con el mismo patron que el resto del script: corre sobre la base
+-- que indica -d, crea lo que falte y no toca lo que ya existe.
+-- ===========================================================================
+SET QUOTED_IDENTIFIER ON;
+GO
+
+-- Especialidades del personal (catalogo). Es el criterio con el que el
+-- coordinador busca a quien asignar y a quien reemplaza a un empleado que
+-- rechazo el turno.
+IF OBJECT_ID('dbo.Especialidades','U') IS NULL
+BEGIN
+    CREATE TABLE dbo.Especialidades (
+        Id     INT IDENTITY(1,1) NOT NULL CONSTRAINT PK_Especialidades PRIMARY KEY,
+        Nombre NVARCHAR(60)      NOT NULL,
+        CONSTRAINT UQ_Especialidades_Nombre UNIQUE (Nombre)
+    );
+    INSERT INTO dbo.Especialidades (Nombre) VALUES
+        (N'Mozo'), (N'Cocina'), (N'Barra'), (N'DJ y sonido'), (N'Fotografía y video'),
+        (N'Decoración'), (N'Recepción'), (N'Seguridad'), (N'Limpieza');
+END
+GO
+
+-- Empleados que pueden asignarse a un evento. UserId vincula la ficha con la
+-- cuenta con la que el empleado ingresa: es lo que le permite confirmar su
+-- disponibilidad y consultar sus tareas. Es opcional (un empleado sin cuenta se
+-- asigna igual, pero no puede responder por si mismo).
+IF OBJECT_ID('dbo.Empleados','U') IS NULL
+BEGIN
+    CREATE TABLE dbo.Empleados (
+        Id             INT IDENTITY(1,1) NOT NULL CONSTRAINT PK_Empleados PRIMARY KEY,
+        Nombre         NVARCHAR(60)      NOT NULL,
+        Apellido       NVARCHAR(60)      NOT NULL,
+        Dni            NVARCHAR(20)      NOT NULL,
+        EspecialidadId INT               NOT NULL,
+        UserId         INT               NULL,
+        Activo         BIT               NOT NULL CONSTRAINT DF_Empleados_Activo DEFAULT 1,
+        CreatedAt      DATETIME          NOT NULL CONSTRAINT DF_Empleados_CreatedAt DEFAULT GETDATE(),
+        CONSTRAINT UQ_Empleados_Dni UNIQUE (Dni),
+        CONSTRAINT FK_Empleados_Especialidad FOREIGN KEY (EspecialidadId) REFERENCES dbo.Especialidades(Id),
+        CONSTRAINT FK_Empleados_User         FOREIGN KEY (UserId)         REFERENCES dbo.Users(Id)
+    );
+    CREATE INDEX IX_Empleados_EspecialidadId ON dbo.Empleados(EspecialidadId);
+END
+GO
+
+-- Una cuenta representa a un solo empleado. Indice unico filtrado, en bloque
+-- propio (ver UX_Clientes_Dni): exige QUOTED_IDENTIFIER ON.
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_Empleados_UserId' AND object_id = OBJECT_ID('dbo.Empleados'))
+    CREATE UNIQUE INDEX UX_Empleados_UserId ON dbo.Empleados(UserId) WHERE UserId IS NOT NULL;
+GO
+
+-- Estado de coordinacion del evento: segundo eje de la reserva, independiente
+-- del estado comercial. Lo mantiene la capa de negocio del Proceso 2; las
+-- escrituras de la reserva no lo tocan. Como VenceEl y CantidadInvitados, NO
+-- entra en el digito verificador: es un dato operativo y sumarlo invalidaria
+-- los DV ya calculados sobre las reservas existentes.
+IF COL_LENGTH('dbo.Reservas','EstadoCoordinacion') IS NULL
+    ALTER TABLE dbo.Reservas ADD EstadoCoordinacion NVARCHAR(20) NOT NULL
+        CONSTRAINT DF_Reservas_EstadoCoordinacion DEFAULT 'SIN_ASIGNAR';
+GO
+
+-- Dominio cerrado y sensible a mayusculas, como el de Estado (ver
+-- CK_Reservas_Estado). Va en lote propio: la columna tiene que existir antes.
+-- Como aquella, se agrega solo si todas las filas ya cumplen el dominio exacto:
+-- el script no debe cortarse sobre una base con un valor escrito a mano.
+IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_Reservas_EstadoCoordinacion' AND parent_object_id = OBJECT_ID(N'dbo.Reservas'))
+   AND NOT EXISTS (SELECT 1 FROM dbo.Reservas
+                   WHERE EstadoCoordinacion COLLATE Latin1_General_BIN2 NOT IN (N'SIN_ASIGNAR', N'EN_COORDINACION', N'LISTO', N'EN_EJECUCION', N'CERRADO'))
+    ALTER TABLE dbo.Reservas WITH CHECK ADD CONSTRAINT CK_Reservas_EstadoCoordinacion
+        CHECK (EstadoCoordinacion COLLATE Latin1_General_BIN2 IN (N'SIN_ASIGNAR', N'EN_COORDINACION', N'LISTO', N'EN_EJECUCION', N'CERRADO'));
+GO
+
+-- Asignacion de un empleado a un evento, con su rol, su franja de trabajo y la
+-- respuesta que dio. Hay una sola por empleado y por reserva. La franja se
+-- interpreta sobre la fecha del evento; si la hora de fin no es posterior a la
+-- de inicio, termina al dia siguiente (un turno de 21:00 a 03:00).
+IF OBJECT_ID('dbo.AsignacionesPersonal','U') IS NULL
+BEGIN
+    CREATE TABLE dbo.AsignacionesPersonal (
+        Id                INT IDENTITY(1,1) NOT NULL CONSTRAINT PK_AsignacionesPersonal PRIMARY KEY,
+        ReservaId         INT               NOT NULL,
+        EmpleadoId        INT               NOT NULL,
+        RolAsignado       NVARCHAR(60)      NOT NULL,
+        HoraInicio        TIME(0)           NOT NULL,
+        HoraFin           TIME(0)           NOT NULL,
+        Estado            NVARCHAR(20)      NOT NULL CONSTRAINT DF_AsignacionesPersonal_Estado DEFAULT 'PENDIENTE',
+        FechaConfirmacion DATETIME          NULL,   -- cuando respondio el empleado (acepto o rechazo)
+        MotivoRechazo     NVARCHAR(250)     NULL,
+        CreatedAt         DATETIME          NOT NULL CONSTRAINT DF_AsignacionesPersonal_CreatedAt DEFAULT GETDATE(),
+        CONSTRAINT UQ_AsignacionesPersonal_ReservaEmpleado UNIQUE (ReservaId, EmpleadoId),
+        CONSTRAINT FK_AsignacionesPersonal_Reserva  FOREIGN KEY (ReservaId)  REFERENCES dbo.Reservas(Id),
+        CONSTRAINT FK_AsignacionesPersonal_Empleado FOREIGN KEY (EmpleadoId) REFERENCES dbo.Empleados(Id),
+        CONSTRAINT CK_AsignacionesPersonal_Estado CHECK (Estado COLLATE Latin1_General_BIN2 IN (N'PENDIENTE', N'CONFIRMADA', N'RECHAZADA')),
+        CONSTRAINT CK_AsignacionesPersonal_Franja CHECK (HoraInicio <> HoraFin)
+    );
+    CREATE INDEX IX_AsignacionesPersonal_EmpleadoId ON dbo.AsignacionesPersonal(EmpleadoId);
+END
+GO
+
+-- Los conteos que deciden el estado de coordinacion (cuantas asignaciones tiene
+-- el evento y cuantas estan confirmadas) se resuelven con las claves de SU
+-- reserva: dos escrituras simultaneas sobre eventos distintos no se esperan una
+-- a la otra. En bloque propio: se agrega tambien a una base ya creada.
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_AsignacionesPersonal_Reserva_Estado' AND object_id = OBJECT_ID('dbo.AsignacionesPersonal'))
+    CREATE INDEX IX_AsignacionesPersonal_Reserva_Estado ON dbo.AsignacionesPersonal(ReservaId, Estado);
+GO
+
+-- Cronograma de la jornada: uno solo por reserva.
+IF OBJECT_ID('dbo.Cronogramas','U') IS NULL
+BEGIN
+    CREATE TABLE dbo.Cronogramas (
+        Id        INT IDENTITY(1,1) NOT NULL CONSTRAINT PK_Cronogramas PRIMARY KEY,
+        ReservaId INT               NOT NULL,
+        CreatedAt DATETIME          NOT NULL CONSTRAINT DF_Cronogramas_CreatedAt DEFAULT GETDATE(),
+        CONSTRAINT UQ_Cronogramas_Reserva UNIQUE (ReservaId),
+        CONSTRAINT FK_Cronogramas_Reserva FOREIGN KEY (ReservaId) REFERENCES dbo.Reservas(Id)
+    );
+END
+GO
+
+-- Actividades del cronograma: que pasa, a que hora, cuanto dura y quien
+-- responde por el tramo. Orden es el que les dio el coordinador (una jornada
+-- que cruza la medianoche no se puede ordenar por hora).
+IF OBJECT_ID('dbo.CronogramaActividades','U') IS NULL
+BEGIN
+    CREATE TABLE dbo.CronogramaActividades (
+        Id              INT IDENTITY(1,1) NOT NULL CONSTRAINT PK_CronogramaActividades PRIMARY KEY,
+        CronogramaId    INT               NOT NULL,
+        Orden           INT               NOT NULL,
+        Hora            TIME(0)           NOT NULL,
+        Descripcion     NVARCHAR(150)     NOT NULL,
+        ResponsableId   INT               NOT NULL,
+        DuracionMinutos INT               NOT NULL,
+        CONSTRAINT FK_CronogramaActividades_Cronograma  FOREIGN KEY (CronogramaId)  REFERENCES dbo.Cronogramas(Id),
+        CONSTRAINT FK_CronogramaActividades_Responsable FOREIGN KEY (ResponsableId) REFERENCES dbo.Empleados(Id),
+        CONSTRAINT CK_CronogramaActividades_Duracion CHECK (DuracionMinutos BETWEEN 1 AND 1440)
+    );
+    CREATE INDEX IX_CronogramaActividades_CronogramaId ON dbo.CronogramaActividades(CronogramaId);
+    CREATE INDEX IX_CronogramaActividades_ResponsableId ON dbo.CronogramaActividades(ResponsableId);
+END
+GO
+
+-- Tareas especificas de cada integrante del equipo dentro del cronograma.
+IF OBJECT_ID('dbo.Tareas','U') IS NULL
+BEGIN
+    CREATE TABLE dbo.Tareas (
+        Id           INT IDENTITY(1,1) NOT NULL CONSTRAINT PK_Tareas PRIMARY KEY,
+        CronogramaId INT               NOT NULL,
+        EmpleadoId   INT               NOT NULL,
+        Descripcion  NVARCHAR(200)     NOT NULL,
+        HoraInicio   TIME(0)           NOT NULL,
+        HoraFin      TIME(0)           NOT NULL,
+        Prioridad    NVARCHAR(10)      NOT NULL CONSTRAINT DF_Tareas_Prioridad DEFAULT 'MEDIA',
+        Recursos     NVARCHAR(200)     NULL,
+        CreatedAt    DATETIME          NOT NULL CONSTRAINT DF_Tareas_CreatedAt DEFAULT GETDATE(),
+        CONSTRAINT FK_Tareas_Cronograma FOREIGN KEY (CronogramaId) REFERENCES dbo.Cronogramas(Id),
+        CONSTRAINT FK_Tareas_Empleado   FOREIGN KEY (EmpleadoId)   REFERENCES dbo.Empleados(Id),
+        CONSTRAINT CK_Tareas_Prioridad CHECK (Prioridad COLLATE Latin1_General_BIN2 IN (N'ALTA', N'MEDIA', N'BAJA')),
+        CONSTRAINT CK_Tareas_Franja CHECK (HoraInicio <> HoraFin)
+    );
+    CREATE INDEX IX_Tareas_CronogramaId ON dbo.Tareas(CronogramaId);
+    CREATE INDEX IX_Tareas_EmpleadoId ON dbo.Tareas(EmpleadoId);
+END
+GO
+
+-- Incidencias: lo que se sale del plan durante la ejecucion del evento.
+IF OBJECT_ID('dbo.Incidencias','U') IS NULL
+BEGIN
+    CREATE TABLE dbo.Incidencias (
+        Id                INT IDENTITY(1,1) NOT NULL CONSTRAINT PK_Incidencias PRIMARY KEY,
+        ReservaId         INT               NOT NULL,
+        FechaHora         DATETIME          NOT NULL CONSTRAINT DF_Incidencias_FechaHora DEFAULT GETDATE(),
+        Tipo              NVARCHAR(20)      NOT NULL,
+        Descripcion       NVARCHAR(500)     NOT NULL,
+        EmpleadoReportaId INT               NULL,
+        Estado            NVARCHAR(10)      NOT NULL CONSTRAINT DF_Incidencias_Estado DEFAULT 'ABIERTA',
+        Resolucion        NVARCHAR(250)     NULL,
+        FechaResolucion   DATETIME          NULL,
+        CONSTRAINT FK_Incidencias_Reserva  FOREIGN KEY (ReservaId)         REFERENCES dbo.Reservas(Id),
+        CONSTRAINT FK_Incidencias_Empleado FOREIGN KEY (EmpleadoReportaId) REFERENCES dbo.Empleados(Id),
+        CONSTRAINT CK_Incidencias_Tipo CHECK (Tipo COLLATE Latin1_General_BIN2 IN (N'PERSONAL', N'SERVICIO', N'EQUIPAMIENTO', N'HORARIO', N'INVITADOS', N'OTRO')),
+        CONSTRAINT CK_Incidencias_Estado CHECK (Estado COLLATE Latin1_General_BIN2 IN (N'ABIERTA', N'RESUELTA'))
+    );
+    CREATE INDEX IX_Incidencias_ReservaId ON dbo.Incidencias(ReservaId);
+    CREATE INDEX IX_Incidencias_EmpleadoReportaId ON dbo.Incidencias(EmpleadoReportaId);
+END
+GO
+
+-- ---------------------------------------------------------------------------
+-- Permisos del Proceso 2 (hojas del Composite). La gestion de empleados cuelga
+-- de "Administracion del sistema", con los demas catalogos; las operaciones
+-- sobre el evento, de un grupo propio. Se insertan solo si faltan y el perfil
+-- Administrador recibe todo lo nuevo.
+-- EJECUCION_SUPERVISAR es la responsabilidad del supervisor de operaciones
+-- (G04): el perfil Supervisor lo recibe la vez que el permiso se da de alta, con
+-- el mismo criterio que la composicion de fabrica de los perfiles (solo al
+-- sembrar: lo que un administrador le quite despues se conserva).
+-- ---------------------------------------------------------------------------
+-- Todo el lote va en una transaccion: si se corta, no queda el permiso dado de
+-- alta sin su asignacion (la corrida siguiente ya no lo veria como nuevo).
+BEGIN TRY
+BEGIN TRANSACTION;
+
+DECLARE @raizOp INT = (SELECT TOP 1 Id FROM dbo.Permisos WHERE Nombre = N'Administracion' AND EsGrupo = 1);
+DECLARE @gAdminSysOp INT = (SELECT TOP 1 Id FROM dbo.Permisos WHERE Nombre = N'Administracion del sistema' AND EsGrupo = 1);
+
+DECLARE @gOperaciones INT = (SELECT TOP 1 Id FROM dbo.Permisos WHERE Nombre = N'Operaciones' AND EsGrupo = 1);
+IF @gOperaciones IS NULL
+BEGIN
+    INSERT INTO dbo.Permisos (Nombre, Descripcion, EsGrupo, Clave, PermisoPadreId)
+        VALUES (N'Operaciones', N'Coordinacion y ejecucion de los eventos', 1, NULL, @raizOp);
+    SET @gOperaciones = SCOPE_IDENTITY();
+END
+
+IF NOT EXISTS (SELECT 1 FROM dbo.Permisos WHERE Clave = N'EMPLEADOS_GESTION')
+    INSERT INTO dbo.Permisos (Nombre, Descripcion, EsGrupo, Clave, PermisoPadreId)
+        VALUES (N'Gestion de Empleados', N'Alta y modificacion del personal', 0, N'EMPLEADOS_GESTION', @gAdminSysOp);
+IF NOT EXISTS (SELECT 1 FROM dbo.Permisos WHERE Clave = N'PERSONAL_ASIGNAR')
+    INSERT INTO dbo.Permisos (Nombre, Descripcion, EsGrupo, Clave, PermisoPadreId)
+        VALUES (N'Asignar Personal', N'Asignar empleados a un evento confirmado', 0, N'PERSONAL_ASIGNAR', @gOperaciones);
+IF NOT EXISTS (SELECT 1 FROM dbo.Permisos WHERE Clave = N'DISPONIBILIDAD_CONFIRMAR')
+    INSERT INTO dbo.Permisos (Nombre, Descripcion, EsGrupo, Clave, PermisoPadreId)
+        VALUES (N'Confirmar Disponibilidad', N'Aceptar o rechazar los turnos propios', 0, N'DISPONIBILIDAD_CONFIRMAR', @gOperaciones);
+IF NOT EXISTS (SELECT 1 FROM dbo.Permisos WHERE Clave = N'CRONOGRAMA_GESTION')
+    INSERT INTO dbo.Permisos (Nombre, Descripcion, EsGrupo, Clave, PermisoPadreId)
+        VALUES (N'Gestionar Cronograma', N'Generar y modificar el cronograma del evento', 0, N'CRONOGRAMA_GESTION', @gOperaciones);
+IF NOT EXISTS (SELECT 1 FROM dbo.Permisos WHERE Clave = N'TAREAS_ASIGNAR')
+    INSERT INTO dbo.Permisos (Nombre, Descripcion, EsGrupo, Clave, PermisoPadreId)
+        VALUES (N'Asignar Tareas', N'Asignar tareas al personal confirmado', 0, N'TAREAS_ASIGNAR', @gOperaciones);
+IF NOT EXISTS (SELECT 1 FROM dbo.Permisos WHERE Clave = N'AGENDA_CONSULTAR')
+    INSERT INTO dbo.Permisos (Nombre, Descripcion, EsGrupo, Clave, PermisoPadreId)
+        VALUES (N'Consultar Agenda', N'Consultar las asignaciones y las tareas propias', 0, N'AGENDA_CONSULTAR', @gOperaciones);
+
+DECLARE @supervisarNuevo BIT = 0;
+IF NOT EXISTS (SELECT 1 FROM dbo.Permisos WHERE Clave = N'EJECUCION_SUPERVISAR')
+BEGIN
+    INSERT INTO dbo.Permisos (Nombre, Descripcion, EsGrupo, Clave, PermisoPadreId)
+        VALUES (N'Supervisar Ejecucion', N'Iniciar y cerrar la ejecucion del evento y registrar incidencias', 0, N'EJECUCION_SUPERVISAR', @gOperaciones);
+    SET @supervisarNuevo = 1;
+END
+
+-- Acceso total del Administrador: se le asigna todo permiso que le falte.
+INSERT INTO dbo.PerfilPermiso (PerfilId, PermisoId)
+SELECT p.Id, pe.Id
+FROM dbo.Perfiles p
+CROSS JOIN dbo.Permisos pe
+WHERE p.Nombre = N'Administrador'
+  AND NOT EXISTS (SELECT 1 FROM dbo.PerfilPermiso pp
+                  WHERE pp.PerfilId = p.Id AND pp.PermisoId = pe.Id);
+
+IF @supervisarNuevo = 1
+    INSERT INTO dbo.PerfilPermiso (PerfilId, PermisoId)
+    SELECT p.Id, pe.Id
+    FROM dbo.Perfiles p
+    JOIN dbo.Permisos pe ON pe.Clave = N'EJECUCION_SUPERVISAR'
+    WHERE p.Nombre = N'Supervisor'
+      AND NOT EXISTS (SELECT 1 FROM dbo.PerfilPermiso pp
+                      WHERE pp.PerfilId = p.Id AND pp.PermisoId = pe.Id);
+
+-- Descripcion de fabrica del perfil Supervisor: ahora nombra tambien la
+-- supervision de la ejecucion. Se corrige solo si conserva exactamente el texto
+-- sembrado antes del Proceso 2 y el perfil tiene el permiso.
+UPDATE p SET Descripcion = N'Incluye al perfil Vendedor y suma la consulta de auditoría, la anulación de pagos y la supervisión de la ejecución de los eventos'
+FROM dbo.Perfiles p
+WHERE p.Nombre = N'Supervisor'
+  AND p.Descripcion = N'Incluye al perfil Vendedor y suma la consulta de auditoría y la anulación de pagos' COLLATE Latin1_General_BIN2
+  AND DATALENGTH(p.Descripcion) = DATALENGTH(N'Incluye al perfil Vendedor y suma la consulta de auditoría y la anulación de pagos')
+  AND EXISTS (SELECT 1 FROM dbo.PerfilPermiso pp JOIN dbo.Permisos pe ON pe.Id = pp.PermisoId
+              WHERE pp.PerfilId = p.Id AND pe.Clave = N'EJECUCION_SUPERVISAR');
+
+COMMIT TRANSACTION;
+END TRY
+BEGIN CATCH
+    IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+    THROW;
+END CATCH
+GO
+
+-- ---------------------------------------------------------------------------
+-- Perfiles operativos del Proceso 2 (roles de G04):
+--   Coordinador : arma el equipo, el cronograma y las tareas de cada evento, y
+--                 gestiona la ficha del personal.
+--   Empleado    : confirma su disponibilidad y consulta su agenda.
+-- La supervision de la ejecucion la tiene el perfil Supervisor (bloque de
+-- arriba). Mismo criterio que los perfiles del Proceso 1: el perfil que falte
+-- se da de alta y SOLO ese perfil recibe su composicion de fabrica; uno que ya
+-- existe no se toca (tampoco su descripcion: estos dos perfiles no tienen una
+-- version anterior sin ella). Si la base ya tenia un perfil propio con uno de
+-- esos nombres y sin los permisos del Proceso 2, el script lo informa: ese
+-- perfil queda como estaba y sus cuentas no ven las pantallas nuevas hasta que
+-- un administrador le asigne los permisos.
+-- ---------------------------------------------------------------------------
+BEGIN TRY
+    BEGIN TRANSACTION;
+
+    DECLARE @PerfilesOperativos TABLE (
+        Accion NVARCHAR(10) COLLATE DATABASE_DEFAULT NOT NULL,
+        Id     INT NOT NULL,
+        Nombre NVARCHAR(80) COLLATE DATABASE_DEFAULT NOT NULL
+    );
+
+    ;WITH Perf(Nombre, Descripcion) AS (
+        SELECT * FROM (VALUES
+            (N'Coordinador', N'Coordina los eventos: personal, asignaciones, cronograma y tareas'),
+            (N'Empleado',    N'Confirma su disponibilidad y consulta sus asignaciones y tareas')
+        ) AS v(Nombre, Descripcion)
+    )
+    MERGE dbo.Perfiles AS p
+    USING Perf AS s ON p.Nombre = s.Nombre
+    WHEN NOT MATCHED THEN INSERT (Nombre, Descripcion) VALUES (s.Nombre, s.Descripcion)
+    OUTPUT $action, inserted.Id, inserted.Nombre INTO @PerfilesOperativos (Accion, Id, Nombre);
+
+    DECLARE @perfilesPrevios NVARCHAR(200) = NULL;
+    SELECT @perfilesPrevios = COALESCE(@perfilesPrevios + N', ', N'') + p.Nombre
+    FROM dbo.Perfiles p
+    WHERE NOT EXISTS (SELECT 1 FROM @PerfilesOperativos n WHERE n.Id = p.Id)
+      AND (   (p.Nombre = N'Coordinador'
+               AND NOT EXISTS (SELECT 1 FROM dbo.PerfilPermiso pp JOIN dbo.Permisos pe ON pe.Id = pp.PermisoId
+                               WHERE pp.PerfilId = p.Id AND pe.Clave = N'PERSONAL_ASIGNAR'))
+           OR (p.Nombre = N'Empleado'
+               AND NOT EXISTS (SELECT 1 FROM dbo.PerfilPermiso pp JOIN dbo.Permisos pe ON pe.Id = pp.PermisoId
+                               WHERE pp.PerfilId = p.Id AND pe.Clave = N'DISPONIBILIDAD_CONFIRMAR')));
+    IF @perfilesPrevios IS NOT NULL
+        RAISERROR(N'schema.sql: la base ya tenia un perfil con el nombre %s y sin los permisos del Proceso 2. No se modifico: asignele los permisos desde Gestion de Perfiles.', 10, 1, @perfilesPrevios) WITH NOWAIT;
+
+    ;WITH Asig(Perfil, Clave) AS (
+        SELECT * FROM (VALUES
+            (N'Coordinador', N'EMPLEADOS_GESTION'),
+            (N'Coordinador', N'PERSONAL_ASIGNAR'),
+            (N'Coordinador', N'CRONOGRAMA_GESTION'),
+            (N'Coordinador', N'TAREAS_ASIGNAR'),
+            (N'Empleado',    N'DISPONIBILIDAD_CONFIRMAR'),
+            (N'Empleado',    N'AGENDA_CONSULTAR')
+        ) AS v(Perfil, Clave)
+    )
+    INSERT INTO dbo.PerfilPermiso (PerfilId, PermisoId)
+    SELECT n.Id, pe.Id
+    FROM Asig a
+    JOIN @PerfilesOperativos n ON n.Nombre = a.Perfil AND n.Accion = N'INSERT'
+    JOIN dbo.Permisos pe ON pe.Clave = a.Clave
+    WHERE NOT EXISTS (SELECT 1 FROM dbo.PerfilPermiso pp
+                      WHERE pp.PerfilId = n.Id AND pp.PermisoId = pe.Id);
+
+    COMMIT TRANSACTION;
+END TRY
+BEGIN CATCH
+    IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+    THROW;
+END CATCH
+GO
+
+-- ---------------------------------------------------------------------------
+-- Proceso 2 (RFN2): traducciones ES/EN/PT de las pantallas de empleados,
+-- operaciones, personal, cronograma, tareas, supervision y agenda, de los nombres
+-- del arbol de permisos y de los modulos y acciones que asienta la bitacora.
+-- Idempotente: solo inserta las claves que falten (una traduccion editada por el
+-- usuario se conserva) y una clave repetida no rompe el INSERT (GROUP BY).
+-- ---------------------------------------------------------------------------
+;WITH Txt(Codigo, Clave, Texto) AS (
+    SELECT * FROM (VALUES
+        -- Empleados (ucEmpleados)
+        (N'ES', N'EMP_COL_CUENTA', N'Cuenta'), (N'EN', N'EMP_COL_CUENTA', N'Account'), (N'PT', N'EMP_COL_CUENTA', N'Conta'),
+        (N'ES', N'EMP_COL_EMPLEADO', N'Empleado'), (N'EN', N'EMP_COL_EMPLEADO', N'Employee'), (N'PT', N'EMP_COL_EMPLEADO', N'Funcionário'),
+        (N'ES', N'EMP_COUNT', N'empleado(s)'), (N'EN', N'EMP_COUNT', N'employee(s)'), (N'PT', N'EMP_COUNT', N'funcionário(s)'),
+        (N'ES', N'EMP_ESPECIALIDAD', N'Especialidad'), (N'EN', N'EMP_ESPECIALIDAD', N'Specialty'), (N'PT', N'EMP_ESPECIALIDAD', N'Especialidade'),
+        (N'ES', N'EMP_FORM_EDITAR', N'Editar empleado'), (N'EN', N'EMP_FORM_EDITAR', N'Edit employee'), (N'PT', N'EMP_FORM_EDITAR', N'Editar funcionário'),
+        (N'ES', N'EMP_NUEVO', N'Nuevo empleado'), (N'EN', N'EMP_NUEVO', N'New employee'), (N'PT', N'EMP_NUEVO', N'Novo funcionário'),
+        (N'ES', N'EMP_SIN_CUENTA', N'(sin cuenta)'), (N'EN', N'EMP_SIN_CUENTA', N'(no account)'), (N'PT', N'EMP_SIN_CUENTA', N'(sem conta)'),
+        (N'ES', N'MSG_EMP_CON_TURNOS', N'El empleado tiene turnos en eventos confirmados: quítelo de esos eventos, o espere al cierre de los que están en ejecución, antes de darlo de baja.'), (N'EN', N'MSG_EMP_CON_TURNOS', N'The employee has shifts in confirmed events: remove them from those events, or wait until the events in progress are closed, before deactivating.'), (N'PT', N'MSG_EMP_CON_TURNOS', N'O funcionário tem turnos em eventos confirmados: remova-o desses eventos, ou aguarde o encerramento dos que estão em execução, antes de desativá-lo.'),
+        (N'ES', N'MSG_EMP_CUENTA', N'La cuenta elegida ya no existe.'), (N'EN', N'MSG_EMP_CUENTA', N'The chosen account no longer exists.'), (N'PT', N'MSG_EMP_CUENTA', N'A conta escolhida não existe mais.'),
+        (N'ES', N'MSG_EMP_CUENTA_DUP', N'Esa cuenta ya está vinculada a otro empleado.'), (N'EN', N'MSG_EMP_CUENTA_DUP', N'That account is already linked to another employee.'), (N'PT', N'MSG_EMP_CUENTA_DUP', N'Essa conta já está vinculada a outro funcionário.'),
+        (N'ES', N'MSG_EMP_DNI', N'Ingrese el DNI del empleado: solo números (7 dígitos o más).'), (N'EN', N'MSG_EMP_DNI', N'Enter the employee''s ID number: digits only (7 or more).'), (N'PT', N'MSG_EMP_DNI', N'Informe o documento do funcionário: só números (7 dígitos ou mais).'),
+        (N'ES', N'MSG_EMP_DNI_DUP', N'Ya existe un empleado con ese DNI.'), (N'EN', N'MSG_EMP_DNI_DUP', N'An employee with that ID already exists.'), (N'PT', N'MSG_EMP_DNI_DUP', N'Já existe um funcionário com esse documento.'),
+        (N'ES', N'MSG_EMP_ESPECIALIDAD', N'Seleccione la especialidad del empleado.'), (N'EN', N'MSG_EMP_ESPECIALIDAD', N'Select the employee''s specialty.'), (N'PT', N'MSG_EMP_ESPECIALIDAD', N'Selecione a especialidade do funcionário.'),
+        (N'ES', N'MSG_EMP_LARGO', N'Dato muy largo: nombre y apellido admiten hasta 60 caracteres.'), (N'EN', N'MSG_EMP_LARGO', N'Value too long: first and last name allow up to 60 characters.'), (N'PT', N'MSG_EMP_LARGO', N'Dado longo demais: nome e sobrenome admitem até 60 caracteres.'),
+        (N'ES', N'MSG_EMP_NOMBRE', N'Ingrese el nombre y el apellido del empleado.'), (N'EN', N'MSG_EMP_NOMBRE', N'Enter the employee''s first and last name.'), (N'PT', N'MSG_EMP_NOMBRE', N'Informe o nome e o sobrenome do funcionário.'),
+        (N'ES', N'MSG_EMP_NOTFOUND', N'El empleado ya no existe.'), (N'EN', N'MSG_EMP_NOTFOUND', N'The employee no longer exists.'), (N'PT', N'MSG_EMP_NOTFOUND', N'O funcionário não existe mais.'),
+        (N'ES', N'MSG_EMP_OK', N'Empleado guardado.'), (N'EN', N'MSG_EMP_OK', N'Employee saved.'), (N'PT', N'MSG_EMP_OK', N'Funcionário salvo.'),
+        -- Operaciones de eventos (ucOperaciones)
+        (N'ES', N'OPE_AVANCE_CRONOGRAMA', N'Cronograma: {0} actividad(es)'), (N'EN', N'OPE_AVANCE_CRONOGRAMA', N'Schedule: {0} activity(ies)'), (N'PT', N'OPE_AVANCE_CRONOGRAMA', N'Cronograma: {0} atividade(s)'),
+        (N'ES', N'OPE_AVANCE_INCIDENCIAS', N'Incidencias: {0} ({1} abierta(s))'), (N'EN', N'OPE_AVANCE_INCIDENCIAS', N'Incidents: {0} ({1} open)'), (N'PT', N'OPE_AVANCE_INCIDENCIAS', N'Ocorrências: {0} ({1} aberta(s))'),
+        (N'ES', N'OPE_AVANCE_PERSONAL', N'Personal: {0} asignado(s), {1} confirmado(s), {2} pendiente(s), {3} rechazado(s)'), (N'EN', N'OPE_AVANCE_PERSONAL', N'Staff: {0} assigned, {1} confirmed, {2} pending, {3} declined'), (N'PT', N'OPE_AVANCE_PERSONAL', N'Equipe: {0} atribuído(s), {1} confirmado(s), {2} pendente(s), {3} recusado(s)'),
+        (N'ES', N'OPE_AVANCE_SIN_CRONOGRAMA', N'Cronograma: sin generar'), (N'EN', N'OPE_AVANCE_SIN_CRONOGRAMA', N'Schedule: not generated'), (N'PT', N'OPE_AVANCE_SIN_CRONOGRAMA', N'Cronograma: não gerado'),
+        (N'ES', N'OPE_AVANCE_TAREAS', N'Tareas: {0}'), (N'EN', N'OPE_AVANCE_TAREAS', N'Tasks: {0}'), (N'PT', N'OPE_AVANCE_TAREAS', N'Tarefas: {0}'),
+        (N'ES', N'OPE_COL_ESTADO', N'Coordinación'), (N'EN', N'OPE_COL_ESTADO', N'Coordination'), (N'PT', N'OPE_COL_ESTADO', N'Coordenação'),
+        (N'ES', N'OPE_COL_PERSONAL', N'Personal'), (N'EN', N'OPE_COL_PERSONAL', N'Staff'), (N'PT', N'OPE_COL_PERSONAL', N'Equipe'),
+        (N'ES', N'OPE_COUNT', N'evento(s) confirmado(s)'), (N'EN', N'OPE_COUNT', N'confirmed event(s)'), (N'PT', N'OPE_COUNT', N'evento(s) confirmado(s)'),
+        (N'ES', N'OPE_EVENTO', N'Evento de la reserva'), (N'EN', N'OPE_EVENTO', N'Event of reservation'), (N'PT', N'OPE_EVENTO', N'Evento da reserva'),
+        (N'ES', N'OPE_SERVICIOS', N'Servicios contratados'), (N'EN', N'OPE_SERVICIOS', N'Contracted services'), (N'PT', N'OPE_SERVICIOS', N'Serviços contratados'),
+        (N'ES', N'OPE_SIN_EVENTOS', N'No hay reservas confirmadas para coordinar. Un evento aparece acá cuando su reserva queda confirmada.'), (N'EN', N'OPE_SIN_EVENTOS', N'There are no confirmed reservations to coordinate. An event shows up here once its reservation is confirmed.'), (N'PT', N'OPE_SIN_EVENTOS', N'Não há reservas confirmadas para coordenar. Um evento aparece aqui quando sua reserva fica confirmada.'),
+        (N'ES', N'OPE_SIN_SELECCION', N'Seleccione un evento'), (N'EN', N'OPE_SIN_SELECCION', N'Select an event'), (N'PT', N'OPE_SIN_SELECCION', N'Selecione um evento'),
+        (N'ES', N'OPE_SIN_SERVICIOS', N'(sin servicios)'), (N'EN', N'OPE_SIN_SERVICIOS', N'(no services)'), (N'PT', N'OPE_SIN_SERVICIOS', N'(sem serviços)'),
+        -- Estados de coordinacion, de asignacion, prioridades e incidencias
+        (N'ES', N'ASIG_CONFIRMADA', N'Confirmada'), (N'EN', N'ASIG_CONFIRMADA', N'Confirmed'), (N'PT', N'ASIG_CONFIRMADA', N'Confirmada'),
+        (N'ES', N'ASIG_PENDIENTE', N'Pendiente'), (N'EN', N'ASIG_PENDIENTE', N'Pending'), (N'PT', N'ASIG_PENDIENTE', N'Pendente'),
+        (N'ES', N'ASIG_RECHAZADA', N'Rechazada'), (N'EN', N'ASIG_RECHAZADA', N'Declined'), (N'PT', N'ASIG_RECHAZADA', N'Recusada'),
+        (N'ES', N'COORD_CERRADO', N'Cerrado'), (N'EN', N'COORD_CERRADO', N'Closed'), (N'PT', N'COORD_CERRADO', N'Encerrado'),
+        (N'ES', N'COORD_EN_COORDINACION', N'En coordinación'), (N'EN', N'COORD_EN_COORDINACION', N'In coordination'), (N'PT', N'COORD_EN_COORDINACION', N'Em coordenação'),
+        (N'ES', N'COORD_EN_EJECUCION', N'En ejecución'), (N'EN', N'COORD_EN_EJECUCION', N'In progress'), (N'PT', N'COORD_EN_EJECUCION', N'Em execução'),
+        (N'ES', N'COORD_EVENTO', N'Reserva #{0} · {1} · {2} · {3} · {4} invitados'), (N'EN', N'COORD_EVENTO', N'Reservation #{0} · {1} · {2} · {3} · {4} guests'), (N'PT', N'COORD_EVENTO', N'Reserva #{0} · {1} · {2} · {3} · {4} convidados'),
+        (N'ES', N'COORD_LISTO', N'Listo'), (N'EN', N'COORD_LISTO', N'Ready'), (N'PT', N'COORD_LISTO', N'Pronto'),
+        (N'ES', N'COORD_SIN_ASIGNAR', N'Sin asignar'), (N'EN', N'COORD_SIN_ASIGNAR', N'Unassigned'), (N'PT', N'COORD_SIN_ASIGNAR', N'Sem atribuir'),
+        (N'ES', N'INC_EST_ABIERTA', N'Abierta'), (N'EN', N'INC_EST_ABIERTA', N'Open'), (N'PT', N'INC_EST_ABIERTA', N'Aberta'),
+        (N'ES', N'INC_EST_RESUELTA', N'Resuelta'), (N'EN', N'INC_EST_RESUELTA', N'Resolved'), (N'PT', N'INC_EST_RESUELTA', N'Resolvida'),
+        (N'ES', N'INC_TIPO_EQUIPAMIENTO', N'Equipamiento'), (N'EN', N'INC_TIPO_EQUIPAMIENTO', N'Equipment'), (N'PT', N'INC_TIPO_EQUIPAMIENTO', N'Equipamento'),
+        (N'ES', N'INC_TIPO_HORARIO', N'Horario'), (N'EN', N'INC_TIPO_HORARIO', N'Timing'), (N'PT', N'INC_TIPO_HORARIO', N'Horário'),
+        (N'ES', N'INC_TIPO_INVITADOS', N'Invitados'), (N'EN', N'INC_TIPO_INVITADOS', N'Guests'), (N'PT', N'INC_TIPO_INVITADOS', N'Convidados'),
+        (N'ES', N'INC_TIPO_OTRO', N'Otro'), (N'EN', N'INC_TIPO_OTRO', N'Other'), (N'PT', N'INC_TIPO_OTRO', N'Outro'),
+        (N'ES', N'INC_TIPO_PERSONAL', N'Personal'), (N'EN', N'INC_TIPO_PERSONAL', N'Staff'), (N'PT', N'INC_TIPO_PERSONAL', N'Equipe'),
+        (N'ES', N'INC_TIPO_SERVICIO', N'Servicio'), (N'EN', N'INC_TIPO_SERVICIO', N'Service'), (N'PT', N'INC_TIPO_SERVICIO', N'Serviço'),
+        (N'ES', N'PRIO_ALTA', N'Alta'), (N'EN', N'PRIO_ALTA', N'High'), (N'PT', N'PRIO_ALTA', N'Alta'),
+        (N'ES', N'PRIO_BAJA', N'Baja'), (N'EN', N'PRIO_BAJA', N'Low'), (N'PT', N'PRIO_BAJA', N'Baixa'),
+        (N'ES', N'PRIO_MEDIA', N'Media'), (N'EN', N'PRIO_MEDIA', N'Medium'), (N'PT', N'PRIO_MEDIA', N'Média'),
+        -- Personal del evento (frmAsignarPersonal, CUN006)
+        (N'ES', N'ASG_A', N'a'), (N'EN', N'ASG_A', N'to'), (N'PT', N'ASG_A', N'a'),
+        (N'ES', N'ASG_ASIGNAR', N'Asignar'), (N'EN', N'ASG_ASIGNAR', N'Assign'), (N'PT', N'ASG_ASIGNAR', N'Atribuir'),
+        (N'ES', N'ASG_COL_FRANJA', N'Franja'), (N'EN', N'ASG_COL_FRANJA', N'Time slot'), (N'PT', N'ASG_COL_FRANJA', N'Horário'),
+        (N'ES', N'ASG_COL_MOTIVO', N'Motivo del rechazo'), (N'EN', N'ASG_COL_MOTIVO', N'Reason for declining'), (N'PT', N'ASG_COL_MOTIVO', N'Motivo da recusa'),
+        (N'ES', N'ASG_COL_RESPUESTA', N'Respondió'), (N'EN', N'ASG_COL_RESPUESTA', N'Answered'), (N'PT', N'ASG_COL_RESPUESTA', N'Respondeu'),
+        (N'ES', N'ASG_COL_ROL', N'Rol'), (N'EN', N'ASG_COL_ROL', N'Role'), (N'PT', N'ASG_COL_ROL', N'Função'),
+        (N'ES', N'ASG_DE', N'de'), (N'EN', N'ASG_DE', N'from'), (N'PT', N'ASG_DE', N'de'),
+        (N'ES', N'ASG_QUITAR_CONF', N'¿Quitar a {0} del equipo de este evento?'), (N'EN', N'ASG_QUITAR_CONF', N'Remove {0} from this event''s team?'), (N'PT', N'ASG_QUITAR_CONF', N'Remover {0} da equipe deste evento?'),
+        (N'ES', N'ASG_RESUMEN', N'Asignados: {0}    Confirmados: {1}    Pendientes: {2}    Rechazados: {3}'), (N'EN', N'ASG_RESUMEN', N'Assigned: {0}    Confirmed: {1}    Pending: {2}    Declined: {3}'), (N'PT', N'ASG_RESUMEN', N'Atribuídos: {0}    Confirmados: {1}    Pendentes: {2}    Recusados: {3}'),
+        (N'ES', N'ASG_ROL', N'Rol en el evento'), (N'EN', N'ASG_ROL', N'Role in the event'), (N'PT', N'ASG_ROL', N'Função no evento'),
+        (N'ES', N'ASG_TITULO', N'Personal del evento'), (N'EN', N'ASG_TITULO', N'Event staff'), (N'PT', N'ASG_TITULO', N'Equipe do evento'),
+        (N'ES', N'ASG_TODAS', N'(todas las especialidades)'), (N'EN', N'ASG_TODAS', N'(all specialties)'), (N'PT', N'ASG_TODAS', N'(todas as especialidades)'),
+        -- Cronograma del evento (frmCronograma, CUN008)
+        (N'ES', N'CRO_ACTIVIDAD', N'Actividad'), (N'EN', N'CRO_ACTIVIDAD', N'Activity'), (N'PT', N'CRO_ACTIVIDAD', N'Atividade'),
+        (N'ES', N'CRO_AGREGAR', N'Agregar'), (N'EN', N'CRO_AGREGAR', N'Add'), (N'PT', N'CRO_AGREGAR', N'Adicionar'),
+        (N'ES', N'CRO_BAJAR', N'Bajar'), (N'EN', N'CRO_BAJAR', N'Down'), (N'PT', N'CRO_BAJAR', N'Descer'),
+        (N'ES', N'CRO_COL_DURACION', N'Duración (min)'), (N'EN', N'CRO_COL_DURACION', N'Duration (min)'), (N'PT', N'CRO_COL_DURACION', N'Duração (min)'),
+        (N'ES', N'CRO_COL_HORA', N'Hora'), (N'EN', N'CRO_COL_HORA', N'Time'), (N'PT', N'CRO_COL_HORA', N'Hora'),
+        (N'ES', N'CRO_COL_RESPONSABLE', N'Responsable'), (N'EN', N'CRO_COL_RESPONSABLE', N'In charge'), (N'PT', N'CRO_COL_RESPONSABLE', N'Responsável'),
+        (N'ES', N'CRO_DESCARTAR', N'El cronograma tiene cambios sin guardar. ¿Descartarlos y cerrar?'), (N'EN', N'CRO_DESCARTAR', N'The schedule has unsaved changes. Discard them and close?'), (N'PT', N'CRO_DESCARTAR', N'O cronograma tem alterações não salvas. Descartá-las e fechar?'),
+        (N'ES', N'CRO_ELIMINAR', N'Eliminar cronograma'), (N'EN', N'CRO_ELIMINAR', N'Delete schedule'), (N'PT', N'CRO_ELIMINAR', N'Excluir cronograma'),
+        (N'ES', N'CRO_ELIMINAR_CONF', N'¿Eliminar el cronograma de este evento? La operación no se puede deshacer.'), (N'EN', N'CRO_ELIMINAR_CONF', N'Delete this event''s schedule? This cannot be undone.'), (N'PT', N'CRO_ELIMINAR_CONF', N'Excluir o cronograma deste evento? A operação não pode ser desfeita.'),
+        (N'ES', N'CRO_GENERAR', N'Generar cronograma'), (N'EN', N'CRO_GENERAR', N'Generate schedule'), (N'PT', N'CRO_GENERAR', N'Gerar cronograma'),
+        (N'ES', N'CRO_GUARDAR', N'Guardar cambios'), (N'EN', N'CRO_GUARDAR', N'Save changes'), (N'PT', N'CRO_GUARDAR', N'Salvar alterações'),
+        (N'ES', N'CRO_MIN', N'min'), (N'EN', N'CRO_MIN', N'min'), (N'PT', N'CRO_MIN', N'min'),
+        (N'ES', N'CRO_SUBIR', N'Subir'), (N'EN', N'CRO_SUBIR', N'Up'), (N'PT', N'CRO_SUBIR', N'Subir'),
+        (N'ES', N'CRO_TITULO', N'Cronograma del evento'), (N'EN', N'CRO_TITULO', N'Event schedule'), (N'PT', N'CRO_TITULO', N'Cronograma do evento'),
+        (N'ES', N'MSG_CRO_DESCRIPCION', N'Ingrese la descripción de la actividad.'), (N'EN', N'MSG_CRO_DESCRIPCION', N'Enter the activity description.'), (N'PT', N'MSG_CRO_DESCRIPCION', N'Informe a descrição da atividade.'),
+        (N'ES', N'MSG_CRO_GENERADO', N'Cronograma generado.'), (N'EN', N'MSG_CRO_GENERADO', N'Schedule generated.'), (N'PT', N'MSG_CRO_GENERADO', N'Cronograma gerado.'),
+        (N'ES', N'MSG_CRO_GUARDADO', N'Cronograma guardado.'), (N'EN', N'MSG_CRO_GUARDADO', N'Schedule saved.'), (N'PT', N'MSG_CRO_GUARDADO', N'Cronograma salvo.'),
+        -- Tareas del evento (frmTareas, CUN009)
+        (N'ES', N'MSG_TAR_DESCRIPCION', N'Ingrese la tarea a realizar.'), (N'EN', N'MSG_TAR_DESCRIPCION', N'Enter the task to be done.'), (N'PT', N'MSG_TAR_DESCRIPCION', N'Informe a tarefa a realizar.'),
+        (N'ES', N'MSG_TAR_SIN_EQUIPO', N'No hay personal confirmado al que asignarle tareas.'), (N'EN', N'MSG_TAR_SIN_EQUIPO', N'There is no confirmed staff to assign tasks to.'), (N'PT', N'MSG_TAR_SIN_EQUIPO', N'Não há equipe confirmada à qual atribuir tarefas.'),
+        (N'ES', N'TAR_COL_PRIORIDAD', N'Prioridad'), (N'EN', N'TAR_COL_PRIORIDAD', N'Priority'), (N'PT', N'TAR_COL_PRIORIDAD', N'Prioridade'),
+        (N'ES', N'TAR_COL_RECURSOS', N'Recursos'), (N'EN', N'TAR_COL_RECURSOS', N'Resources'), (N'PT', N'TAR_COL_RECURSOS', N'Recursos'),
+        (N'ES', N'TAR_COL_TAREA', N'Tarea'), (N'EN', N'TAR_COL_TAREA', N'Task'), (N'PT', N'TAR_COL_TAREA', N'Tarefa'),
+        (N'ES', N'TAR_DESCRIPCION', N'Tarea a realizar'), (N'EN', N'TAR_DESCRIPCION', N'Task to be done'), (N'PT', N'TAR_DESCRIPCION', N'Tarefa a realizar'),
+        (N'ES', N'TAR_QUITAR_CONF', N'¿Quitar la tarea de {0}?'), (N'EN', N'TAR_QUITAR_CONF', N'Remove the task of {0}?'), (N'PT', N'TAR_QUITAR_CONF', N'Remover a tarefa de {0}?'),
+        (N'ES', N'TAR_RECURSOS', N'Recursos necesarios (opcional)'), (N'EN', N'TAR_RECURSOS', N'Resources needed (optional)'), (N'PT', N'TAR_RECURSOS', N'Recursos necessários (opcional)'),
+        (N'ES', N'TAR_RESUMEN', N'Tareas asignadas: {0}'), (N'EN', N'TAR_RESUMEN', N'Tasks assigned: {0}'), (N'PT', N'TAR_RESUMEN', N'Tarefas atribuídas: {0}'),
+        (N'ES', N'TAR_TITULO', N'Tareas del evento'), (N'EN', N'TAR_TITULO', N'Event tasks'), (N'PT', N'TAR_TITULO', N'Tarefas do evento'),
+        -- Supervision de la ejecucion (frmSupervision, CUN011)
+        (N'ES', N'MSG_SUP_DESCRIPCION', N'Describa la incidencia.'), (N'EN', N'MSG_SUP_DESCRIPCION', N'Describe the incident.'), (N'PT', N'MSG_SUP_DESCRIPCION', N'Descreva a ocorrência.'),
+        (N'ES', N'SUP_AVISO_EJECUCION', N'Evento en ejecución: registre lo que se salga del plan.'), (N'EN', N'SUP_AVISO_EJECUCION', N'Event in progress: record anything that goes off plan.'), (N'PT', N'SUP_AVISO_EJECUCION', N'Evento em execução: registre o que sair do plano.'),
+        (N'ES', N'SUP_AVISO_LISTO', N'El evento está listo: inicie la ejecución cuando comience.'), (N'EN', N'SUP_AVISO_LISTO', N'The event is ready: start the execution when it begins.'), (N'PT', N'SUP_AVISO_LISTO', N'O evento está pronto: inicie a execução quando começar.'),
+        (N'ES', N'SUP_CERRAR_CONF', N'¿Cerrar el evento? Un evento cerrado ya no admite cambios ni incidencias.'), (N'EN', N'SUP_CERRAR_CONF', N'Close the event? A closed event no longer accepts changes or incidents.'), (N'PT', N'SUP_CERRAR_CONF', N'Encerrar o evento? Um evento encerrado não admite mais alterações nem ocorrências.'),
+        (N'ES', N'SUP_CERRAR_EVENTO', N'Cerrar evento'), (N'EN', N'SUP_CERRAR_EVENTO', N'Close event'), (N'PT', N'SUP_CERRAR_EVENTO', N'Encerrar evento'),
+        (N'ES', N'SUP_COL_REPORTA', N'Informó'), (N'EN', N'SUP_COL_REPORTA', N'Reported by'), (N'PT', N'SUP_COL_REPORTA', N'Informou'),
+        (N'ES', N'SUP_COL_RESOLUCION', N'Resolución'), (N'EN', N'SUP_COL_RESOLUCION', N'Resolution'), (N'PT', N'SUP_COL_RESOLUCION', N'Resolução'),
+        (N'ES', N'SUP_COL_TIPO', N'Tipo'), (N'EN', N'SUP_COL_TIPO', N'Type'), (N'PT', N'SUP_COL_TIPO', N'Tipo'),
+        (N'ES', N'SUP_CRONOGRAMA', N'Cronograma'), (N'EN', N'SUP_CRONOGRAMA', N'Schedule'), (N'PT', N'SUP_CRONOGRAMA', N'Cronograma'),
+        (N'ES', N'SUP_DESCRIPCION', N'Qué pasó'), (N'EN', N'SUP_DESCRIPCION', N'What happened'), (N'PT', N'SUP_DESCRIPCION', N'O que aconteceu'),
+        (N'ES', N'SUP_FUERA_FECHA', N'El evento está agendado para el {0} y hoy es {1}. Al iniciar la ejecución, el plan y la reserva quedan congelados y no se puede volver atrás. ¿Iniciar igual?'), (N'EN', N'SUP_FUERA_FECHA', N'The event is scheduled for {0} and today is {1}. Once the execution starts, the plan and the booking are frozen and this cannot be undone. Start anyway?'), (N'PT', N'SUP_FUERA_FECHA', N'O evento está agendado para {0} e hoje é {1}. Ao iniciar a execução, o plano e a reserva ficam congelados e não é possível voltar atrás. Iniciar mesmo assim?'),
+        (N'ES', N'SUP_INICIAR_CONF', N'¿Iniciar la ejecución del evento? Desde ese momento el plan y la reserva quedan congelados y no se puede volver atrás.'), (N'EN', N'SUP_INICIAR_CONF', N'Start the execution of the event? From then on the plan and the booking are frozen and this cannot be undone.'), (N'PT', N'SUP_INICIAR_CONF', N'Iniciar a execução do evento? A partir desse momento o plano e a reserva ficam congelados e não é possível voltar atrás.'),
+        (N'ES', N'SUP_REGISTRAR', N'Registrar'), (N'EN', N'SUP_REGISTRAR', N'Record'), (N'PT', N'SUP_REGISTRAR', N'Registrar'),
+        (N'ES', N'ASG_SIN_CUENTA_CONF', N'{0} no tiene una cuenta vinculada: no va a poder confirmar el turno hasta que se la vinculen desde Empleados. ¿Asignar igual?'), (N'EN', N'ASG_SIN_CUENTA_CONF', N'{0} has no linked account: the shift cannot be confirmed until one is linked from Employees. Assign anyway?'), (N'PT', N'ASG_SIN_CUENTA_CONF', N'{0} não tem uma conta vinculada: não poderá confirmar o turno até que seja vinculada em Funcionários. Atribuir mesmo assim?'),
+        (N'ES', N'MSG_ASG_FRANJA_TAREAS', N'La franja nueva deja afuera tareas que el empleado ya tiene en este evento: ajuste la franja o quite antes esas tareas.'), (N'EN', N'MSG_ASG_FRANJA_TAREAS', N'The new time slot leaves out tasks the employee already has in this event: adjust the slot or remove those tasks first.'), (N'PT', N'MSG_ASG_FRANJA_TAREAS', N'O novo horário deixa de fora tarefas que o funcionário já tem neste evento: ajuste o horário ou remova antes essas tarefas.'),
+        (N'ES', N'MSG_CRO_RESPONSABLE_ACTIVIDAD', N'La actividad «{0}» está a cargo de {1}, que ya no es personal confirmado del evento: quítela y vuelva a agregarla con otro responsable.'), (N'EN', N'MSG_CRO_RESPONSABLE_ACTIVIDAD', N'The activity "{0}" is assigned to {1}, who is no longer confirmed staff of the event: remove it and add it again with another person in charge.'), (N'PT', N'MSG_CRO_RESPONSABLE_ACTIVIDAD', N'A atividade «{0}» está a cargo de {1}, que já não é equipe confirmada do evento: remova-a e adicione-a de novo com outro responsável.'),
+        (N'ES', N'AGE_SIN_PERMISO_DETALLE', N'Tu perfil no incluye la consulta de las tareas y del cronograma.'), (N'EN', N'AGE_SIN_PERMISO_DETALLE', N'Your profile does not include viewing tasks and the schedule.'), (N'PT', N'AGE_SIN_PERMISO_DETALLE', N'Seu perfil não inclui a consulta das tarefas e do cronograma.'),
+        (N'ES', N'OPE_SERVICIOS_ERROR', N'(no se pudieron leer)'), (N'EN', N'OPE_SERVICIOS_ERROR', N'(could not be read)'), (N'PT', N'OPE_SERVICIOS_ERROR', N'(não foi possível ler)'),
+        (N'ES', N'MSG_RES_CONFIRMACIONES_REINICIADAS', N'El evento cambió de fecha: {0} confirmación(es) del personal volvieron a pendiente y el equipo tiene que responder de nuevo.'), (N'EN', N'MSG_RES_CONFIRMACIONES_REINICIADAS', N'The event date changed: {0} staff confirmation(s) went back to pending and the team has to answer again.'), (N'PT', N'MSG_RES_CONFIRMACIONES_REINICIADAS', N'A data do evento mudou: {0} confirmação(ões) da equipe voltaram a pendente e a equipe precisa responder de novo.'),
+        (N'ES', N'SUP_INCIDENCIAS', N'Incidencias'), (N'EN', N'SUP_INCIDENCIAS', N'Incidents'), (N'PT', N'SUP_INCIDENCIAS', N'Ocorrências'),
+        (N'ES', N'SUP_INICIAR', N'Iniciar ejecución'), (N'EN', N'SUP_INICIAR', N'Start execution'), (N'PT', N'SUP_INICIAR', N'Iniciar execução'),
+        (N'ES', N'SUP_REPORTA_NADIE', N'(supervisión)'), (N'EN', N'SUP_REPORTA_NADIE', N'(supervision)'), (N'PT', N'SUP_REPORTA_NADIE', N'(supervisão)'),
+        (N'ES', N'SUP_RESOLVER', N'Resolver'), (N'EN', N'SUP_RESOLVER', N'Resolve'), (N'PT', N'SUP_RESOLVER', N'Resolver'),
+        (N'ES', N'SUP_RESOLVER_LBL', N'¿Cómo se resolvió?'), (N'EN', N'SUP_RESOLVER_LBL', N'How was it resolved?'), (N'PT', N'SUP_RESOLVER_LBL', N'Como foi resolvida?'),
+        (N'ES', N'SUP_RESOLVER_TITULO', N'Resolver incidencia'), (N'EN', N'SUP_RESOLVER_TITULO', N'Resolve incident'), (N'PT', N'SUP_RESOLVER_TITULO', N'Resolver ocorrência'),
+        (N'ES', N'SUP_RESUMEN', N'Incidencias: {0}    Abiertas: {1}'), (N'EN', N'SUP_RESUMEN', N'Incidents: {0}    Open: {1}'), (N'PT', N'SUP_RESUMEN', N'Ocorrências: {0}    Abertas: {1}'),
+        (N'ES', N'SUP_TAREAS', N'Tareas'), (N'EN', N'SUP_TAREAS', N'Tasks'), (N'PT', N'SUP_TAREAS', N'Tarefas'),
+        (N'ES', N'SUP_TITULO', N'Supervisión del evento'), (N'EN', N'SUP_TITULO', N'Event supervision'), (N'PT', N'SUP_TITULO', N'Supervisão do evento'),
+        -- Mi agenda (ucMiAgenda, CUN007 y CUN010)
+        (N'ES', N'AGE_COL_CRONOGRAMA', N'Cronograma del evento'), (N'EN', N'AGE_COL_CRONOGRAMA', N'Event schedule'), (N'PT', N'AGE_COL_CRONOGRAMA', N'Cronograma do evento'),
+        (N'ES', N'AGE_COL_EVENTO', N'Evento'), (N'EN', N'AGE_COL_EVENTO', N'Event'), (N'PT', N'AGE_COL_EVENTO', N'Evento'),
+        (N'ES', N'AGE_COL_MI_TAREA', N'Mis tareas'), (N'EN', N'AGE_COL_MI_TAREA', N'My tasks'), (N'PT', N'AGE_COL_MI_TAREA', N'Minhas tarefas'),
+        (N'ES', N'AGE_COUNT', N'turno(s)'), (N'EN', N'AGE_COUNT', N'shift(s)'), (N'PT', N'AGE_COUNT', N'turno(s)'),
+        (N'ES', N'AGE_EVENTO', N'Evento del {0} en {1} (reserva #{2})'), (N'EN', N'AGE_EVENTO', N'Event on {0} at {1} (reservation #{2})'), (N'PT', N'AGE_EVENTO', N'Evento de {0} em {1} (reserva #{2})'),
+        (N'ES', N'AGE_RECHAZAR_LBL', N'Motivo del rechazo'), (N'EN', N'AGE_RECHAZAR_LBL', N'Reason for declining'), (N'PT', N'AGE_RECHAZAR_LBL', N'Motivo da recusa'),
+        (N'ES', N'AGE_RECHAZAR_TITULO', N'Rechazar turno'), (N'EN', N'AGE_RECHAZAR_TITULO', N'Decline shift'), (N'PT', N'AGE_RECHAZAR_TITULO', N'Recusar turno'),
+        (N'ES', N'AGE_SIN_TURNOS', N'Todavía no tenés turnos asignados.'), (N'EN', N'AGE_SIN_TURNOS', N'You have no shifts assigned yet.'), (N'PT', N'AGE_SIN_TURNOS', N'Você ainda não tem turnos atribuídos.'),
+        -- Rechazos de la capa de negocio (CoordinacionResult) y de la reserva congelada (RN-13)
+        (N'ES', N'MSG_COORD_ACTIVIDAD', N'Cada actividad lleva una descripción (hasta 150 caracteres) y una duración de 1 a 1440 minutos.'), (N'EN', N'MSG_COORD_ACTIVIDAD', N'Each activity needs a description (up to 150 characters) and a duration from 1 to 1440 minutes.'), (N'PT', N'MSG_COORD_ACTIVIDAD', N'Cada atividade leva uma descrição (até 150 caracteres) e uma duração de 1 a 1440 minutos.'),
+        (N'ES', N'MSG_COORD_ASIGNACION', N'La asignación ya no existe.'), (N'EN', N'MSG_COORD_ASIGNACION', N'The assignment no longer exists.'), (N'PT', N'MSG_COORD_ASIGNACION', N'A atribuição não existe mais.'),
+        (N'ES', N'MSG_COORD_CERRADO', N'El evento está cerrado: no admite cambios.'), (N'EN', N'MSG_COORD_CERRADO', N'The event is closed: it cannot be changed.'), (N'PT', N'MSG_COORD_CERRADO', N'O evento está encerrado: não admite alterações.'),
+        (N'ES', N'MSG_COORD_CRONO_CON_TAREAS', N'El cronograma tiene tareas asignadas: quítelas antes de eliminarlo.'), (N'EN', N'MSG_COORD_CRONO_CON_TAREAS', N'The schedule has tasks assigned: remove them before deleting it.'), (N'PT', N'MSG_COORD_CRONO_CON_TAREAS', N'O cronograma tem tarefas atribuídas: remova-as antes de excluí-lo.'),
+        (N'ES', N'MSG_COORD_DESCRIPCION', N'Ingrese la descripción.'), (N'EN', N'MSG_COORD_DESCRIPCION', N'Enter the description.'), (N'PT', N'MSG_COORD_DESCRIPCION', N'Informe a descrição.'),
+        (N'ES', N'MSG_COORD_EMPLEADO', N'Seleccione un empleado activo.'), (N'EN', N'MSG_COORD_EMPLEADO', N'Select an active employee.'), (N'PT', N'MSG_COORD_EMPLEADO', N'Selecione um funcionário ativo.'),
+        (N'ES', N'MSG_COORD_EMPLEADO_BAJA', N'Tu ficha de empleado está dada de baja: ya no podés responder turnos.'), (N'EN', N'MSG_COORD_EMPLEADO_BAJA', N'Your employee record is inactive: you can no longer answer shifts.'), (N'PT', N'MSG_COORD_EMPLEADO_BAJA', N'Sua ficha de funcionário está desativada: você não pode mais responder turnos.'),
+        (N'ES', N'MSG_COORD_EN_EJECUCION', N'El evento está en ejecución: el plan ya no se modifica. Lo que se salga del plan se registra como incidencia.'), (N'EN', N'MSG_COORD_EN_EJECUCION', N'The event is in progress: the plan can no longer be changed. Anything off plan is recorded as an incident.'), (N'PT', N'MSG_COORD_EN_EJECUCION', N'O evento está em execução: o plano não se modifica mais. O que sair do plano é registrado como ocorrência.'),
+        (N'ES', N'MSG_COORD_FRANJA', N'La hora de fin tiene que ser distinta de la hora de inicio.'), (N'EN', N'MSG_COORD_FRANJA', N'The end time must be different from the start time.'), (N'PT', N'MSG_COORD_FRANJA', N'A hora de término tem de ser diferente da hora de início.'),
+        (N'ES', N'MSG_COORD_FUERA_FRANJA', N'La tarea tiene que caer dentro del turno del empleado.'), (N'EN', N'MSG_COORD_FUERA_FRANJA', N'The task must fall within the employee''s shift.'), (N'PT', N'MSG_COORD_FUERA_FRANJA', N'A tarefa tem de ficar dentro do turno do funcionário.'),
+        (N'ES', N'MSG_COORD_INCIDENCIA', N'La incidencia ya no existe.'), (N'EN', N'MSG_COORD_INCIDENCIA', N'The incident no longer exists.'), (N'PT', N'MSG_COORD_INCIDENCIA', N'A ocorrência não existe mais.'),
+        (N'ES', N'MSG_COORD_INC_ABIERTAS', N'Quedan incidencias abiertas: resuélvalas antes de cerrar el evento.'), (N'EN', N'MSG_COORD_INC_ABIERTAS', N'There are open incidents: resolve them before closing the event.'), (N'PT', N'MSG_COORD_INC_ABIERTAS', N'Há ocorrências abertas: resolva-as antes de encerrar o evento.'),
+        (N'ES', N'MSG_COORD_INC_RESUELTA', N'La incidencia ya estaba resuelta.'), (N'EN', N'MSG_COORD_INC_RESUELTA', N'The incident was already resolved.'), (N'PT', N'MSG_COORD_INC_RESUELTA', N'A ocorrência já estava resolvida.'),
+        (N'ES', N'MSG_COORD_MOTIVO', N'Para rechazar el turno hay que indicar el motivo.'), (N'EN', N'MSG_COORD_MOTIVO', N'To decline the shift you must give the reason.'), (N'PT', N'MSG_COORD_MOTIVO', N'Para recusar o turno é preciso indicar o motivo.'),
+        (N'ES', N'MSG_COORD_NO_CONFIRMADA', N'La reserva ya no está confirmada: solo se coordinan los eventos de reservas confirmadas.'), (N'EN', N'MSG_COORD_NO_CONFIRMADA', N'The reservation is no longer confirmed: only events of confirmed reservations are coordinated.'), (N'PT', N'MSG_COORD_NO_CONFIRMADA', N'A reserva não está mais confirmada: só se coordenam os eventos de reservas confirmadas.'),
+        (N'ES', N'MSG_COORD_NO_EN_EJECUCION', N'El evento no está en ejecución.'), (N'EN', N'MSG_COORD_NO_EN_EJECUCION', N'The event is not in progress.'), (N'PT', N'MSG_COORD_NO_EN_EJECUCION', N'O evento não está em execução.'),
+        (N'ES', N'MSG_COORD_NO_ES_EL_EMPLEADO', N'La asignación es de otro empleado: solo él puede responderla.'), (N'EN', N'MSG_COORD_NO_ES_EL_EMPLEADO', N'The assignment belongs to another employee: only they can answer it.'), (N'PT', N'MSG_COORD_NO_ES_EL_EMPLEADO', N'A atribuição é de outro funcionário: só ele pode respondê-la.'),
+        (N'ES', N'MSG_COORD_NO_LISTO', N'El evento todavía no está listo: falta que todo el personal confirme o falta el cronograma.'), (N'EN', N'MSG_COORD_NO_LISTO', N'The event is not ready yet: some staff have not confirmed or the schedule is missing.'), (N'PT', N'MSG_COORD_NO_LISTO', N'O evento ainda não está pronto: falta a confirmação de toda a equipe ou falta o cronograma.'),
+        (N'ES', N'MSG_COORD_RESOLUCION', N'Indique cómo se resolvió la incidencia.'), (N'EN', N'MSG_COORD_RESOLUCION', N'State how the incident was resolved.'), (N'PT', N'MSG_COORD_RESOLUCION', N'Indique como a ocorrência foi resolvida.'),
+        (N'ES', N'MSG_COORD_RESPONSABLE', N'El empleado elegido no es personal confirmado de este evento.'), (N'EN', N'MSG_COORD_RESPONSABLE', N'The chosen employee is not confirmed staff for this event.'), (N'PT', N'MSG_COORD_RESPONSABLE', N'O funcionário escolhido não é equipe confirmada deste evento.'),
+        (N'ES', N'MSG_COORD_ROL', N'Ingrese el rol que cumple el empleado en el evento (hasta 60 caracteres).'), (N'EN', N'MSG_COORD_ROL', N'Enter the employee''s role in the event (up to 60 characters).'), (N'PT', N'MSG_COORD_ROL', N'Informe a função do funcionário no evento (até 60 caracteres).'),
+        (N'ES', N'MSG_COORD_SIN_ACTIVIDADES', N'Agregue al menos una actividad al cronograma.'), (N'EN', N'MSG_COORD_SIN_ACTIVIDADES', N'Add at least one activity to the schedule.'), (N'PT', N'MSG_COORD_SIN_ACTIVIDADES', N'Adicione pelo menos uma atividade ao cronograma.'),
+        (N'ES', N'MSG_COORD_SIN_CONFIRMAR', N'El cronograma se arma con el equipo confirmado: tiene que haber personal confirmado y ninguna respuesta pendiente.'), (N'EN', N'MSG_COORD_SIN_CONFIRMAR', N'The schedule is built with the confirmed team: there must be confirmed staff and no pending answers.'), (N'PT', N'MSG_COORD_SIN_CONFIRMAR', N'O cronograma é montado com a equipe confirmada: tem de haver equipe confirmada e nenhuma resposta pendente.'),
+        (N'ES', N'MSG_COORD_SIN_CRONOGRAMA', N'El evento todavía no tiene cronograma: genérelo primero.'), (N'EN', N'MSG_COORD_SIN_CRONOGRAMA', N'The event has no schedule yet: generate it first.'), (N'PT', N'MSG_COORD_SIN_CRONOGRAMA', N'O evento ainda não tem cronograma: gere-o primeiro.'),
+        (N'ES', N'MSG_COORD_SIN_EMPLEADO', N'Tu cuenta no está vinculada a un empleado. Pedile a un coordinador que la vincule desde Empleados.'), (N'EN', N'MSG_COORD_SIN_EMPLEADO', N'Your account is not linked to an employee. Ask a coordinator to link it from Employees.'), (N'PT', N'MSG_COORD_SIN_EMPLEADO', N'Sua conta não está vinculada a um funcionário. Peça a um coordenador que a vincule em Funcionários.'),
+        (N'ES', N'MSG_COORD_SUPERPOSICION', N'La franja se superpone con otro turno del empleado.'), (N'EN', N'MSG_COORD_SUPERPOSICION', N'The time slot overlaps another shift of the employee.'), (N'PT', N'MSG_COORD_SUPERPOSICION', N'O horário se sobrepõe a outro turno do funcionário.'),
+        (N'ES', N'MSG_COORD_SUPERPOSICION_DET', N'La franja se superpone con otro turno de {0}: reserva #{1}, {2}, de {3}.'), (N'EN', N'MSG_COORD_SUPERPOSICION_DET', N'The time slot overlaps another shift of {0}: reservation #{1}, {2}, {3}.'), (N'PT', N'MSG_COORD_SUPERPOSICION_DET', N'O horário se sobrepõe a outro turno de {0}: reserva #{1}, {2}, das {3}.'),
+        (N'ES', N'MSG_COORD_TAREA', N'La tarea ya no existe.'), (N'EN', N'MSG_COORD_TAREA', N'The task no longer exists.'), (N'PT', N'MSG_COORD_TAREA', N'A tarefa não existe mais.'),
+        (N'ES', N'MSG_COORD_TAREA_SUPERPUESTA', N'La tarea se superpone con otra tarea del mismo empleado.'), (N'EN', N'MSG_COORD_TAREA_SUPERPUESTA', N'The task overlaps another task of the same employee.'), (N'PT', N'MSG_COORD_TAREA_SUPERPUESTA', N'A tarefa se sobrepõe a outra tarefa do mesmo funcionário.'),
+        (N'ES', N'MSG_COORD_TIENE_CARGA', N'El empleado tiene actividades del cronograma a cargo o tareas en este evento: reasígnelas antes.'), (N'EN', N'MSG_COORD_TIENE_CARGA', N'The employee is in charge of schedule activities or has tasks in this event: reassign them first.'), (N'PT', N'MSG_COORD_TIENE_CARGA', N'O funcionário tem atividades do cronograma a seu cargo ou tarefas neste evento: reatribua-as antes.'),
+        (N'ES', N'MSG_COORD_YA_ASIGNADO', N'El empleado ya está asignado a este evento.'), (N'EN', N'MSG_COORD_YA_ASIGNADO', N'The employee is already assigned to this event.'), (N'PT', N'MSG_COORD_YA_ASIGNADO', N'O funcionário já está atribuído a este evento.'),
+        (N'ES', N'MSG_COORD_YA_RESPONDIDA', N'La asignación ya fue respondida.'), (N'EN', N'MSG_COORD_YA_RESPONDIDA', N'The assignment has already been answered.'), (N'PT', N'MSG_COORD_YA_RESPONDIDA', N'A atribuição já foi respondida.'),
+        (N'ES', N'MSG_RES_EVENTO_INICIADO', N'El evento de esta reserva está en ejecución o cerrado: la reserva ya no admite modificaciones ni cancelación.'), (N'EN', N'MSG_RES_EVENTO_INICIADO', N'This reservation''s event is in progress or closed: the reservation can no longer be modified or cancelled.'), (N'PT', N'MSG_RES_EVENTO_INICIADO', N'O evento desta reserva está em execução ou encerrado: a reserva não admite mais modificações nem cancelamento.'),
+        -- Menu y rotulos de las secciones
+        (N'ES', N'MENU_OPERACIONES', N'Operaciones'), (N'EN', N'MENU_OPERACIONES', N'Operations'), (N'PT', N'MENU_OPERACIONES', N'Operações'),
+        (N'ES', N'MENU_AGENDA', N'Mi agenda'), (N'EN', N'MENU_AGENDA', N'My schedule'), (N'PT', N'MENU_AGENDA', N'Minha agenda'),
+        (N'ES', N'MENU_EMPLEADOS', N'Empleados'), (N'EN', N'MENU_EMPLEADOS', N'Employees'), (N'PT', N'MENU_EMPLEADOS', N'Funcionários'),
+        (N'ES', N'EMP_TITULO', N'Gestión de Empleados'), (N'EN', N'EMP_TITULO', N'Employees Management'), (N'PT', N'EMP_TITULO', N'Gestão de Funcionários'),
+        (N'ES', N'EMP_CUENTA', N'Cuenta de usuario'), (N'EN', N'EMP_CUENTA', N'User account'), (N'PT', N'EMP_CUENTA', N'Conta de usuário'),
+        (N'ES', N'OPE_TITULO', N'Operaciones de eventos'), (N'EN', N'OPE_TITULO', N'Event operations'), (N'PT', N'OPE_TITULO', N'Operações de eventos'),
+        (N'ES', N'OPE_BTN_PERSONAL', N'Personal'), (N'EN', N'OPE_BTN_PERSONAL', N'Staff'), (N'PT', N'OPE_BTN_PERSONAL', N'Equipe'),
+        (N'ES', N'OPE_BTN_CRONOGRAMA', N'Cronograma'), (N'EN', N'OPE_BTN_CRONOGRAMA', N'Schedule'), (N'PT', N'OPE_BTN_CRONOGRAMA', N'Cronograma'),
+        (N'ES', N'OPE_BTN_TAREAS', N'Tareas'), (N'EN', N'OPE_BTN_TAREAS', N'Tasks'), (N'PT', N'OPE_BTN_TAREAS', N'Tarefas'),
+        (N'ES', N'OPE_BTN_SUPERVISION', N'Supervisión'), (N'EN', N'OPE_BTN_SUPERVISION', N'Supervision'), (N'PT', N'OPE_BTN_SUPERVISION', N'Supervisão'),
+        (N'ES', N'AGE_TITULO', N'Mi agenda'), (N'EN', N'AGE_TITULO', N'My schedule'), (N'PT', N'AGE_TITULO', N'Minha agenda'),
+        (N'ES', N'AGE_CONFIRMAR', N'Confirmar'), (N'EN', N'AGE_CONFIRMAR', N'Confirm'), (N'PT', N'AGE_CONFIRMAR', N'Confirmar'),
+        (N'ES', N'AGE_RECHAZAR', N'Rechazar'), (N'EN', N'AGE_RECHAZAR', N'Decline'), (N'PT', N'AGE_RECHAZAR', N'Recusar'),
+        -- Especialidades del personal (catalogo: ESP_<NOMBRE>)
+        (N'ES', N'ESP_MOZO', N'Mozo'), (N'EN', N'ESP_MOZO', N'Waiter'), (N'PT', N'ESP_MOZO', N'Garçom'),
+        (N'ES', N'ESP_COCINA', N'Cocina'), (N'EN', N'ESP_COCINA', N'Kitchen'), (N'PT', N'ESP_COCINA', N'Cozinha'),
+        (N'ES', N'ESP_BARRA', N'Barra'), (N'EN', N'ESP_BARRA', N'Bar'), (N'PT', N'ESP_BARRA', N'Bar'),
+        (N'ES', N'ESP_DJ_Y_SONIDO', N'DJ y sonido'), (N'EN', N'ESP_DJ_Y_SONIDO', N'DJ and sound'), (N'PT', N'ESP_DJ_Y_SONIDO', N'DJ e som'),
+        (N'ES', N'ESP_FOTOGRAFIA_Y_VIDEO', N'Fotografía y video'), (N'EN', N'ESP_FOTOGRAFIA_Y_VIDEO', N'Photo and video'), (N'PT', N'ESP_FOTOGRAFIA_Y_VIDEO', N'Fotografia e vídeo'),
+        (N'ES', N'ESP_DECORACION', N'Decoración'), (N'EN', N'ESP_DECORACION', N'Decoration'), (N'PT', N'ESP_DECORACION', N'Decoração'),
+        (N'ES', N'ESP_RECEPCION', N'Recepción'), (N'EN', N'ESP_RECEPCION', N'Reception'), (N'PT', N'ESP_RECEPCION', N'Recepção'),
+        (N'ES', N'ESP_SEGURIDAD', N'Seguridad'), (N'EN', N'ESP_SEGURIDAD', N'Security'), (N'PT', N'ESP_SEGURIDAD', N'Segurança'),
+        (N'ES', N'ESP_LIMPIEZA', N'Limpieza'), (N'EN', N'ESP_LIMPIEZA', N'Cleaning'), (N'PT', N'ESP_LIMPIEZA', N'Limpeza'),
+        -- Arbol de permisos (PERMG_<NOMBRE> para el grupo, PERM_<Clave> para las hojas)
+        (N'ES', N'PERMG_OPERACIONES', N'Operaciones'), (N'EN', N'PERMG_OPERACIONES', N'Operations'), (N'PT', N'PERMG_OPERACIONES', N'Operações'),
+        (N'ES', N'PERM_EMPLEADOS_GESTION', N'Gestión de Empleados'), (N'EN', N'PERM_EMPLEADOS_GESTION', N'Employees Management'), (N'PT', N'PERM_EMPLEADOS_GESTION', N'Gestão de Funcionários'),
+        (N'ES', N'PERM_PERSONAL_ASIGNAR', N'Asignar Personal'), (N'EN', N'PERM_PERSONAL_ASIGNAR', N'Assign Staff'), (N'PT', N'PERM_PERSONAL_ASIGNAR', N'Atribuir Equipe'),
+        (N'ES', N'PERM_DISPONIBILIDAD_CONFIRMAR', N'Confirmar Disponibilidad'), (N'EN', N'PERM_DISPONIBILIDAD_CONFIRMAR', N'Confirm Availability'), (N'PT', N'PERM_DISPONIBILIDAD_CONFIRMAR', N'Confirmar Disponibilidade'),
+        (N'ES', N'PERM_CRONOGRAMA_GESTION', N'Gestionar Cronograma'), (N'EN', N'PERM_CRONOGRAMA_GESTION', N'Manage Schedule'), (N'PT', N'PERM_CRONOGRAMA_GESTION', N'Gerenciar Cronograma'),
+        (N'ES', N'PERM_TAREAS_ASIGNAR', N'Asignar Tareas'), (N'EN', N'PERM_TAREAS_ASIGNAR', N'Assign Tasks'), (N'PT', N'PERM_TAREAS_ASIGNAR', N'Atribuir Tarefas'),
+        (N'ES', N'PERM_AGENDA_CONSULTAR', N'Consultar Agenda'), (N'EN', N'PERM_AGENDA_CONSULTAR', N'View Own Schedule'), (N'PT', N'PERM_AGENDA_CONSULTAR', N'Consultar Agenda'),
+        (N'ES', N'PERM_EJECUCION_SUPERVISAR', N'Supervisar Ejecución'), (N'EN', N'PERM_EJECUCION_SUPERVISAR', N'Supervise Execution'), (N'PT', N'PERM_EJECUCION_SUPERVISAR', N'Supervisionar Execução'),
+        -- Bitacora: modulos (MOD_) y acciones (BACC_) que asienta el Proceso 2
+        (N'ES', N'MOD_EMPLEADOS', N'Empleados'), (N'EN', N'MOD_EMPLEADOS', N'Employees'), (N'PT', N'MOD_EMPLEADOS', N'Funcionários'),
+        (N'ES', N'MOD_COORDINACION', N'Coordinación'), (N'EN', N'MOD_COORDINACION', N'Coordination'), (N'PT', N'MOD_COORDINACION', N'Coordenação'),
+        (N'ES', N'BACC_ALTA_DE_EMPLEADO', N'Alta de empleado'), (N'EN', N'BACC_ALTA_DE_EMPLEADO', N'Employee created'), (N'PT', N'BACC_ALTA_DE_EMPLEADO', N'Cadastro de funcionário'),
+        (N'ES', N'BACC_MODIFICACION_DE_EMPLEADO', N'Modificación de empleado'), (N'EN', N'BACC_MODIFICACION_DE_EMPLEADO', N'Employee updated'), (N'PT', N'BACC_MODIFICACION_DE_EMPLEADO', N'Alteração de funcionário'),
+        (N'ES', N'BACC_BAJA_RECHAZADA', N'Baja rechazada'), (N'EN', N'BACC_BAJA_RECHAZADA', N'Deactivation rejected'), (N'PT', N'BACC_BAJA_RECHAZADA', N'Desativação rejeitada'),
+        (N'ES', N'BACC_ASIGNACION_DE_PERSONAL', N'Asignación de personal'), (N'EN', N'BACC_ASIGNACION_DE_PERSONAL', N'Staff assignment'), (N'PT', N'BACC_ASIGNACION_DE_PERSONAL', N'Atribuição de equipe'),
+        (N'ES', N'BACC_BAJA_DE_ASIGNACION', N'Baja de asignación'), (N'EN', N'BACC_BAJA_DE_ASIGNACION', N'Assignment removed'), (N'PT', N'BACC_BAJA_DE_ASIGNACION', N'Remoção de atribuição'),
+        (N'ES', N'BACC_DISPONIBILIDAD_CONFIRMADA', N'Disponibilidad confirmada'), (N'EN', N'BACC_DISPONIBILIDAD_CONFIRMADA', N'Availability confirmed'), (N'PT', N'BACC_DISPONIBILIDAD_CONFIRMADA', N'Disponibilidade confirmada'),
+        (N'ES', N'BACC_TURNO_RECHAZADO', N'Turno rechazado'), (N'EN', N'BACC_TURNO_RECHAZADO', N'Shift declined'), (N'PT', N'BACC_TURNO_RECHAZADO', N'Turno recusado'),
+        (N'ES', N'BACC_RESPUESTA_RECHAZADA', N'Respuesta rechazada'), (N'EN', N'BACC_RESPUESTA_RECHAZADA', N'Answer rejected'), (N'PT', N'BACC_RESPUESTA_RECHAZADA', N'Resposta rejeitada'),
+        (N'ES', N'BACC_GENERACION_DE_CRONOGRAMA', N'Generación de cronograma'), (N'EN', N'BACC_GENERACION_DE_CRONOGRAMA', N'Schedule generated'), (N'PT', N'BACC_GENERACION_DE_CRONOGRAMA', N'Geração de cronograma'),
+        (N'ES', N'BACC_MODIFICACION_DE_CRONOGRAMA', N'Modificación de cronograma'), (N'EN', N'BACC_MODIFICACION_DE_CRONOGRAMA', N'Schedule updated'), (N'PT', N'BACC_MODIFICACION_DE_CRONOGRAMA', N'Alteração de cronograma'),
+        (N'ES', N'BACC_ELIMINACION_DE_CRONOGRAMA', N'Eliminación de cronograma'), (N'EN', N'BACC_ELIMINACION_DE_CRONOGRAMA', N'Schedule deleted'), (N'PT', N'BACC_ELIMINACION_DE_CRONOGRAMA', N'Exclusão de cronograma'),
+        (N'ES', N'BACC_CRONOGRAMA_RECHAZADO', N'Cronograma rechazado'), (N'EN', N'BACC_CRONOGRAMA_RECHAZADO', N'Schedule rejected'), (N'PT', N'BACC_CRONOGRAMA_RECHAZADO', N'Cronograma rejeitado'),
+        (N'ES', N'BACC_ASIGNACION_DE_TAREA', N'Asignación de tarea'), (N'EN', N'BACC_ASIGNACION_DE_TAREA', N'Task assignment'), (N'PT', N'BACC_ASIGNACION_DE_TAREA', N'Atribuição de tarefa'),
+        (N'ES', N'BACC_BAJA_DE_TAREA', N'Baja de tarea'), (N'EN', N'BACC_BAJA_DE_TAREA', N'Task removed'), (N'PT', N'BACC_BAJA_DE_TAREA', N'Remoção de tarefa'),
+        (N'ES', N'BACC_TAREA_RECHAZADA', N'Tarea rechazada'), (N'EN', N'BACC_TAREA_RECHAZADA', N'Task rejected'), (N'PT', N'BACC_TAREA_RECHAZADA', N'Tarefa rejeitada'),
+        (N'ES', N'BACC_INICIO_DE_EJECUCION', N'Inicio de ejecución'), (N'EN', N'BACC_INICIO_DE_EJECUCION', N'Execution started'), (N'PT', N'BACC_INICIO_DE_EJECUCION', N'Início de execução'),
+        (N'ES', N'BACC_CIERRE_DE_EVENTO', N'Cierre de evento'), (N'EN', N'BACC_CIERRE_DE_EVENTO', N'Event closed'), (N'PT', N'BACC_CIERRE_DE_EVENTO', N'Encerramento de evento'),
+        (N'ES', N'BACC_EJECUCION_RECHAZADA', N'Ejecución rechazada'), (N'EN', N'BACC_EJECUCION_RECHAZADA', N'Execution rejected'), (N'PT', N'BACC_EJECUCION_RECHAZADA', N'Execução rejeitada'),
+        (N'ES', N'BACC_CIERRE_RECHAZADO', N'Cierre rechazado'), (N'EN', N'BACC_CIERRE_RECHAZADO', N'Closing rejected'), (N'PT', N'BACC_CIERRE_RECHAZADO', N'Encerramento rejeitado'),
+        (N'ES', N'BACC_COORDINACION_RECHAZADA', N'Coordinación rechazada'), (N'EN', N'BACC_COORDINACION_RECHAZADA', N'Coordination rejected'), (N'PT', N'BACC_COORDINACION_RECHAZADA', N'Coordenação rejeitada'),
+        (N'ES', N'BACC_REGISTRO_DE_INCIDENCIA', N'Registro de incidencia'), (N'EN', N'BACC_REGISTRO_DE_INCIDENCIA', N'Incident recorded'), (N'PT', N'BACC_REGISTRO_DE_INCIDENCIA', N'Registro de ocorrência'),
+        (N'ES', N'BACC_RESOLUCION_DE_INCIDENCIA', N'Resolución de incidencia'), (N'EN', N'BACC_RESOLUCION_DE_INCIDENCIA', N'Incident resolved'), (N'PT', N'BACC_RESOLUCION_DE_INCIDENCIA', N'Resolução de ocorrência'),
+        (N'ES', N'BACC_CONFIRMACIONES_REINICIADAS', N'Confirmaciones reiniciadas'), (N'EN', N'BACC_CONFIRMACIONES_REINICIADAS', N'Confirmations reset'), (N'PT', N'BACC_CONFIRMACIONES_REINICIADAS', N'Confirmações reiniciadas'),
+        -- Cronograma ya generado con respuestas pendientes (RN-11): se puede modificar,
+        -- siempre con responsables confirmados
+        (N'ES', N'MSG_CRO_PENDIENTES', N'Hay respuestas pendientes: cada actividad tiene que quedar a cargo de personal confirmado.'), (N'EN', N'MSG_CRO_PENDIENTES', N'Some replies are pending: every activity must be assigned to confirmed staff.'), (N'PT', N'MSG_CRO_PENDIENTES', N'Há respostas pendentes: cada atividade deve ficar a cargo de pessoal confirmado.')
+    ) AS v(Codigo, Clave, Texto)
+)
+INSERT INTO dbo.Traducciones (IdiomaId, Clave, Texto)
+SELECT i.Id, t.Clave, MIN(t.Texto)
+FROM Txt t
+JOIN dbo.Idiomas i ON i.Codigo = t.Codigo
+WHERE NOT EXISTS (
+    SELECT 1 FROM dbo.Traducciones x WHERE x.IdiomaId = i.Id AND x.Clave = t.Clave
+)
+GROUP BY i.Id, t.Clave;   -- una sola fila por idioma+clave: una clave repetida en el
+                          -- bloque de arriba no puede romper UQ_Traducciones.
+GO
+
+-- ---------------------------------------------------------------------------
+-- Idiomas agregados desde Gestion de Idiomas. Al crearlos, la aplicacion les
+-- copia todas las claves del espanol; las claves que el script suma despues solo
+-- se siembran para ES, EN y PT, asi que a un idioma propio le faltarian: sus
+-- pantallas nuevas saldrian en espanol y el editor, que lista las filas del
+-- idioma elegido, no las ofreceria para traducir. Se le copian del espanol las
+-- que no tenga (lo ya traducido se conserva). Va despues del ultimo bloque de
+-- traducciones.
+-- ---------------------------------------------------------------------------
+INSERT INTO dbo.Traducciones (IdiomaId, Clave, Texto)
+SELECT i.Id, t.Clave, t.Texto
+FROM dbo.Idiomas i
+JOIN dbo.Idiomas es ON es.Codigo = N'ES'
+JOIN dbo.Traducciones t ON t.IdiomaId = es.Id
+WHERE i.Codigo NOT IN (N'ES', N'EN', N'PT')
+  AND NOT EXISTS (SELECT 1 FROM dbo.Traducciones x WHERE x.IdiomaId = i.Id AND x.Clave = t.Clave);
+GO
+
+-- ---------------------------------------------------------------------------
+-- Ortografia de los catalogos de ejemplo sembrados por versiones anteriores del
+-- script (salones, servicios y los dos clientes de ejemplo iban sin tildes).
+-- Mismo criterio que los metodos de pago: se corrige solo el valor de fabrica
+-- exacto y solo si el nombre corregido no existe ya (los nombres de salones y
+-- de servicios son unicos). Las reservas, sus lineas y sus versiones referencian
+-- al salon, al servicio y al cliente por Id, asi que ningun dato de negocio
+-- cambia, y ninguna de estas tablas participa de los digitos verificadores.
+-- ---------------------------------------------------------------------------
+UPDATE dbo.Salones SET Nombre = N'Salón Principal'
+ WHERE Nombre = N'Salon Principal' COLLATE Latin1_General_CS_AS
+   AND NOT EXISTS (SELECT 1 FROM dbo.Salones x WHERE x.Nombre = N'Salón Principal' COLLATE Latin1_General_CS_AS);
+UPDATE dbo.Salones SET Nombre = N'Salón Jardín'
+ WHERE Nombre = N'Salon Jardin' COLLATE Latin1_General_CS_AS
+   AND NOT EXISTS (SELECT 1 FROM dbo.Salones x WHERE x.Nombre = N'Salón Jardín' COLLATE Latin1_General_CS_AS);
+
+UPDATE dbo.Servicios SET Nombre = N'Decoración temática'
+ WHERE Nombre = N'Decoracion tematica' COLLATE Latin1_General_CS_AS
+   AND NOT EXISTS (SELECT 1 FROM dbo.Servicios x WHERE x.Nombre = N'Decoración temática' COLLATE Latin1_General_CS_AS);
+UPDATE dbo.Servicios SET Nombre = N'Fotografía y video'
+ WHERE Nombre = N'Fotografia y video' COLLATE Latin1_General_CS_AS
+   AND NOT EXISTS (SELECT 1 FROM dbo.Servicios x WHERE x.Nombre = N'Fotografía y video' COLLATE Latin1_General_CS_AS);
+UPDATE dbo.Servicios SET Descripcion = N'Menú completo por invitado'
+ WHERE Descripcion = N'Menu completo por invitado' COLLATE Latin1_General_CS_AS;
+UPDATE dbo.Servicios SET Descripcion = N'Ambientación del salón'
+ WHERE Descripcion = N'Ambientacion del salon' COLLATE Latin1_General_CS_AS;
+UPDATE dbo.Servicios SET Descripcion = N'Servicio de música y sonido'
+ WHERE Descripcion = N'Servicio de musica y sonido' COLLATE Latin1_General_CS_AS;
+UPDATE dbo.Servicios SET Descripcion = N'Personal de atención (por mozo)'
+ WHERE Descripcion = N'Personal de atencion (por mozo)' COLLATE Latin1_General_CS_AS;
+
+UPDATE dbo.Clientes SET Apellido = N'Pérez'
+ WHERE Dni = N'30111222' AND Nombre = N'Juan' COLLATE Latin1_General_CS_AS AND Apellido = N'Perez' COLLATE Latin1_General_CS_AS;
+UPDATE dbo.Clientes SET Nombre = N'María', Apellido = N'Gómez'
+ WHERE Dni = N'28999333' AND Nombre = N'Maria' COLLATE Latin1_General_CS_AS AND Apellido = N'Gomez' COLLATE Latin1_General_CS_AS;
 GO
 
 -- ===========================================================================

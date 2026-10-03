@@ -12,19 +12,12 @@ namespace EvenTech.BLL
     public static class CaretakerReserva_704ILR
     {
         // Toma la foto del estado actual de la reserva (incluye sus servicios
-        // contratados, porque el monto se deriva de ellos) y la persiste.
-        public static void GuardarVersion_704ILR(BE_Reserva_704ILR reserva_704ILR)
-        {
-            List<BE_ReservaServicio_704ILR> servicios_704ILR = DAL_ReservaServicio_704ILR.GetByReserva_704ILR(reserva_704ILR.Id_704ILR);
-            BE_ReservaMemento_704ILR memento_704ILR = reserva_704ILR.CrearMemento_704ILR(UsuarioActual_704ILR(), servicios_704ILR);
-            DAL_ReservaMemento_704ILR.Insert_704ILR(memento_704ILR);
-        }
-
-        // Misma foto, persistida sobre la conexion y la transaccion de la operacion
-        // que la motiva (modificacion, restauracion o cancelacion): si esa operacion
-        // no llega a confirmarse, la version tampoco queda. Se invoca con la cabecera
-        // de la reserva ya bloqueada y ANTES de escribir sus lineas: los servicios se
-        // leen por otra conexion y en ese punto nadie mas puede estar reescribiendolos.
+        // contratados, porque el monto se deriva de ellos) y la persiste sobre la
+        // conexion y la transaccion de la operacion que la motiva (modificacion,
+        // restauracion o cancelacion): si esa operacion no llega a confirmarse, la
+        // version tampoco queda. Se invoca con la cabecera de la reserva ya bloqueada
+        // y ANTES de escribir sus lineas: los servicios se leen por otra conexion y en
+        // ese punto nadie mas puede estar reescribiendolos.
         public static void GuardarVersion_704ILR(BE_Reserva_704ILR reserva_704ILR,
             SqlConnection conn_704ILR, SqlTransaction tx_704ILR)
         {
