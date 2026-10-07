@@ -204,11 +204,11 @@ disponibilidad y consultar la agenda).
 | RN-05 | Transiciones de estado: COTIZACION avanza a cualquier estado, PENDIENTE solo confirma o cancela, CONFIRMADA solo cancela (salvo con el evento en ejecución o cerrado, RN-13) y CANCELADA es terminal. |
 | RN-06 | Al confirmar, el salón elegido tiene que poder alojar a la cantidad de invitados estimada. |
 | RN-07 | Una reserva queda CONFIRMADA con el adelanto ya cobrado: el orden es guardar la operación, cobrar y recién entonces confirmar. |
-| RN-08 | Solo se coordina el evento de una reserva CONFIRMADA. Si la reserva se cancela, deja de estar confirmada o cambia de fecha, las confirmaciones de su personal vuelven a pendiente; si dejó de estar confirmada, el equipo queda liberado. |
+| RN-08 | Solo se coordina el evento de una reserva CONFIRMADA. Si la reserva deja de estar confirmada o cambia de fecha, las confirmaciones de su personal vuelven a pendiente; si dejó de estar confirmada —por una cancelación o por la restauración de una versión no confirmada—, el equipo queda liberado. |
 | RN-09 | La franja de un empleado no puede superponerse con otro turno suyo, pendiente o confirmado, en otro evento confirmado; tampoco cuando el turno cruza la medianoche. Un turno rechazado no lo compromete, y el control se repite al confirmar. |
 | RN-10 | La disponibilidad la responde el propio empleado, desde la cuenta vinculada a su ficha; el rechazo lleva motivo. |
 | RN-11 | El cronograma se genera con el equipo confirmado (al menos un confirmado y ninguna respuesta pendiente) y con responsables confirmados; hay uno solo por reserva. Uno ya generado se puede modificar con respuestas pendientes, siempre con responsables confirmados. |
-| RN-12 | La tarea se asigna a personal confirmado, cae dentro de su turno y no se superpone con otra tarea del mismo empleado. |
+| RN-12 | Las tareas se asignan sobre el cronograma del evento: sin cronograma no se asignan y un cronograma con tareas no se elimina. La tarea se asigna a personal confirmado, cae dentro de su turno y no se superpone con otra tarea del mismo empleado. |
 | RN-13 | La ejecución empieza con el evento LISTO. Desde ese momento el plan y la reserva quedan congelados (los movimientos de cobro siguen admitidos), lo que se sale del plan se registra como incidencia y el evento se cierra con todas resueltas. |
 
 El evento de una reserva confirmada tiene además un **estado de coordinación**,

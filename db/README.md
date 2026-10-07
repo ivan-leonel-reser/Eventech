@@ -152,7 +152,7 @@ integridad del arranque da `Ok`.
 reservas PENDIENTE tienen el plazo que fija la RN-01: 15 días y 72 horas desde esa
 fecha de generación. Restaurado días después, figuran vencidas en la columna
 *Vence*. No es un defecto: al intentar avanzarlas el sistema lo informa y ofrece
-renovar la vigencia en el acto (CUN005, flujo 6.2). El orden para confirmar una
+renovar la vigencia en el acto (CUN005, flujo 6.4). El orden para confirmar una
 PENDIENTE es siempre cobrar el adelanto (*Pagos*) y después confirmar (RN-07).
 
 Antes de restaurar, dos pasos que evitan los dos errores más comunes:

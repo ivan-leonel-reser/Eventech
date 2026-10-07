@@ -849,7 +849,7 @@ namespace EvenTech.UI
             // el minimo en hoy, el control subiria la fecha al abrir la ficha y guardar
             // reprogramaria el evento en silencio. Bajando el minimo, el dato se ve tal
             // cual es y quien decide es la regla de negocio, que rechaza guardar con
-            // fecha anterior a hoy (CUN005, flujo alternativo de fecha pasada).
+            // fecha anterior a hoy.
             // Una fecha que el selector no puede mostrar (anterior a su minimo, posterior a
             // 9998-12-31 o fuera del calendario de la cultura, como 2080 en ar-SA) solo llega
             // alterando la base: asignarla lanzaba. El selector queda en blanco, sin mostrar una
