@@ -236,14 +236,12 @@ namespace EvenTech.UI
             {
                 _txtDescripcion_704ILR.Clear();
                 _txtRecursos_704ILR.Clear();
-                // La tarea siguiente del mismo empleado arranca donde termina esta.
-                DateTime dia_704ILR = _dtDesde_704ILR.Value.Date;
-                TimeSpan duracion_704ILR = _dtHasta_704ILR.Value.TimeOfDay - _dtDesde_704ILR.Value.TimeOfDay;
-                if (duracion_704ILR <= TimeSpan.Zero) duracion_704ILR += TimeSpan.FromDays(1);
-                TimeSpan nuevoInicio_704ILR = _dtHasta_704ILR.Value.TimeOfDay;
+                // Para la tarea siguiente se vuelve a proponer la primera hora libre del
+                // turno, con las tareas ya releidas: "donde termino la anterior, con la
+                // misma duracion" proponia franjas fuera del turno o pisadas con otra tarea,
+                // que la asignacion rechazaba (RN-12).
                 RefrescarTareas_704ILR();
-                _dtDesde_704ILR.Value = dia_704ILR + nuevoInicio_704ILR;
-                _dtHasta_704ILR.Value = dia_704ILR + TimeSpan.FromMinutes((nuevoInicio_704ILR + duracion_704ILR).TotalMinutes % 1440);
+                ProponerFranja_704ILR();
                 _txtDescripcion_704ILR.Focus();
                 return;
             }

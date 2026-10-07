@@ -51,21 +51,33 @@ namespace EvenTech.BLL
         }
 
         // Recalcula el DV vertical de Reservas a partir de los DVH almacenados.
-        // Se invoca tras cada alta/modificacion para mantener la linea base.
+        // Se invoca tras cada alta/modificacion para mantener la linea base. Lo hace
+        // un puesto por vez (DAL_DVVertical_704ILR.Serializar_704ILR): el ultimo en
+        // recalcular lee todo lo ya confirmado, asi el digito guardado nunca queda
+        // anterior al ultimo cambio.
         public static void RecalcularDVVerticalReservas_704ILR()
         {
-            var reservas_704ILR = DAL_Reserva_704ILR.GetAll_704ILR();
-            var dvhs_704ILR = new List<string>();
-            // Orden estable (por Id ascendente) para que la posicion sea consistente.
-            reservas_704ILR.Sort((a_704ILR, b_704ILR) => a_704ILR.Id_704ILR.CompareTo(b_704ILR.Id_704ILR));
-            foreach (var r_704ILR in reservas_704ILR) dvhs_704ILR.Add(r_704ILR.Dvh_704ILR ?? string.Empty);
+            DAL_DVVertical_704ILR.Serializar_704ILR(TablaReservas_704ILR, () =>
+            {
+                var reservas_704ILR = DAL_Reserva_704ILR.GetAll_704ILR();
+                var dvhs_704ILR = new List<string>();
+                // Orden estable (por Id ascendente) para que la posicion sea consistente.
+                reservas_704ILR.Sort((a_704ILR, b_704ILR) => a_704ILR.Id_704ILR.CompareTo(b_704ILR.Id_704ILR));
+                foreach (var r_704ILR in reservas_704ILR) dvhs_704ILR.Add(r_704ILR.Dvh_704ILR ?? string.Empty);
 
-            string dvv_704ILR = ValidadorDeIntegridad_704ILR.CalcularDVV_704ILR(dvhs_704ILR);
-            DAL_DVVertical_704ILR.Upsert_704ILR(TablaReservas_704ILR, dvv_704ILR);
+                string dvv_704ILR = ValidadorDeIntegridad_704ILR.CalcularDVV_704ILR(dvhs_704ILR);
+                DAL_DVVertical_704ILR.Upsert_704ILR(TablaReservas_704ILR, dvv_704ILR);
+            });
         }
 
         // Verificacion de integridad: se ejecuta al arrancar, antes del login.
-        public static ResultadoIntegridad_704ILR Verificar_704ILR()
+        public static ResultadoIntegridad_704ILR Verificar_704ILR() => Verificar_704ILR(false);
+
+        // 'segundaLectura': si lo unico que no coincide es el DV vertical, puede ser que
+        // otro puesto este entre el guardado de una reserva y el recalculo del digito
+        // (las dos lecturas de esta verificacion no son una foto del mismo instante). Se
+        // vuelve a leer una vez antes de informarlo: una alteracion real sigue estando.
+        private static ResultadoIntegridad_704ILR Verificar_704ILR(bool segundaLectura_704ILR)
         {
             var resultado_704ILR = new ResultadoIntegridad_704ILR();
             var reservas_704ILR = DAL_Reserva_704ILR.GetAll_704ILR();
@@ -107,6 +119,11 @@ namespace EvenTech.BLL
             }
             else if (dvvAlmacenado_704ILR != dvvCalculado_704ILR)
             {
+                if (!segundaLectura_704ILR && resultado_704ILR.Ok_704ILR)
+                {
+                    System.Threading.Thread.Sleep(400);
+                    return Verificar_704ILR(true);
+                }
                 resultado_704ILR.Inconsistencias_704ILR.Add("DV vertical de Reservas no coincide (filas agregadas, quitadas o reordenadas por fuera del sistema).");
             }
 

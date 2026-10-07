@@ -2055,11 +2055,10 @@ try
 
         // Limpieza: se anula lo que haya quedado y se cancela la reserva. La
         // verificacion corre siempre (la cantidad de verificaciones de la corrida no
-        // depende de quien gano la carrera).
-        PagoResult_704ILR rLimpia_704ILR = idSegundo_704ILR > 0
-            ? BLL_Pago_704ILR.Eliminar_704ILR(idSegundo_704ILR, idK_704ILR)
-            : PagoResult_704ILR.Success_704ILR;
-        Esperar_704ILR("limpieza (anular el cobro simultaneo, si entro)", rLimpia_704ILR, PagoResult_704ILR.Success_704ILR);
+        // depende de quien gano la carrera) y mira el resultado, no la llamada: sin
+        // pagos vivos en la reserva, haya entrado o no el cobro simultaneo.
+        if (idSegundo_704ILR > 0) BLL_Pago_704ILR.Eliminar_704ILR(idSegundo_704ILR, idK_704ILR);
+        Esperar_704ILR("limpieza (sin pagos vivos en la reserva de [34])", BLL_Pago_704ILR.GetByReserva_704ILR(idK_704ILR).Count, 0);
         Esperar_704ILR("limpieza (cancelar la reserva de [34])",
             BLL_Reserva_704ILR.Cancelar_704ILR(idK_704ILR, out _, out _), ReservaResult_704ILR.Success_704ILR);
     }
@@ -2877,7 +2876,7 @@ try
         Esperar_704ILR("es la misma asignacion", asigReactivada_704ILR, asigA2_704ILR);
         var reactivada_704ILR = Asignacion_704ILR(evR2_704ILR, empA_704ILR);
         Esperar_704ILR("vuelve a pendiente", reactivada_704ILR?.Estado_704ILR, (EvenTech.BE.EstadoAsignacion_704ILR?)EvenTech.BE.EstadoAsignacion_704ILR.PENDIENTE);
-        Esperar_704ILR("sin motivo ni respuesta", reactivada_704ILR?.MotivoRechazo_704ILR == null && reactivada_704ILR?.FechaConfirmacion_704ILR == null, true);
+        Esperar_704ILR("sin motivo ni respuesta", reactivada_704ILR != null && reactivada_704ILR.MotivoRechazo_704ILR == null && reactivada_704ILR.FechaConfirmacion_704ILR == null, true);
         Esperar_704ILR("franja nueva", reactivada_704ILR?.HoraInicio_704ILR, (TimeSpan?)H_704ILR(11));
     }
 }
@@ -3282,7 +3281,8 @@ try
         otroDia_704ILR.FechaEvento_704ILR = otroDia_704ILR.FechaEvento_704ILR.AddDays(9);
         Esperar_704ILR("reprogramar R3", BLL_Reserva_704ILR.Actualizar_704ILR(otroDia_704ILR), ReservaResult_704ILR.Success_704ILR);
         Esperar_704ILR("el turno vuelve a pendiente", Asignacion_704ILR(evR3_704ILR, empA_704ILR)?.Estado_704ILR, (EvenTech.BE.EstadoAsignacion_704ILR?)EvenTech.BE.EstadoAsignacion_704ILR.PENDIENTE);
-        Esperar_704ILR("sin fecha de respuesta", Asignacion_704ILR(evR3_704ILR, empA_704ILR)?.FechaConfirmacion_704ILR == null, true);
+        var turnoR3_704ILR = Asignacion_704ILR(evR3_704ILR, empA_704ILR);
+        Esperar_704ILR("sin fecha de respuesta", turnoR3_704ILR != null && turnoR3_704ILR.FechaConfirmacion_704ILR == null, true);
         Esperar_704ILR("R3 vuelve a coordinacion", EstadoCoord_704ILR(evR3_704ILR), EvenTech.BE.EstadoCoordinacion_704ILR.EN_COORDINACION);
         Esperar_704ILR("el cronograma se conserva", BLL_Cronograma_704ILR.GetByReserva_704ILR(evR3_704ILR)?.Actividades_704ILR.Count, (int?)1);
         Esperar_704ILR("asiento de confirmaciones reiniciadas", Asientos_704ILR("Coordinacion", "Confirmaciones reiniciadas") - asientosReinicio_704ILR, 1);
@@ -3578,9 +3578,126 @@ try
         Esperar_704ILR("asientos de las operaciones rechazadas por RN-13", Asientos_704ILR("Coordinacion", "Coordinacion rechazada") - asientosRn13_704ILR, 5);
         Esperar_704ILR("el plan del evento cerrado quedo como estaba (asignaciones, actividades y tareas)",
             BLL_AsignacionPersonal_704ILR.GetByReserva_704ILR(evHoy_704ILR).Count + "," + BLL_Cronograma_704ILR.GetByReserva_704ILR(evHoy_704ILR)?.Actividades_704ILR.Count + "," + BLL_Tarea_704ILR.GetByReserva_704ILR(evHoy_704ILR).Count, "1,1,1");
+
+        // Lo cerrado va al final de las listas: por fecha, el evento de hoy quedaria
+        // antes que cualquier otro. Se confirma un evento posterior con un turno del
+        // mismo empleado: en Operaciones y en la agenda tiene que aparecer primero.
+        var posterior_704ILR = NuevaReserva_704ILR(clientes_704ILR[0].Id_704ILR, libresHoy_704ILR[0].SalonId_704ILR, 6400,
+            EvenTech.BE.EstadoReserva_704ILR.COTIZACION, 900m, 20);
+        Esperar_704ILR("alta de un evento posterior", BLL_Reserva_704ILR.Crear_704ILR(posterior_704ILR, out int evPosterior_704ILR), ReservaResult_704ILR.Success_704ILR);
+        Anotar_704ILR(evPosterior_704ILR);
+        Adelanto_704ILR(evPosterior_704ILR, 300m);
+        var confirmarPosterior_704ILR = BLL_Reserva_704ILR.GetById_704ILR(evPosterior_704ILR);
+        confirmarPosterior_704ILR.Estado_704ILR = EvenTech.BE.EstadoReserva_704ILR.CONFIRMADA;
+        Esperar_704ILR("confirmar el evento posterior", BLL_Reserva_704ILR.Actualizar_704ILR(confirmarPosterior_704ILR), ReservaResult_704ILR.Success_704ILR);
+        Esperar_704ILR("asignar A al evento posterior", BLL_AsignacionPersonal_704ILR.Asignar_704ILR(evPosterior_704ILR, empA_704ILR, "Mozo", H_704ILR(20), H_704ILR(23), out _, out _), CoordinacionResult_704ILR.Success_704ILR);
+        var ordenEventos_704ILR = BLL_Coordinacion_704ILR.GetEventos_704ILR().Select(e_704ILR => e_704ILR.ReservaId_704ILR).ToList();
+        Esperar_704ILR("en Operaciones, el evento cerrado queda despues del que falta coordinar",
+            ordenEventos_704ILR.IndexOf(evPosterior_704ILR) >= 0 && ordenEventos_704ILR.IndexOf(evPosterior_704ILR) < ordenEventos_704ILR.IndexOf(evHoy_704ILR), true);
+        Esperar_704ILR("sesion del empleado A", SesionDelEmpleado_704ILR(), true);
+        var ordenAgenda_704ILR = BLL_AsignacionPersonal_704ILR.GetMisAsignaciones_704ILR().Select(a_704ILR => a_704ILR.ReservaId_704ILR).ToList();
+        CerrarSesion_704ILR();
+        Esperar_704ILR("en la agenda, el turno del evento cerrado queda despues del pendiente",
+            ordenAgenda_704ILR.IndexOf(evPosterior_704ILR) >= 0 && ordenAgenda_704ILR.IndexOf(evPosterior_704ILR) < ordenAgenda_704ILR.IndexOf(evHoy_704ILR), true);
     }
 }
 catch (Exception ex51_704ILR) { Excepcion_704ILR("[51]", ex51_704ILR); CerrarSesion_704ILR(); }
+
+// [52] Digito verificador vertical con guardados simultaneos. Cada alta o
+// modificacion de una reserva recalcula el DV vertical del conjunto: lee todas las
+// filas y guarda. Dos puestos que terminan una operacion a la vez no pueden dejar
+// guardado un digito anterior al ultimo cambio (la verificacion del arranque lo
+// informaria como una alteracion que no existe), asi que el recalculo va de a uno,
+// con un bloqueo de aplicacion. Se verifica el mecanismo (mientras un puesto
+// recalcula, el otro espera) y el resultado (ocho guardados simultaneos sobre
+// reservas distintas, varias rondas, dejan siempre el digito al dia).
+Caso_704ILR("[52] DV vertical con guardados simultaneos:");
+try
+{
+    var cliV_704ILR = BLL_Cliente_704ILR.GetAll_704ILR();
+    var salV_704ILR = BLL_Salon_704ILR.GetAll_704ILR();
+    if (cliV_704ILR.Count == 0 || salV_704ILR.Count == 0)
+    {
+        Omitir_704ILR("[52]", "faltan clientes/salones seed; corre db/schema.sql");
+    }
+    else
+    {
+        // El mecanismo: con el bloqueo tomado por otro, el recalculo no avanza.
+        bool recalculoTermino_704ILR = false, terminoAntesDeSoltar_704ILR = false;
+        Exception errorBloqueo_704ILR = null;
+        using (var tomado_704ILR = new ManualResetEventSlim(false))
+        {
+            var tRetiene_704ILR = Task.Run(() =>
+            {
+                try
+                {
+                    EvenTech.DAL.DAL_DVVertical_704ILR.Serializar_704ILR("Reservas", () =>
+                    {
+                        tomado_704ILR.Set();
+                        Thread.Sleep(600);
+                        terminoAntesDeSoltar_704ILR = recalculoTermino_704ILR;
+                    });
+                }
+                catch (Exception ex_704ILR) { errorBloqueo_704ILR = ex_704ILR; tomado_704ILR.Set(); }
+            });
+            tomado_704ILR.Wait();
+            var tRecalcula_704ILR = Task.Run(() =>
+            {
+                try { BLL_Integridad_704ILR.RecalcularDVVerticalReservas_704ILR(); recalculoTermino_704ILR = true; }
+                catch (Exception ex_704ILR) { errorBloqueo_704ILR = ex_704ILR; }
+            });
+            Task.WaitAll(tRetiene_704ILR, tRecalcula_704ILR);
+        }
+        Esperar_704ILR("el bloqueo y el recalculo terminaron sin excepcion", errorBloqueo_704ILR == null ? "sin excepcion" : errorBloqueo_704ILR.GetType().Name + ": " + errorBloqueo_704ILR.Message, "sin excepcion");
+        Esperar_704ILR("mientras otro puesto recalcula, el recalculo espera", terminoAntesDeSoltar_704ILR, false);
+        Esperar_704ILR("y termina cuando el otro suelta", recalculoTermino_704ILR, true);
+
+        // El resultado: guardados simultaneos sobre reservas distintas.
+        const int hilos_704ILR = 8, rondas_704ILR = 10;
+        var idsV_704ILR = new int[hilos_704ILR];
+        bool altasV_704ILR = true;
+        for (int i_704ILR = 0; i_704ILR < hilos_704ILR; i_704ILR++)
+        {
+            altasV_704ILR &= BLL_Reserva_704ILR.Crear_704ILR(NuevaReserva_704ILR(cliV_704ILR[0].Id_704ILR, salV_704ILR[i_704ILR % salV_704ILR.Count].Id_704ILR, 6500 + i_704ILR,
+                EvenTech.BE.EstadoReserva_704ILR.COTIZACION, 1000m), out idsV_704ILR[i_704ILR]) == ReservaResult_704ILR.Success_704ILR;
+            Anotar_704ILR(idsV_704ILR[i_704ILR]);
+        }
+        Esperar_704ILR("alta de ocho cotizaciones", altasV_704ILR, true);
+
+        int rondasAlDia_704ILR = 0, noGuardados_704ILR = 0;
+        Exception errorHiloV_704ILR = null;
+        for (int ronda_704ILR = 0; ronda_704ILR < rondas_704ILR; ronda_704ILR++)
+        {
+            int invitados_704ILR = 10 + ronda_704ILR;
+            using (var barreraV_704ILR = new Barrier(hilos_704ILR))
+            {
+                var tareasV_704ILR = Enumerable.Range(0, hilos_704ILR).Select(i_704ILR => Task.Run(() =>
+                {
+                    try
+                    {
+                        var r_704ILR = BLL_Reserva_704ILR.GetById_704ILR(idsV_704ILR[i_704ILR]);
+                        r_704ILR.CantidadInvitados_704ILR = invitados_704ILR;
+                        barreraV_704ILR.SignalAndWait();
+                        if (BLL_Reserva_704ILR.Actualizar_704ILR(r_704ILR) != ReservaResult_704ILR.Success_704ILR)
+                            Interlocked.Increment(ref noGuardados_704ILR);
+                    }
+                    catch (Exception ex_704ILR) { errorHiloV_704ILR = ex_704ILR; }
+                })).ToArray();
+                Task.WaitAll(tareasV_704ILR);
+            }
+            if (BLL_Integridad_704ILR.Verificar_704ILR().Ok_704ILR) rondasAlDia_704ILR++;
+        }
+        Esperar_704ILR("los guardados simultaneos terminaron sin excepcion", errorHiloV_704ILR == null ? "sin excepcion" : errorHiloV_704ILR.GetType().Name + ": " + errorHiloV_704ILR.Message, "sin excepcion");
+        Esperar_704ILR("guardados que no entraron", noGuardados_704ILR, 0);
+        Esperar_704ILR("rondas con la integridad al dia", rondasAlDia_704ILR, rondas_704ILR);
+
+        bool bajasV_704ILR = true;
+        foreach (int id_704ILR in idsV_704ILR)
+            bajasV_704ILR &= BLL_Reserva_704ILR.Cancelar_704ILR(id_704ILR, out _, out _) == ReservaResult_704ILR.Success_704ILR;
+        Esperar_704ILR("limpieza (cancelar las ocho cotizaciones)", bajasV_704ILR, true);
+    }
+}
+catch (Exception ex52_704ILR) { Excepcion_704ILR("[52]", ex52_704ILR); }
 
 // ---------------------------------------------------------------------------
 // Limpieza final: lo que cada caso no alcanzo a limpiar (por una excepcion en el
@@ -3661,7 +3778,7 @@ catch (Exception exLimpieza_704ILR) { Excepcion_704ILR("[limpieza]", exLimpieza_
 
 // ---------------------------------------------------------------------------
 // Cierre: la linea base de integridad tiene que seguir sana DESPUES de todas las
-// altas, ediciones, cancelaciones y restauraciones de los casos [7] a [49] — que
+// altas, ediciones, cancelaciones y restauraciones de los casos [7] a [52] — que
 // son justamente las operaciones que recalculan los digitos verificadores. Hasta
 // ahora [16] la verificaba una sola vez, antes de que ocurriera nada de eso.
 // ---------------------------------------------------------------------------

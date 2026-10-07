@@ -313,6 +313,14 @@ namespace EvenTech.UI
         private HashSet<int> RefrescarContexto_704ILR()
         {
             LeerEvento_704ILR();
+            // Tambien si el cronograma sigue existiendo: otra sesion pudo eliminarlo, y de
+            // eso dependen el rotulo de Guardar, el boton Eliminar y la regla del equipo
+            // (RN-11). Si ya no existe, la lista de trabajo pasa a ser un cronograma nuevo.
+            if (_evento_704ILR != null && _existe_704ILR && !_evento_704ILR.TieneCronograma_704ILR)
+            {
+                _existe_704ILR = false;
+                _guardadas_704ILR = new List<BE_CronogramaActividad_704ILR>();
+            }
             var asignaciones_704ILR = BLL_AsignacionPersonal_704ILR.GetByReserva_704ILR(_reservaId_704ILR);
             var confirmados_704ILR = asignaciones_704ILR.Where(a_704ILR => a_704ILR.Estado_704ILR == EstadoAsignacion_704ILR.CONFIRMADA).ToList();
             _hayConfirmados_704ILR = confirmados_704ILR.Count > 0;

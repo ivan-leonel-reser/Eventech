@@ -1679,7 +1679,6 @@ BEGIN TRY
     MERGE dbo.Perfiles AS p
     USING Perf AS s ON p.Nombre = s.Nombre
     WHEN NOT MATCHED THEN INSERT (Nombre, Descripcion) VALUES (s.Nombre, s.Descripcion)
-    WHEN MATCHED AND p.Descripcion IS NULL THEN UPDATE SET Descripcion = s.Descripcion
     OUTPUT $action, inserted.Id, inserted.Nombre INTO @PerfilesSembrados (Accion, Id, Nombre);
 
     ;WITH Asig(Perfil, Clave) AS (
@@ -3320,16 +3319,36 @@ BEGIN TRY
     WHEN NOT MATCHED THEN INSERT (Nombre, Descripcion) VALUES (s.Nombre, s.Descripcion)
     OUTPUT $action, inserted.Id, inserted.Nombre INTO @PerfilesOperativos (Accion, Id, Nombre);
 
+    -- Un perfil previo con ese nombre se avisa solo si de verdad le falta el permiso:
+    -- cuentan los permisos EFECTIVOS, los que le llegan por un grupo asignado o por un
+    -- perfil incluido (mirando solo la hoja directa, el aviso salia en cada corrida
+    -- para un perfil compuesto con el grupo Operaciones).
     DECLARE @perfilesPrevios NVARCHAR(200) = NULL;
+    ;WITH Alcance AS (
+        SELECT p.Id AS Raiz, p.Id AS PerfilId
+        FROM dbo.Perfiles p
+        WHERE p.Nombre IN (N'Coordinador', N'Empleado')
+          AND NOT EXISTS (SELECT 1 FROM @PerfilesOperativos n WHERE n.Id = p.Id)
+        UNION ALL
+        SELECT a.Raiz, pi.PerfilHijoId
+        FROM Alcance a JOIN dbo.PerfilIncluido pi ON pi.PerfilPadreId = a.PerfilId
+    ),
+    Nodos AS (
+        SELECT a.Raiz, pp.PermisoId
+        FROM Alcance a JOIN dbo.PerfilPermiso pp ON pp.PerfilId = a.PerfilId
+        UNION ALL
+        SELECT n.Raiz, h.Id
+        FROM Nodos n JOIN dbo.Permisos h ON h.PermisoPadreId = n.PermisoId
+    )
     SELECT @perfilesPrevios = COALESCE(@perfilesPrevios + N', ', N'') + p.Nombre
     FROM dbo.Perfiles p
-    WHERE NOT EXISTS (SELECT 1 FROM @PerfilesOperativos n WHERE n.Id = p.Id)
-      AND (   (p.Nombre = N'Coordinador'
-               AND NOT EXISTS (SELECT 1 FROM dbo.PerfilPermiso pp JOIN dbo.Permisos pe ON pe.Id = pp.PermisoId
-                               WHERE pp.PerfilId = p.Id AND pe.Clave = N'PERSONAL_ASIGNAR'))
-           OR (p.Nombre = N'Empleado'
-               AND NOT EXISTS (SELECT 1 FROM dbo.PerfilPermiso pp JOIN dbo.Permisos pe ON pe.Id = pp.PermisoId
-                               WHERE pp.PerfilId = p.Id AND pe.Clave = N'DISPONIBILIDAD_CONFIRMAR')));
+    WHERE p.Nombre IN (N'Coordinador', N'Empleado')
+      AND NOT EXISTS (SELECT 1 FROM @PerfilesOperativos n WHERE n.Id = p.Id)
+      AND NOT EXISTS (SELECT 1 FROM Nodos x JOIN dbo.Permisos pe ON pe.Id = x.PermisoId
+                      WHERE x.Raiz = p.Id
+                        AND pe.Clave = CASE p.Nombre WHEN N'Coordinador' THEN N'PERSONAL_ASIGNAR'
+                                                     ELSE N'DISPONIBILIDAD_CONFIRMAR' END)
+    OPTION (MAXRECURSION 200);
     IF @perfilesPrevios IS NOT NULL
         RAISERROR(N'schema.sql: la base ya tenia un perfil con el nombre %s y sin los permisos del Proceso 2. No se modifico: asignele los permisos desde Gestion de Perfiles.', 10, 1, @perfilesPrevios) WITH NOWAIT;
 
@@ -3650,14 +3669,24 @@ UPDATE dbo.Servicios SET Nombre = N'Decoración temática'
 UPDATE dbo.Servicios SET Nombre = N'Fotografía y video'
  WHERE Nombre = N'Fotografia y video' COLLATE Latin1_General_CS_AS
    AND NOT EXISTS (SELECT 1 FROM dbo.Servicios x WHERE x.Nombre = N'Fotografía y video' COLLATE Latin1_General_CS_AS);
+-- Las descripciones se corrigen solo en el servicio de fabrica (por su nombre) y
+-- con comparacion exacta: un servicio propio con el mismo texto no se toca.
 UPDATE dbo.Servicios SET Descripcion = N'Menú completo por invitado'
- WHERE Descripcion = N'Menu completo por invitado' COLLATE Latin1_General_CS_AS;
+ WHERE Nombre = N'Catering por persona'
+   AND Descripcion = N'Menu completo por invitado' COLLATE Latin1_General_CS_AS
+   AND DATALENGTH(Descripcion) = DATALENGTH(N'Menu completo por invitado');
 UPDATE dbo.Servicios SET Descripcion = N'Ambientación del salón'
- WHERE Descripcion = N'Ambientacion del salon' COLLATE Latin1_General_CS_AS;
+ WHERE Nombre IN (N'Decoración temática', N'Decoracion tematica')
+   AND Descripcion = N'Ambientacion del salon' COLLATE Latin1_General_CS_AS
+   AND DATALENGTH(Descripcion) = DATALENGTH(N'Ambientacion del salon');
 UPDATE dbo.Servicios SET Descripcion = N'Servicio de música y sonido'
- WHERE Descripcion = N'Servicio de musica y sonido' COLLATE Latin1_General_CS_AS;
+ WHERE Nombre = N'DJ y sonido'
+   AND Descripcion = N'Servicio de musica y sonido' COLLATE Latin1_General_CS_AS
+   AND DATALENGTH(Descripcion) = DATALENGTH(N'Servicio de musica y sonido');
 UPDATE dbo.Servicios SET Descripcion = N'Personal de atención (por mozo)'
- WHERE Descripcion = N'Personal de atencion (por mozo)' COLLATE Latin1_General_CS_AS;
+ WHERE Nombre = N'Servicio de mozos'
+   AND Descripcion = N'Personal de atencion (por mozo)' COLLATE Latin1_General_CS_AS
+   AND DATALENGTH(Descripcion) = DATALENGTH(N'Personal de atencion (por mozo)');
 
 UPDATE dbo.Clientes SET Apellido = N'Pérez'
  WHERE Dni = N'30111222' AND Nombre = N'Juan' COLLATE Latin1_General_CS_AS AND Apellido = N'Perez' COLLATE Latin1_General_CS_AS;

@@ -245,9 +245,10 @@ permisos, idiomas, integridad, memento, cifrado, configuración de conexión, el
 flujo completo del RF1 y del RF2 (personal, asignación con control de
 superposición, confirmación de disponibilidad, cronograma, tareas, ejecución con
 incidencias, reprogramación y cancelación), las trece reglas de negocio, cobros
-simultáneos y restauración de versiones. Son 51 casos numerados `[1]` a `[51]`,
-más un bloque `[limpieza]` y un `[cierre]` que vuelve a verificar la integridad de
-toda la base al terminar: 53 casos y 804 verificaciones en total.
+simultáneos, guardados simultáneos (el dígito verificador vertical se recalcula de
+a un puesto por vez) y restauración de versiones. Son 52 casos numerados `[1]` a
+`[52]`, más un bloque `[limpieza]` y un `[cierre]` que vuelve a verificar la
+integridad de toda la base al terminar: 54 casos y 819 verificaciones en total.
 
 ```bat
 dotnet run --project EvenTech.SmokeTest
