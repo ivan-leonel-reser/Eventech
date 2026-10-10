@@ -10,6 +10,11 @@ pantalla de configuración con el motivo y ofrece en un combo las instancias
 detectadas en la máquina (`sqlcmd -L`) más las instalaciones típicas —entre ellas
 `localhost\SQLEXPRESS`— para elegir o tipear una; no las prueba por su cuenta.
 
+> Quien instala el sistema con el instalador no necesita nada de lo que sigue: el
+> asistente crea la base restaurando `EvenTechDB.bak` en la instancia que se elija y
+> deja la conexión configurada (ver [`instalador/README.md`](../instalador/README.md)).
+> Este documento describe la creación de la base **desde el código fuente**.
+
 Hay dos formas de tener la base:
 
 ## Opción A — Recrear desde el script (recomendada, portable)

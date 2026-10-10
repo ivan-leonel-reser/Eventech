@@ -20,12 +20,26 @@ organizada en cinco capas y sin frameworks de persistencia de terceros.
 
 ---
 
+## Instalación
+
+El sistema se instala con el asistente `EvenTech_Instalador_v2.0.exe`, pensado para
+el usuario final: copia la aplicación —con .NET 8 incluido—, crea la base de datos
+con los datos de demostración en la instancia de SQL Server que se elija y deja
+configurada la conexión. El equipo solo necesita Windows 10 u 11 de 64 bits y SQL
+Server Express 2019 o superior; no hacen falta `sqlcmd` ni el SDK de .NET.
+
+El instalador se genera con `instalador\construir.ps1`. Su alcance, sus pasos y sus
+decisiones de diseño están en **[instalador/README.md](instalador/README.md)**; el
+paso a paso con capturas, en el manual de instalación que acompaña la entrega.
+
+Las secciones siguientes describen la puesta en marcha **desde el código fuente**.
+
 ## Requisitos
 
 | Componente | Versión mínima |
 |---|---|
 | Sistema operativo | Windows 10 (x64) |
-| Runtime | .NET 8 Desktop Runtime |
+| Runtime | .NET 8 Desktop Runtime (el instalador lo lleva incluido) |
 | Motor de base de datos | SQL Server Express 2019 (MSSQL15) |
 | Herramienta de línea de comandos | `sqlcmd` (ver nota) |
 | Para compilar | .NET 8 SDK |
@@ -285,4 +299,8 @@ la fecha del día, sobre un salón que esté libre hoy.
 | `db/schema.sql` | Esquema idempotente con migraciones y datos base (UTF-8 con BOM) |
 | `db/EvenTechDB.bak` | Snapshot completo con datos de demostración |
 | `db/README.md` | Procedimiento detallado de creación y restauración |
+| `instalador/EvenTech.iss` | Guion del asistente de instalación (Inno Setup 6) |
+| `instalador/scripts/` | Guiones del asistente: instancia, base de datos y conexión |
+| `instalador/construir.ps1` | Publica la aplicación y compila el instalador |
+| `instalador/README.md` | Alcance, pasos y construcción del instalador |
 | `_build.bat` | Compilación con log en `_build_log.txt` |
