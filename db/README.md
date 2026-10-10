@@ -84,7 +84,9 @@ auditoría e idiomas, y las siete de la coordinación de eventos (`Especialidade
 **Base de una revisión anterior.** La aplicación rechaza al conectar una base que
 tenga `Users` pero no todas las tablas o columnas de la versión actual, e indica
 qué falta. Se resuelve corriendo `schema.sql` sobre esa base (agrega solo lo que
-falte) y volviendo a probar la conexión.
+falte) y volviendo a probar la conexión. Los pagos de una base anterior no tienen
+dígito verificador: el primer arranque les calcula el suyo y el vertical de la
+tabla, y lo deja asentado en la bitácora (*Integridad*, "Linea base de pagos").
 
 **Cuenta bloqueada.** Tres contraseñas erróneas seguidas bloquean la cuenta y el
 bloqueo no expira. Se levanta desde *Perfiles* (botón *Desbloquear*, exige otro
@@ -115,7 +117,7 @@ email mal escrito), de modo que la ficha del cliente nunca queda trabada.
 
 ## Opción B — Restaurar el snapshot completo (con datos)
 
-`EvenTechDB.bak` es un backup full, **generado el 07/10/2026 a las 00:01**, con los
+`EvenTechDB.bak` es un backup full, **generado el 10/10/2026 a las 17:12**, con los
 datos de demostración: 12 clientes (contactos en texto plano), 24 reservas
 repartidas en los tres salones y los cuatro estados (11 CONFIRMADA, 6 COTIZACIÓN,
 5 PENDIENTE y 2 CANCELADA), 95 líneas de servicios contratados, 11 pagos (toda
@@ -150,14 +152,14 @@ Para recorrer la respuesta de un turno, `jcastro` tiene uno pendiente en la
 reserva #3; `rvega` es quien rechazó el suyo en ese mismo evento.
 
 Los datos se cargaron a través de la capa de negocio, así que respetan las reglas
-RN-01 a RN-13 y llevan sus dígitos verificadores calculados; la verificación de
-integridad del arranque da `Ok`.
+RN-01 a RN-13, y las reservas y los pagos llevan sus dígitos verificadores
+calculados; la verificación de integridad del arranque da `Ok`.
 
 **Vigencia de las operaciones del snapshot (RN-01).** Las cotizaciones y las
 reservas PENDIENTE tienen el plazo que fija la RN-01: 15 días y 72 horas desde esa
 fecha de generación. Restaurado días después, figuran vencidas en la columna
 *Vence*. No es un defecto: al intentar avanzarlas el sistema lo informa y ofrece
-renovar la vigencia en el acto (CUN005, flujo 6.4). El orden para confirmar una
+renovar la vigencia en el acto (CUN001, flujo 6.4). El orden para confirmar una
 PENDIENTE es siempre cobrar el adelanto (*Pagos*) y después confirmar (RN-07).
 
 Antes de restaurar, dos pasos que evitan los dos errores más comunes:

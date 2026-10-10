@@ -30,7 +30,7 @@ namespace EvenTech.BLL
         // fijo, de modo que un texto mas largo se guardaba recortado sin aviso (y un
         // contacto cifrado recortado ya no se puede descifrar): la regla se hace
         // explicita aca. Email y Telefono admiten lo mismo que la ficha de alta del
-        // CUN002 y, ademas, su valor CIFRADO tiene que entrar en la columna: el cifrado
+        // CUN003 y, ademas, su valor CIFRADO tiene que entrar en la columna: el cifrado
         // ocupa mas que el texto y crece con los bytes UTF-8, no con los caracteres.
         private const int MaxNombre_704ILR = 60;
         private const int MaxApellido_704ILR = 60;
@@ -56,7 +56,7 @@ namespace EvenTech.BLL
             {
                 nuevoId_704ILR = DAL_Cliente_704ILR.Insert_704ILR(c_704ILR);
             }
-            // CUN002 3.1 en el motor: el indice unico UX_Clientes_Dni es la red de seguridad
+            // CUN003 3.1 en el motor: el indice unico UX_Clientes_Dni es la red de seguridad
             // cuando otro puesto registro el mismo DNI entre la validacion y la escritura
             // (2601 y 2627: indice y restriccion unica). Se informa como el DNI duplicado que
             // es, igual que Reservas con el choque de salon y fecha, y queda asentado.
@@ -97,7 +97,7 @@ namespace EvenTech.BLL
 
         private static ClienteResult_704ILR Validar_704ILR(BE_Cliente_704ILR c_704ILR, int idActual_704ILR)
         {
-            // Nombre obligatorio (CUN002, paso 3): un nombre que no se ve cuenta como vacio.
+            // Nombre obligatorio (CUN003, paso 3): un nombre que no se ve cuenta como vacio.
             // Ademas de los espacios, TextoEnBlanco descarta los caracteres de formato
             // invisibles (espacio de ancho cero, marca de orden de bytes, union de palabras)
             // y los rellenos que se dibujan vacios, que llegan al pegar desde una web o una
@@ -140,7 +140,7 @@ namespace EvenTech.BLL
                 !EmailRegex_704ILR.IsMatch(c_704ILR.Email_704ILR.Trim()))
                 return ClienteResult_704ILR.EmailInvalido_704ILR;
 
-            // DNI (CUN002, paso 3 y flujo 3.1): el mismo documento se escribe con puntos,
+            // DNI (CUN003, paso 3 y flujo 3.1): el mismo documento se escribe con puntos,
             // espacios, guiones o ceros a la izquierda. Se guarda solo con sus digitos, asi
             // el control de duplicado y el indice unico comparan documentos y no textos.
             if (!string.IsNullOrWhiteSpace(c_704ILR.Dni_704ILR))

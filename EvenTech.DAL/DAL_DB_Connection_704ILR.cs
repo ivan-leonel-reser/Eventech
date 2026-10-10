@@ -145,7 +145,7 @@ namespace EvenTech.DAL
         {
             "Users.PerfilId", "Users.Activo", "Users.Blocked", "Users.FailedAttempts",
             "Reservas.ClienteId", "Reservas.VenceEl", "Reservas.CantidadInvitados", "Reservas.Dvh",
-            "ReservaMemento.CantidadInvitados", "Reservas.EstadoCoordinacion"
+            "ReservaMemento.CantidadInvitados", "Reservas.EstadoCoordinacion", "Pagos.Dvh"
         };
 
         // Verifica que se pueda abrir la conexion Y que la base exista. Abrir con

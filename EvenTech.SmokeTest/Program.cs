@@ -170,7 +170,7 @@ catch (Exception exInicio_704ILR)
 // de 'desde'. Se resuelve con la consulta de disponibilidad del propio sistema
 // (la misma que usa el vendedor), de modo que el caso no de un falso rojo por
 // chocar contra los datos de demostracion o contra el rastro de otra corrida.
-// La consulta deja su asiento en bitacora (postcondicion del CUN001): no es un
+// La consulta deja su asiento en bitacora (postcondicion del CUN002): no es un
 // efecto de la prueba sino del sistema.
 DateTime FechaLibre_704ILR(int salonId_704ILR, DateTime desde_704ILR)
 {
@@ -372,7 +372,7 @@ else try
         Monto_704ILR = 150000m
     };
 
-    // Postcondicion del CUN005: el alta deja su propio asiento en la bitacora.
+    // Postcondicion del CUN001: el alta deja su propio asiento en la bitacora.
     int altasAntes_704ILR = Asientos_704ILR("Reservas");
     int reservasAntes_704ILR = BLL_Reserva_704ILR.GetAll_704ILR().Count;
     var rr1_704ILR = BLL_Reserva_704ILR.Crear_704ILR(nueva_704ILR, out int nuevoId_704ILR);
@@ -776,7 +776,7 @@ try
 catch (Exception ex19_704ILR) { Excepcion_704ILR("[19]", ex19_704ILR); }
 
 // [20] Cifrado reversible (AES) de datos sensibles del cliente
-Caso_704ILR("[20] Alta de cliente (CUN002) y cifrado reversible de Email/Telefono:");
+Caso_704ILR("[20] Alta de cliente (CUN003) y cifrado reversible de Email/Telefono:");
 try
 {
     var cli_704ILR = new EvenTech.BE.BE_Cliente_704ILR
@@ -791,7 +791,7 @@ try
     var rCli_704ILR = BLL_Cliente_704ILR.Crear_704ILR(cli_704ILR, out int idCli_704ILR);
     if (idCli_704ILR > 0) clientesDeLaCorrida_704ILR.Add(idCli_704ILR);
     Esperar_704ILR("alta", rCli_704ILR, ClienteResult_704ILR.Success_704ILR);
-    // Postcondicion del CUN002: el alta queda asentada en la bitacora.
+    // Postcondicion del CUN003: el alta queda asentada en la bitacora.
     Esperar_704ILR("asientos del modulo Clientes tras el alta", Asientos_704ILR("Clientes"), altasCli_704ILR + 1);
 
     var leido_704ILR = BLL_Cliente_704ILR.GetById_704ILR(idCli_704ILR);
@@ -800,7 +800,7 @@ try
     Esperar_704ILR("roundtrip del telefono (cifrar -> descifrar)", leido_704ILR.Telefono_704ILR, cli_704ILR.Telefono_704ILR);
     Esperar_704ILR("DNI persistido", leido_704ILR.Dni_704ILR, cli_704ILR.Dni_704ILR);
 
-    // Flujos alternativos del CUN002 (3.1 DNI ya registrado, 3.2 datos invalidos):
+    // Flujos alternativos del CUN003 (3.1 DNI ya registrado, 3.2 datos invalidos):
     // ninguno tenia una sola asercion, aunque los tres resultados estan implementados.
     var dup_704ILR = new EvenTech.BE.BE_Cliente_704ILR
     { Nombre_704ILR = "Otro", Apellido_704ILR = "Cliente", Dni_704ILR = "9" + suf_704ILR };
@@ -954,7 +954,7 @@ try
 
         // Los pagos persisten en el acto, sin pasar por BLL_Reserva.Actualizar:
         // la regla del estado terminal tiene que rechazarlos tambien, y el rechazo
-        // queda asentado (flujo 4.2 del CUN004).
+        // queda asentado (flujo 4.2 del CUN005).
         var metodos_704ILR = BLL_Pago_704ILR.GetMetodos_704ILR();
         if (metodos_704ILR.Count > 0)
         {
@@ -1326,7 +1326,7 @@ try
         // confirmada tiene que figurar ocupada para ese salon, con una fecha
         // alternativa propuesta; una capacidad imposible marca insuficiente. La
         // consulta queda asentada en la bitacora desde la capa de negocio
-        // (postcondicion del CUN001), con la fecha efectivamente consultada.
+        // (postcondicion del CUN002), con la fecha efectivamente consultada.
         Caso_704ILR("[27] Consulta de disponibilidad:");
         int consultasAntes_704ILR = Asientos_704ILR("Reservas", "Disponibilidad consultada");
         var disp_704ILR = BLL_Disponibilidad_704ILR.Consultar_704ILR(fechaEvento_704ILR, 0);
@@ -1352,11 +1352,11 @@ try
         Esperar_704ILR("capacidad imposible -> disponibles", dispCap_704ILR.Count(d_704ILR => d_704ILR.Disponible_704ILR), 0);
         Esperar_704ILR("capacidad imposible -> suficientes", dispCap_704ILR.Count(d_704ILR => d_704ILR.CapacidadSuficiente_704ILR), 0);
         // Sin capacidad suficiente no se calcula propuesta alternativa: ofrecer otra
-        // fecha de un salon que igual no entra no le sirve a nadie (paso 4 del CUN001).
+        // fecha de un salon que igual no entra no le sirve a nadie (paso 4 del CUN002).
         Esperar_704ILR("capacidad imposible -> sin propuesta alternativa",
             dispCap_704ILR.All(d_704ILR => !d_704ILR.ProximaFechaLibre_704ILR.HasValue), true);
 
-        // Flujo alternativo 2.1 del CUN001: una fecha anterior a hoy se ajusta al dia
+        // Flujo alternativo 2.1 del CUN002: una fecha anterior a hoy se ajusta al dia
         // de hoy en lugar de rechazarse (el vendedor consulta "a partir de"), y el
         // asiento lleva la fecha ajustada, no la pedida.
         var dispPasado_704ILR = BLL_Disponibilidad_704ILR.Consultar_704ILR(DateTime.Today.AddDays(-5), 0);
@@ -1876,7 +1876,7 @@ catch (Exception ex32_704ILR) { Excepcion_704ILR("[32]", ex32_704ILR); }
 // [33] Anulacion de pago: pasa por las mismas reglas que el registro. Antes esto
 // borraba la fila sin mirar si el pago existia, si era de esa reserva o si la
 // reserva admitia movimientos.
-Caso_704ILR("[33] Cobro y anulacion de pago con reglas (CUN004):");
+Caso_704ILR("[33] Cobro y anulacion de pago con reglas (CUN005):");
 try
 {
     var cliP_704ILR = BLL_Cliente_704ILR.GetAll_704ILR();
@@ -1905,7 +1905,7 @@ try
             PagoResult_704ILR.Success_704ILR);
         Esperar_704ILR("pagado", BLL_Pago_704ILR.TotalPagado_704ILR(idP_704ILR), 200m);
 
-        // Paso 4 del CUN004: el importe tiene que ser positivo y el metodo, valido.
+        // Paso 4 del CUN005: el importe tiene que ser positivo y el metodo, valido.
         Esperar_704ILR("cobro por cero", BLL_Pago_704ILR.Registrar_704ILR(new EvenTech.BE.BE_Pago_704ILR
         { ReservaId_704ILR = idP_704ILR, MetodoPagoId_704ILR = metP_704ILR[0].Id_704ILR, Monto_704ILR = 0m }, out _),
             PagoResult_704ILR.MontoInvalido_704ILR);
@@ -1916,7 +1916,7 @@ try
         { ReservaId_704ILR = idP_704ILR, MetodoPagoId_704ILR = 0, Monto_704ILR = 100m }, out _),
             PagoResult_704ILR.MetodoInvalido_704ILR);
 
-        // Flujo 5.1 del CUN004: la anulacion de un pago propio de una reserva viva
+        // Flujo 5.1 del CUN005: la anulacion de un pago propio de una reserva viva
         // procede y queda asentada con criticidad Advertencia. Antes el caso solo
         // ejercitaba los rechazos: la anulacion exitosa nunca llegaba a correr.
         int anulAntes_704ILR = Asientos_704ILR("Pagos");
@@ -1943,7 +1943,7 @@ try
             PagoResult_704ILR.PagoInvalido_704ILR);
 
         // Sobre una reserva cancelada no se admiten movimientos de cobro (RN-04) y
-        // cada rechazo queda asentado (flujo 4.2 del CUN004).
+        // cada rechazo queda asentado (flujo 4.2 del CUN005).
         Esperar_704ILR("cancelar la reserva", BLL_Reserva_704ILR.Cancelar_704ILR(idP_704ILR, out _, out _), ReservaResult_704ILR.Success_704ILR);
         int anulRechazadasAntes_704ILR = Asientos_704ILR("Pagos", "Anulacion rechazada");
         Esperar_704ILR("anular sobre reserva cancelada", BLL_Pago_704ILR.Eliminar_704ILR(idPago2_704ILR, idP_704ILR),
@@ -3699,6 +3699,240 @@ try
 }
 catch (Exception ex52_704ILR) { Excepcion_704ILR("[52]", ex52_704ILR); }
 
+// [53] Digito verificador de los pagos. Cada cobro guarda el DV horizontal de su
+// fila dentro de la misma transaccion y, con el movimiento confirmado, recalcula
+// el DV vertical de la tabla; la anulacion tambien lo recalcula. La verificacion
+// del arranque detecta un pago alterado, agregado o quitado por fuera del sistema.
+// Todo lo que la prueba altera lo repone antes de seguir, y la verificacion vuelve
+// a quedar al dia sin recalcular la linea base. El tramo final ejercita el camino
+// de una base anterior a esta proteccion (sin DV vertical de Pagos y con pagos sin
+// digito) y los cobros simultaneos sobre reservas distintas.
+Caso_704ILR("[53] Digito verificador de los pagos (DVH y DVV):");
+try
+{
+    var cliD_704ILR = BLL_Cliente_704ILR.GetAll_704ILR();
+    var salD_704ILR = BLL_Salon_704ILR.GetAll_704ILR();
+    var metD_704ILR = BLL_Pago_704ILR.GetMetodos_704ILR();
+    if (cliD_704ILR.Count == 0 || salD_704ILR.Count == 0 || metD_704ILR.Count < 2)
+    {
+        Omitir_704ILR("[53]", "faltan clientes/salones/metodos de pago seed; corre db/schema.sql");
+    }
+    else
+    {
+        // Verifica y devuelve si la integridad esta al dia.
+        bool AlDia_704ILR() => BLL_Integridad_704ILR.Verificar_704ILR().Ok_704ILR;
+        // Altera un dato del pago por fuera, comprueba que la verificacion lo delata
+        // nombrando al pago, lo repone y comprueba que la integridad vuelve a estar al dia.
+        void AlterarYReponer_704ILR(string dato_704ILR, int pagoId_704ILR, string alterar_704ILR, string reponer_704ILR,
+            params (string nombre_704ILR, object valor_704ILR)[] parametros_704ILR)
+        {
+            var conId_704ILR = parametros_704ILR.Concat(new (string, object)[] { ("@id", pagoId_704ILR) }).ToArray();
+            Ejecutar_704ILR("UPDATE dbo.Pagos SET " + alterar_704ILR + " WHERE Id = @id", conId_704ILR);
+            var alterado_704ILR = BLL_Integridad_704ILR.Verificar_704ILR();
+            Esperar_704ILR(dato_704ILR + " alterado por fuera: la verificacion nombra al pago",
+                alterado_704ILR.Inconsistencias_704ILR.Any(i_704ILR => i_704ILR.StartsWith($"Pago #{pagoId_704ILR} (") && i_704ILR.Contains("DV horizontal no coincide")), true);
+            Esperar_704ILR(dato_704ILR + " alterado: el DV vertical no se informa (las filas son las mismas)",
+                alterado_704ILR.Inconsistencias_704ILR.Any(i_704ILR => i_704ILR.StartsWith("DV vertical de Pagos")), false);
+            Ejecutar_704ILR("UPDATE dbo.Pagos SET " + reponer_704ILR + " WHERE Id = @id", conId_704ILR);
+            Esperar_704ILR(dato_704ILR + " repuesto: integridad al dia", AlDia_704ILR(), true);
+        }
+
+        var rD_704ILR = NuevaReserva_704ILR(cliD_704ILR[0].Id_704ILR, salD_704ILR[0].Id_704ILR, 5900,
+            EvenTech.BE.EstadoReserva_704ILR.COTIZACION, 900m);
+        Esperar_704ILR("alta cotizacion", BLL_Reserva_704ILR.Crear_704ILR(rD_704ILR, out int idD_704ILR), ReservaResult_704ILR.Success_704ILR);
+        Anotar_704ILR(idD_704ILR);
+        Esperar_704ILR("integridad antes de la prueba", AlDia_704ILR(), true);
+
+        // El cobro guarda su DV horizontal y recalcula el vertical de la tabla.
+        string dvvAntes_704ILR = EvenTech.DAL.DAL_DVVertical_704ILR.Get_704ILR("Pagos");
+        string referencia_704ILR = "Op. 0001-" + suf_704ILR;
+        Esperar_704ILR("cobro", BLL_Pago_704ILR.Registrar_704ILR(new EvenTech.BE.BE_Pago_704ILR
+        { ReservaId_704ILR = idD_704ILR, MetodoPagoId_704ILR = metD_704ILR[0].Id_704ILR, Monto_704ILR = 300m, Observacion_704ILR = referencia_704ILR },
+            out int idPagoD_704ILR), PagoResult_704ILR.Success_704ILR);
+        var pagoD_704ILR = BLL_Pago_704ILR.GetByReserva_704ILR(idD_704ILR).FirstOrDefault(p_704ILR => p_704ILR.Id_704ILR == idPagoD_704ILR);
+        Esperar_704ILR("el pago quedo registrado", pagoD_704ILR != null, true);
+        Esperar_704ILR("el pago guarda su DV horizontal", !string.IsNullOrEmpty(pagoD_704ILR?.Dvh_704ILR), true);
+        Esperar_704ILR("el DV horizontal corresponde a los datos del pago",
+            pagoD_704ILR?.Dvh_704ILR, pagoD_704ILR == null ? null : ValidadorDeIntegridad_704ILR.CalcularDVH_704ILR(pagoD_704ILR));
+        Esperar_704ILR("el cobro recalculo el DV vertical de Pagos",
+            dvvAntes_704ILR != null && EvenTech.DAL.DAL_DVVertical_704ILR.Get_704ILR("Pagos") != dvvAntes_704ILR, true);
+        Esperar_704ILR("integridad tras el cobro", AlDia_704ILR(), true);
+
+        // Los cinco datos del pago estan protegidos: importe, observacion (la referencia
+        // bancaria del cobro), medio de pago, fecha y reserva a la que corresponde.
+        AlterarYReponer_704ILR("importe", idPagoD_704ILR, "Monto = Monto + 1", "Monto = Monto - 1");
+        AlterarYReponer_704ILR("observacion", idPagoD_704ILR, "Observacion = N'Op. 9999 (alterada)'", "Observacion = @o", ("@o", referencia_704ILR));
+        AlterarYReponer_704ILR("medio de pago", idPagoD_704ILR, "MetodoPagoId = @otro", "MetodoPagoId = @propio",
+            ("@otro", metD_704ILR[1].Id_704ILR), ("@propio", metD_704ILR[0].Id_704ILR));
+        AlterarYReponer_704ILR("fecha", idPagoD_704ILR, "Fecha = DATEADD(DAY, -1, Fecha)", "Fecha = DATEADD(DAY, 1, Fecha)");
+        int otraReserva_704ILR = Escalar_704ILR("SELECT TOP 1 Id FROM dbo.Reservas WHERE Id <> @r ORDER BY Id", ("@r", idD_704ILR));
+        Esperar_704ILR("hay otra reserva a la que mudar el pago", otraReserva_704ILR > 0, true);
+        if (otraReserva_704ILR > 0)
+            AlterarYReponer_704ILR("reserva", idPagoD_704ILR, "ReservaId = @otra", "ReservaId = @propia",
+                ("@otra", otraReserva_704ILR), ("@propia", idD_704ILR));
+
+        // Pago agregado por fuera, sin digito: lo delata el DV horizontal que le falta.
+        int idIntruso_704ILR = Escalar_704ILR(
+            "INSERT INTO dbo.Pagos (ReservaId, MetodoPagoId, Monto) OUTPUT INSERTED.Id VALUES (@r, @m, 50)",
+            ("@r", idD_704ILR), ("@m", metD_704ILR[0].Id_704ILR));
+        var agregado_704ILR = BLL_Integridad_704ILR.Verificar_704ILR();
+        Esperar_704ILR("pago agregado por fuera: la verificacion falla", agregado_704ILR.Ok_704ILR, false);
+        Esperar_704ILR("informa el pago sin DV horizontal",
+            agregado_704ILR.Inconsistencias_704ILR.Any(i_704ILR => i_704ILR.StartsWith($"Pago #{idIntruso_704ILR} ") && i_704ILR.Contains("sin DV horizontal")), true);
+        Ejecutar_704ILR("DELETE FROM dbo.Pagos WHERE Id = @id", ("@id", idIntruso_704ILR));
+        Esperar_704ILR("pago agregado quitado: integridad al dia", AlDia_704ILR(), true);
+
+        // Pago duplicado por fuera: copia fiel de una fila legitima, con su mismo
+        // digito. El DV horizontal de la copia coincide con sus datos y no la delata:
+        // la delata el DV vertical, porque el conjunto ya no es el mismo.
+        int idDuplicado_704ILR = Escalar_704ILR(
+            "INSERT INTO dbo.Pagos (ReservaId, MetodoPagoId, Monto, Fecha, Observacion, Dvh) OUTPUT INSERTED.Id " +
+            "SELECT ReservaId, MetodoPagoId, Monto, Fecha, Observacion, Dvh FROM dbo.Pagos WHERE Id = @id",
+            ("@id", idPagoD_704ILR));
+        var duplicado_704ILR = BLL_Integridad_704ILR.Verificar_704ILR();
+        Esperar_704ILR("pago duplicado por fuera: la verificacion falla", duplicado_704ILR.Ok_704ILR, false);
+        Esperar_704ILR("lo unico que informa es el DV vertical de Pagos (fila agregada)",
+            duplicado_704ILR.Inconsistencias_704ILR.Count == 1 && duplicado_704ILR.Inconsistencias_704ILR[0].StartsWith("DV vertical de Pagos"), true);
+        Ejecutar_704ILR("DELETE FROM dbo.Pagos WHERE Id = @id", ("@id", idDuplicado_704ILR));
+        Esperar_704ILR("pago duplicado quitado: integridad al dia", AlDia_704ILR(), true);
+
+        // Pago quitado por fuera: las filas que quedan estan integras, lo delata el DV
+        // vertical. Se repone la misma fila (mismo Id, misma fecha, mismo digito).
+        Esperar_704ILR("segundo cobro", BLL_Pago_704ILR.Registrar_704ILR(new EvenTech.BE.BE_Pago_704ILR
+        { ReservaId_704ILR = idD_704ILR, MetodoPagoId_704ILR = metD_704ILR[0].Id_704ILR, Monto_704ILR = 100m }, out int idPagoQ_704ILR),
+            PagoResult_704ILR.Success_704ILR);
+        var pagoQ_704ILR = BLL_Pago_704ILR.GetByReserva_704ILR(idD_704ILR).FirstOrDefault(p_704ILR => p_704ILR.Id_704ILR == idPagoQ_704ILR);
+        Esperar_704ILR("el segundo pago quedo registrado con su digito", !string.IsNullOrEmpty(pagoQ_704ILR?.Dvh_704ILR), true);
+        if (pagoQ_704ILR != null)
+        {
+            Ejecutar_704ILR("DELETE FROM dbo.Pagos WHERE Id = @id", ("@id", idPagoQ_704ILR));
+            var quitado_704ILR = BLL_Integridad_704ILR.Verificar_704ILR();
+            Esperar_704ILR("pago quitado por fuera: la verificacion falla", quitado_704ILR.Ok_704ILR, false);
+            Esperar_704ILR("lo unico que informa es el DV vertical de Pagos",
+                quitado_704ILR.Inconsistencias_704ILR.Count == 1 && quitado_704ILR.Inconsistencias_704ILR[0].StartsWith("DV vertical de Pagos"), true);
+            Ejecutar_704ILR(
+                "SET IDENTITY_INSERT dbo.Pagos ON; " +
+                "INSERT INTO dbo.Pagos (Id, ReservaId, MetodoPagoId, Monto, Fecha, Observacion, Dvh) VALUES (@id, @r, @m, @mo, @f, @o, @d); " +
+                "SET IDENTITY_INSERT dbo.Pagos OFF;",
+                ("@id", pagoQ_704ILR.Id_704ILR), ("@r", pagoQ_704ILR.ReservaId_704ILR), ("@m", pagoQ_704ILR.MetodoPagoId_704ILR),
+                ("@mo", pagoQ_704ILR.Monto_704ILR), ("@f", pagoQ_704ILR.Fecha_704ILR), ("@o", pagoQ_704ILR.Observacion_704ILR),
+                ("@d", pagoQ_704ILR.Dvh_704ILR));
+            Esperar_704ILR("pago repuesto: integridad al dia", AlDia_704ILR(), true);
+        }
+
+        // La anulacion por la aplicacion quita la fila Y recalcula el DV vertical.
+        Esperar_704ILR("anular el segundo pago", BLL_Pago_704ILR.Eliminar_704ILR(idPagoQ_704ILR, idD_704ILR), PagoResult_704ILR.Success_704ILR);
+        Esperar_704ILR("integridad tras la anulacion", AlDia_704ILR(), true);
+
+        // Anular un pago alterado por fuera: la anulacion procede y queda asentada
+        // aparte, porque con la baja de la fila desaparece lo que la verificacion veia.
+        Esperar_704ILR("tercer cobro", BLL_Pago_704ILR.Registrar_704ILR(new EvenTech.BE.BE_Pago_704ILR
+        { ReservaId_704ILR = idD_704ILR, MetodoPagoId_704ILR = metD_704ILR[0].Id_704ILR, Monto_704ILR = 80m }, out int idPagoA_704ILR),
+            PagoResult_704ILR.Success_704ILR);
+        Ejecutar_704ILR("UPDATE dbo.Pagos SET Monto = Monto + 5 WHERE Id = @id", ("@id", idPagoA_704ILR));
+        int alteradosAntes_704ILR = Asientos_704ILR("Integridad", "Operacion sobre dato alterado");
+        Esperar_704ILR("anular el pago alterado", BLL_Pago_704ILR.Eliminar_704ILR(idPagoA_704ILR, idD_704ILR), PagoResult_704ILR.Success_704ILR);
+        Esperar_704ILR("la anulacion sobre un pago alterado queda asentada",
+            Asientos_704ILR("Integridad", "Operacion sobre dato alterado"), alteradosAntes_704ILR + 1);
+        Esperar_704ILR("integridad tras anular el pago alterado", AlDia_704ILR(), true);
+
+        // Base anterior a la proteccion de los pagos: sin DV vertical de Pagos y con un
+        // pago sin digito. El primer calculo establece la linea base de lo que falta
+        // (solo el pago sin digito recibe el suyo) y lo asienta. Lo demas no se
+        // legitima: OTRO pago, alterado, sigue a la vista de la verificacion.
+        Esperar_704ILR("cuarto cobro", BLL_Pago_704ILR.Registrar_704ILR(new EvenTech.BE.BE_Pago_704ILR
+        { ReservaId_704ILR = idD_704ILR, MetodoPagoId_704ILR = metD_704ILR[0].Id_704ILR, Monto_704ILR = 60m }, out int idPagoB_704ILR),
+            PagoResult_704ILR.Success_704ILR);
+        Ejecutar_704ILR("UPDATE dbo.Pagos SET Monto = Monto + 3 WHERE Id = @id", ("@id", idPagoB_704ILR));
+        Ejecutar_704ILR("DELETE FROM dbo.DVVertical WHERE Tabla = N'Pagos'; UPDATE dbo.Pagos SET Dvh = NULL WHERE Id = @id", ("@id", idPagoD_704ILR));
+        int lineasBaseAntes_704ILR = Asientos_704ILR("Integridad", "Linea base de pagos");
+        var enLineaBase_704ILR = BLL_Integridad_704ILR.Verificar_704ILR();
+        Esperar_704ILR("la linea base no legitima al pago alterado: lo unico que informa es ese pago",
+            enLineaBase_704ILR.Inconsistencias_704ILR.Count == 1 && enLineaBase_704ILR.Inconsistencias_704ILR[0].StartsWith($"Pago #{idPagoB_704ILR} ("), true);
+        var pagoBase_704ILR = BLL_Pago_704ILR.GetByReserva_704ILR(idD_704ILR).FirstOrDefault(p_704ILR => p_704ILR.Id_704ILR == idPagoD_704ILR);
+        Esperar_704ILR("el pago sin digito recibio el que corresponde a sus datos", pagoBase_704ILR?.Dvh_704ILR, pagoD_704ILR?.Dvh_704ILR);
+        Esperar_704ILR("la linea base quedo asentada", Asientos_704ILR("Integridad", "Linea base de pagos"), lineasBaseAntes_704ILR + 1);
+        Esperar_704ILR("hay otra vez DV vertical de Pagos", EvenTech.DAL.DAL_DVVertical_704ILR.Get_704ILR("Pagos") != null, true);
+        Ejecutar_704ILR("UPDATE dbo.Pagos SET Monto = Monto - 3 WHERE Id = @id", ("@id", idPagoB_704ILR));
+        Esperar_704ILR("importe repuesto: integridad al dia", AlDia_704ILR(), true);
+        // Con la linea base establecida, un pago sin digito ya no se incorpora: se informa.
+        Ejecutar_704ILR("UPDATE dbo.Pagos SET Dvh = NULL WHERE Id = @id", ("@id", idPagoD_704ILR));
+        Esperar_704ILR("con linea base, un pago sin digito es una inconsistencia", AlDia_704ILR(), false);
+        Ejecutar_704ILR("UPDATE dbo.Pagos SET Dvh = @d WHERE Id = @id", ("@d", pagoD_704ILR?.Dvh_704ILR), ("@id", idPagoD_704ILR));
+        Esperar_704ILR("digito repuesto: integridad al dia", AlDia_704ILR(), true);
+
+        // Mismo camino cuando el primer movimiento llega ANTES que la primera
+        // verificacion: el cobro establece la linea base al recalcular el vertical.
+        Ejecutar_704ILR("DELETE FROM dbo.DVVertical WHERE Tabla = N'Pagos'; UPDATE dbo.Pagos SET Dvh = NULL WHERE Id = @id", ("@id", idPagoD_704ILR));
+        lineasBaseAntes_704ILR = Asientos_704ILR("Integridad", "Linea base de pagos");
+        Esperar_704ILR("cobro sobre una base anterior, antes de verificar", BLL_Pago_704ILR.Registrar_704ILR(new EvenTech.BE.BE_Pago_704ILR
+        { ReservaId_704ILR = idD_704ILR, MetodoPagoId_704ILR = metD_704ILR[0].Id_704ILR, Monto_704ILR = 20m }, out int idPagoC_704ILR),
+            PagoResult_704ILR.Success_704ILR);
+        Esperar_704ILR("ese cobro establecio la linea base", Asientos_704ILR("Integridad", "Linea base de pagos"), lineasBaseAntes_704ILR + 1);
+        Esperar_704ILR("integridad al dia tras ese cobro", AlDia_704ILR(), true);
+
+        // Anular un pago que todavia no tiene digito (base anterior, sin linea base): no
+        // es una alteracion comprobada y no se asienta como tal.
+        Ejecutar_704ILR("DELETE FROM dbo.DVVertical WHERE Tabla = N'Pagos'; UPDATE dbo.Pagos SET Dvh = NULL WHERE Id = @id", ("@id", idPagoC_704ILR));
+        alteradosAntes_704ILR = Asientos_704ILR("Integridad", "Operacion sobre dato alterado");
+        Esperar_704ILR("anular un pago sin digito", BLL_Pago_704ILR.Eliminar_704ILR(idPagoC_704ILR, idD_704ILR), PagoResult_704ILR.Success_704ILR);
+        Esperar_704ILR("no queda asentado como dato alterado", Asientos_704ILR("Integridad", "Operacion sobre dato alterado"), alteradosAntes_704ILR);
+        Esperar_704ILR("integridad al dia tras esa anulacion", AlDia_704ILR(), true);
+
+        // Cobros simultaneos sobre reservas distintas: el bloqueo de cada cobro es el de
+        // su reserva, asi que corren a la vez y terminan recalculando el DV vertical de
+        // Pagos al mismo tiempo. El recalculo va de a un puesto por vez: el digito
+        // guardado nunca queda anterior al ultimo cobro.
+        const int hilosD_704ILR = 6, rondasD_704ILR = 4;
+        var idsD_704ILR = new int[hilosD_704ILR];
+        bool altasD_704ILR = true;
+        for (int i_704ILR = 0; i_704ILR < hilosD_704ILR; i_704ILR++)
+        {
+            altasD_704ILR &= BLL_Reserva_704ILR.Crear_704ILR(NuevaReserva_704ILR(cliD_704ILR[0].Id_704ILR, salD_704ILR[i_704ILR % salD_704ILR.Count].Id_704ILR, 5910 + i_704ILR,
+                EvenTech.BE.EstadoReserva_704ILR.COTIZACION, 1000m), out idsD_704ILR[i_704ILR]) == ReservaResult_704ILR.Success_704ILR;
+            Anotar_704ILR(idsD_704ILR[i_704ILR]);
+        }
+        Esperar_704ILR("alta de seis cotizaciones", altasD_704ILR, true);
+        int rondasAlDiaD_704ILR = 0, cobrosFallidos_704ILR = 0;
+        Exception errorHiloD_704ILR = null;
+        for (int ronda_704ILR = 0; ronda_704ILR < rondasD_704ILR; ronda_704ILR++)
+        {
+            using (var barreraD_704ILR = new Barrier(hilosD_704ILR))
+            {
+                var tareasD_704ILR = Enumerable.Range(0, hilosD_704ILR).Select(i_704ILR => Task.Run(() =>
+                {
+                    try
+                    {
+                        barreraD_704ILR.SignalAndWait();
+                        if (BLL_Pago_704ILR.Registrar_704ILR(new EvenTech.BE.BE_Pago_704ILR
+                            { ReservaId_704ILR = idsD_704ILR[i_704ILR], MetodoPagoId_704ILR = metD_704ILR[0].Id_704ILR, Monto_704ILR = 10m }, out _)
+                            != PagoResult_704ILR.Success_704ILR)
+                            Interlocked.Increment(ref cobrosFallidos_704ILR);
+                    }
+                    catch (Exception ex_704ILR) { errorHiloD_704ILR = ex_704ILR; }
+                })).ToArray();
+                Task.WaitAll(tareasD_704ILR);
+            }
+            if (AlDia_704ILR()) rondasAlDiaD_704ILR++;
+        }
+        Esperar_704ILR("los cobros simultaneos terminaron sin excepcion", errorHiloD_704ILR == null ? "sin excepcion" : errorHiloD_704ILR.GetType().Name + ": " + errorHiloD_704ILR.Message, "sin excepcion");
+        Esperar_704ILR("cobros que no entraron", cobrosFallidos_704ILR, 0);
+        Esperar_704ILR("rondas con la integridad al dia", rondasAlDiaD_704ILR, rondasD_704ILR);
+
+        // Limpieza: se anulan los pagos de la prueba y se cancelan sus cotizaciones.
+        bool limpiezaD_704ILR = true;
+        foreach (int id_704ILR in idsD_704ILR.Concat(new[] { idD_704ILR }))
+        {
+            foreach (var p_704ILR in BLL_Pago_704ILR.GetByReserva_704ILR(id_704ILR))
+                limpiezaD_704ILR &= BLL_Pago_704ILR.Eliminar_704ILR(p_704ILR.Id_704ILR, id_704ILR) == PagoResult_704ILR.Success_704ILR;
+            limpiezaD_704ILR &= BLL_Reserva_704ILR.Cancelar_704ILR(id_704ILR, out _, out _) == ReservaResult_704ILR.Success_704ILR;
+        }
+        Esperar_704ILR("limpieza (anular los pagos y cancelar las cotizaciones)", limpiezaD_704ILR, true);
+        Esperar_704ILR("integridad al terminar", AlDia_704ILR(), true);
+    }
+}
+catch (Exception ex53_704ILR) { Excepcion_704ILR("[53]", ex53_704ILR); }
+
 // ---------------------------------------------------------------------------
 // Limpieza final: lo que cada caso no alcanzo a limpiar (por una excepcion en el
 // medio) se cancela o se borra aca, con asercion. Las reservas de prueba quedan
@@ -3778,7 +4012,7 @@ catch (Exception exLimpieza_704ILR) { Excepcion_704ILR("[limpieza]", exLimpieza_
 
 // ---------------------------------------------------------------------------
 // Cierre: la linea base de integridad tiene que seguir sana DESPUES de todas las
-// altas, ediciones, cancelaciones y restauraciones de los casos [7] a [52] — que
+// altas, ediciones, cancelaciones y restauraciones de los casos [7] a [53] — que
 // son justamente las operaciones que recalculan los digitos verificadores. Hasta
 // ahora [16] la verificaba una sola vez, antes de que ocurriera nada de eso.
 // ---------------------------------------------------------------------------

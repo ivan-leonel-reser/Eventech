@@ -28,7 +28,7 @@ namespace EvenTech.UI
         // quitar todas las lineas y dejar el monto en cero.
         private bool _serviciosLeidos_704ILR = true;
         // El alta rapida de cliente es un boton de icono, sin rotulo: el ToolTip es lo
-        // que le pone nombre en pantalla ("Nuevo cliente", CUN002 paso 1).
+        // que le pone nombre en pantalla ("Nuevo cliente", CUN003 paso 1).
         private readonly ToolTip _tip_704ILR = new ToolTip();
         // Receta del aviso visible: se guarda como se arma el texto y no el texto ya
         // traducido, para volver a componerlo si cambia el idioma (ver ActualizarTextos).
@@ -684,7 +684,7 @@ namespace EvenTech.UI
                 if (dlg_704ILR.ShowDialog(FindForm()) == DialogResult.OK)
                 {
                     CargarClientes_704ILR();
-                    // CUN002, paso 5: se informa el alta y el cliente queda
+                    // CUN003, paso 5: se informa el alta y el cliente queda
                     // seleccionado para seguir armando la reserva sin buscarlo.
                     _cboCliente_704ILR.SelectedValue = dlg_704ILR.NuevoId_704ILR;
                     MessageBox.Show(T_704ILR("MSG_CLI_CREADO", "Cliente registrado."), "EvenTech",
@@ -1043,11 +1043,11 @@ namespace EvenTech.UI
         {
             bool edicion_704ILR = editable_704ILR && !congelada_704ILR;
             // Alta y edicion exigen permisos distintos; Servicios sigue al mismo
-            // criterio porque cambia el monto de la operacion (CUN003, precondicion).
+            // criterio porque cambia el monto de la operacion (CUN004, precondicion).
             bool gestion_704ILR = Permisos_704ILR.Tiene_704ILR(_editId_704ILR == 0 ? "RESERVA_CREAR" : "RESERVA_EDITAR");
             bool documenta_704ILR = Permisos_704ILR.TieneAlguno_704ILR("RESERVA_CREAR", "RESERVA_EDITAR");
             // Pagos, documentacion, historial y versiones actuan sobre una reserva ya
-            // registrada (CUN004, precondicion): en el alta solo podian mostrar un error.
+            // registrada (CUN005, precondicion): en el alta solo podian mostrar un error.
             bool registrada_704ILR = _editId_704ILR > 0;
             _puedeGuardar_704ILR           = edicion_704ILR && gestion_704ILR;
             _btnGuardar_704ILR.Enabled     = _puedeGuardar_704ILR;
@@ -1199,7 +1199,7 @@ namespace EvenTech.UI
         {
             // Segunda capa: los servicios contratados componen el monto de la
             // operacion, asi que cargarlos es parte del alta o de la edicion y exige
-            // el mismo permiso que Guardar (CUN003, precondicion). Sin esto, un perfil
+            // el mismo permiso que Guardar (CUN004, precondicion). Sin esto, un perfil
             // de solo consulta podia abrir el dialogo y recalcular el monto.
             if (!Permisos_704ILR.Exigir_704ILR(_editId_704ILR == 0 ? "RESERVA_CREAR" : "RESERVA_EDITAR", FindForm(),
                     "cargar los servicios de la reserva" + ReferenciaEnEdicion_704ILR()))
@@ -1339,7 +1339,7 @@ namespace EvenTech.UI
         {
             // El comprobante vuelca al documento el DNI, el correo y el telefono del
             // cliente descifrados: emitirlo es parte de la gestion de la reserva y no
-            // de su consulta, asi que exige el permiso de gestion (CUN005, precondicion).
+            // de su consulta, asi que exige el permiso de gestion (CUN001, precondicion).
             if (!Permisos_704ILR.ExigirAlguno_704ILR(FindForm(),
                     "emitir el comprobante de la reserva" + ReferenciaEnEdicion_704ILR(),
                     "RESERVA_CREAR", "RESERVA_EDITAR"))
@@ -1394,7 +1394,7 @@ namespace EvenTech.UI
 
         // El comprobante y el correo se arman con la reserva GUARDADA (cliente, fecha,
         // servicios, total y pagos de la base). Con cambios sin guardar en la ficha el documento
-        // no seria el que se ve en pantalla: se pide guardar primero (CUN005: el comprobante se
+        // no seria el que se ve en pantalla: se pide guardar primero (CUN001: el comprobante se
         // emite sobre la operacion ya guardada).
         private bool SinCambiosParaDocumentar_704ILR()
         {

@@ -87,7 +87,7 @@ namespace EvenTech.BLL
                 .ToList();
 
             // La consulta es parte del proceso de venta y queda en la bitacora
-            // (CUN001, postcondicion). Se asienta aca, en la capa de negocio, como
+            // (CUN002, postcondicion). Se asienta aca, en la capa de negocio, como
             // el resto de las operaciones del proceso: asi vale para cualquier
             // llamador y no solo para el dialogo.
             // La fecha del detalle se escribe con la cultura invariante (calendario

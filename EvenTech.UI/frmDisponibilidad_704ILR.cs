@@ -36,7 +36,7 @@ namespace EvenTech.UI
         // Invitados con los que se hizo la consulta: vuelve a la ficha de la
         // reserva para que la cantidad estimada quede registrada en la operacion
         // (PN1: Cantidad_Invitados) y no se pierda al cerrar el dialogo. Es el valor
-        // consultado, no el que muestre el campo en ese momento (CUN001, paso 5).
+        // consultado, no el que muestre el campo en ese momento (CUN002, paso 5).
         public int InvitadosConsultados_704ILR => _invitadosConsultados_704ILR;
 
         public frmDisponibilidad_704ILR(DateTime fechaInicial_704ILR, int invitadosIniciales_704ILR = 0)
@@ -265,13 +265,13 @@ namespace EvenTech.UI
 
         // Una propuesta alternativa solo sirve si la ficha puede cargarla: una fecha
         // posterior al ultimo dia del calendario se trata como "sin propuesta"
-        // (flujo 4.1 del CUN001) en vez de ofrecerse y fallar al usarla.
+        // (flujo 4.1 del CUN002) en vez de ofrecerse y fallar al usarla.
         private bool PropuestaUtilizable_704ILR(BE_DisponibilidadSalon_704ILR d_704ILR) =>
             d_704ILR.ProximaFechaLibre_704ILR.HasValue && d_704ILR.ProximaFechaLibre_704ILR.Value.Date <= _dtFecha_704ILR.MaxDate.Date;
 
         // Resumen cuando ningun salon esta disponible tal cual se pidio. Solo se
         // anuncian fechas alternativas si la grilla muestra al menos una; si no, se
-        // informa por que no hay ninguna (CUN001, paso 4 y flujo 4.1).
+        // informa por que no hay ninguna (CUN002, paso 4 y flujo 4.1).
         private string ResumenSinDisponibles_704ILR(int invitados_704ILR)
         {
             if (_resultado_704ILR.Count == 0)

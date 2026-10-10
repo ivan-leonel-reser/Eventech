@@ -237,8 +237,11 @@ independiente del estado comercial: `SIN_ASIGNAR` (sin personal), `EN_COORDINACI
   protege con DPAPI de máquina en `%ProgramData%\EvenTech\crypto.key`, así que un
   contacto cifrado se lee en el equipo que lo guardó.
 - Cadena de conexión cifrada con DPAPI en el perfil del usuario.
-- Dígitos verificadores horizontal (por reserva) y vertical (por conjunto), que se
-  verifican al arrancar, antes del login.
+- Dígitos verificadores sobre las reservas y sobre los pagos: el horizontal de
+  cada fila y el vertical de cada tabla. Cada alta o modificación de una reserva y
+  cada cobro guardan el horizontal en la misma transacción y recalculan el
+  vertical; se verifican al arrancar, antes del login, y delatan una fila
+  alterada, agregada o quitada por fuera del sistema.
 - Permisos por perfil con **denegar por defecto** y doble control: la sección se
   oculta y la acción se vuelve a exigir al ejecutarse. Los permisos efectivos se
   resuelven al iniciar sesión y rigen durante toda ella: un cambio de perfil, de
@@ -260,9 +263,11 @@ flujo completo del RF1 y del RF2 (personal, asignación con control de
 superposición, confirmación de disponibilidad, cronograma, tareas, ejecución con
 incidencias, reprogramación y cancelación), las trece reglas de negocio, cobros
 simultáneos, guardados simultáneos (el dígito verificador vertical se recalcula de
-a un puesto por vez) y restauración de versiones. Son 52 casos numerados `[1]` a
-`[52]`, más un bloque `[limpieza]` y un `[cierre]` que vuelve a verificar la
-integridad de toda la base al terminar: 54 casos y 819 verificaciones en total.
+a un puesto por vez), el dígito verificador de los pagos (un pago alterado,
+duplicado o quitado por fuera se detecta) y restauración de versiones. Son 53
+casos numerados `[1]` a `[53]`, más un bloque `[limpieza]` y un `[cierre]` que
+vuelve a verificar la integridad de toda la base al terminar: 55 casos y 880
+verificaciones en total.
 
 ```bat
 dotnet run --project EvenTech.SmokeTest

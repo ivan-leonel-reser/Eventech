@@ -88,7 +88,7 @@ namespace EvenTech.UI
             // arranca en No, como las demas confirmaciones que reemplazan o descartan datos.
             var confirma_704ILR = MessageBox.Show(
                 T_704ILR("AUD_RECALC_CONFIRMA",
-                  "¿Recalcular los dígitos verificadores de todas las reservas? Usar después de corregir datos alterados: la línea base nueva pasa a ser la referencia de integridad."),
+                  "¿Recalcular los dígitos verificadores de todas las reservas y de todos los pagos? Usar después de corregir datos alterados: la línea base nueva pasa a ser la referencia de integridad."),
                 "EvenTech", MessageBoxButtons.YesNo, MessageBoxIcon.Question, MessageBoxDefaultButton.Button2);
             if (confirma_704ILR != DialogResult.Yes) return;
 
@@ -98,7 +98,7 @@ namespace EvenTech.UI
                 var resultado_704ILR = BLL_Integridad_704ILR.Verificar_704ILR();
                 MessageBox.Show(
                     Tr_704ILR.F_704ILR("AUD_RECALC_OK",
-                        "Línea base recalculada ({0} reservas). Verificación posterior: {1} inconsistencia(s).",
+                        "Línea base recalculada ({0} reservas, con sus pagos). Verificación posterior: {1} inconsistencia(s).",
                         total_704ILR, resultado_704ILR.Inconsistencias_704ILR.Count),
                     "EvenTech", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }

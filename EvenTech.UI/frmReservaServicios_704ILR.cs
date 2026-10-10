@@ -70,7 +70,7 @@ namespace EvenTech.UI
             var alta_704ILR = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight, WrapContents = false, AutoSize = true, BackColor = Color.Transparent, Margin = new Padding(0, 0, 0, Theme_704ILR.SpaceMd_704ILR) };
             _cboServicio_704ILR = Ui_704ILR.Combo_704ILR(); _cboServicio_704ILR.Width = 300; _cboServicio_704ILR.Margin = new Padding(0, 0, Theme_704ILR.SpaceSm_704ILR, 0);
             foreach (var s_704ILR in _disponibles_704ILR) _cboServicio_704ILR.Items.Add(s_704ILR);
-            // El catalogo se ofrece con su precio vigente a la vista (CUN003, paso 2), tambien
+            // El catalogo se ofrece con su precio vigente a la vista (CUN004, paso 2), tambien
             // con nombres largos: ver DibujarServicio_704ILR y AnchoLista_704ILR.
             _cboServicio_704ILR.DrawMode = DrawMode.OwnerDrawFixed;
             _cboServicio_704ILR.DrawItem += DibujarServicio_704ILR;
@@ -168,7 +168,7 @@ namespace EvenTech.UI
 
         // Una unidad se suma a una linea existente solo si es del mismo servicio Y al
         // precio vigente: las unidades ya contratadas conservan su precio congelado y las
-        // que se contratan hoy van al precio del catalogo (CUN003, pasos 2 y 5). Si el
+        // que se contratan hoy van al precio del catalogo (CUN004, pasos 2 y 5). Si el
         // precio cambio, la unidad nueva entra como linea aparte; antes se sumaba a la
         // linea vieja y quedaba valorizada al precio anterior.
         private void Agregar_704ILR()

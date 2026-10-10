@@ -23,6 +23,12 @@ namespace EvenTech.BLL
     // Reglas de negocio de pagos (Proceso 1, paso 5): cobro de adelanto/saldo de
     // una reserva. El total de la reserva (Monto = suma de servicios) actua como
     // tope: la suma de pagos nunca puede superarlo.
+    //
+    // Los pagos se protegen con digito verificador, como las reservas: cada cobro
+    // guarda el horizontal de su fila dentro de la misma transaccion y, con el
+    // movimiento ya confirmado (cobro o anulacion), se recalcula el vertical de la
+    // tabla. La verificacion del arranque (BLL_Integridad) detecta asi un pago
+    // alterado, agregado o quitado por fuera del sistema.
     public static class BLL_Pago_704ILR
     {
         // Los importes del detalle de la bitacora se escriben siempre con el mismo
@@ -108,6 +114,13 @@ namespace EvenTech.BLL
                             // queda asentado aparte (los pagos no tocan el DV de la reserva).
                             dvhAlterado_704ILR = !DvhCoincide_704ILR(reserva_704ILR);
                             nuevoId_704ILR = DAL_Pago_704ILR.Insert_704ILR(p_704ILR, conn_704ILR, tx_704ILR);
+                            // Digito verificador horizontal del pago: se calcula sobre la
+                            // fila tal como quedo guardada (la fecha la pone el servidor) y
+                            // se graba en esta misma transaccion: el pago queda registrado
+                            // con su digito o no queda.
+                            var guardado_704ILR = DAL_Pago_704ILR.GetById_704ILR(nuevoId_704ILR, conn_704ILR, tx_704ILR);
+                            DAL_Pago_704ILR.UpdateDvh_704ILR(nuevoId_704ILR,
+                                ValidadorDeIntegridad_704ILR.CalcularDVH_704ILR(guardado_704ILR), conn_704ILR, tx_704ILR);
                             tx_704ILR.Commit();
                             resultado_704ILR = PagoResult_704ILR.Success_704ILR;
                         }
@@ -139,6 +152,7 @@ namespace EvenTech.BLL
                         AsentarDvhNoCoincidente_704ILR(p_704ILR.ReservaId_704ILR, "el cobro de " + Importe_704ILR(p_704ILR.Monto_704ILR));
                     BLL_Bitacora_704ILR.Registrar_704ILR("Pagos", "Registro de pago", CriticidadBitacora_704ILR.Info,
                         $"Pago de {Importe_704ILR(p_704ILR.Monto_704ILR)} en reserva #{p_704ILR.ReservaId_704ILR} (metodo #{p_704ILR.MetodoPagoId_704ILR})");
+                    RecalcularDVVertical_704ILR($"al cobro #{nuevoId_704ILR} de la reserva #{p_704ILR.ReservaId_704ILR}");
                     break;
             }
             return resultado_704ILR;
@@ -162,7 +176,7 @@ namespace EvenTech.BLL
             // informaba y asentaba por segunda vez la misma anulacion.
             PagoResult_704ILR resultado_704ILR;
             decimal montoPago_704ILR = 0m;
-            bool estadoAjeno_704ILR = false, dvhAlterado_704ILR = false;
+            bool estadoAjeno_704ILR = false, dvhAlterado_704ILR = false, dvhDelPagoAlterado_704ILR = false;
             using (var cn_704ILR = new DAL_DB_Connection_704ILR())
             {
                 SqlConnection conn_704ILR = cn_704ILR.OpenConnection_704ILR();
@@ -197,8 +211,12 @@ namespace EvenTech.BLL
                             resultado_704ILR = PagoResult_704ILR.ConfirmadaSinAdelanto_704ILR;
                         else
                         {
-                            // Politica de dato alterado (ver Registrar_704ILR).
+                            // Politica de dato alterado (ver Registrar_704ILR). Vale tambien
+                            // para el pago que se anula: si su digito verificador no coincide
+                            // con sus datos, la anulacion procede y queda asentada aparte, porque
+                            // con la baja de la fila desaparece lo que la verificacion detectaba.
                             dvhAlterado_704ILR = !DvhCoincide_704ILR(reserva_704ILR);
+                            dvhDelPagoAlterado_704ILR = DvhAlterado_704ILR(pago_704ILR);
                             // Defensa: si el pago ya no estaba (lo borro una escritura que no
                             // paso por el bloqueo de la cabecera), no se informa ni se asienta
                             // una anulacion que no ocurrio.
@@ -234,8 +252,13 @@ namespace EvenTech.BLL
                 case PagoResult_704ILR.Success_704ILR:
                     if (dvhAlterado_704ILR)
                         AsentarDvhNoCoincidente_704ILR(reservaId_704ILR, "la anulacion del pago #" + pagoId_704ILR);
+                    if (dvhDelPagoAlterado_704ILR)
+                        BLL_Bitacora_704ILR.Registrar_704ILR("Integridad", "Operacion sobre dato alterado", CriticidadBitacora_704ILR.Error,
+                            $"Pago #{pagoId_704ILR} de la reserva #{reservaId_704ILR}: su DV horizontal no coincidia con los datos " +
+                            $"almacenados (posible alteracion externa). Se anulo con el importe almacenado, {Importe_704ILR(montoPago_704ILR)}.");
                     BLL_Bitacora_704ILR.Registrar_704ILR("Pagos", "Anulacion de pago", CriticidadBitacora_704ILR.Advertencia,
                         $"Pago #{pagoId_704ILR} de {Importe_704ILR(montoPago_704ILR)} en la reserva #{reservaId_704ILR} anulado");
+                    RecalcularDVVertical_704ILR($"a la anulacion del pago #{pagoId_704ILR} de la reserva #{reservaId_704ILR}");
                     break;
             }
             return resultado_704ILR;
@@ -259,6 +282,34 @@ namespace EvenTech.BLL
         private static bool DvhCoincide_704ILR(BE_Reserva_704ILR persistida_704ILR)
             => persistida_704ILR.Dvh_704ILR != null &&
                persistida_704ILR.Dvh_704ILR == ValidadorDeIntegridad_704ILR.CalcularDVH_704ILR(persistida_704ILR);
+
+        // Para la fila de un pago: true si tiene digito y no coincide con sus datos. Un
+        // pago SIN digito no se toma aca como alterado: es de una base anterior a esta
+        // proteccion que todavia no establecio su linea base, o una fila agregada por
+        // fuera, y eso lo informa la verificacion del arranque (anularlo no tiene que
+        // dejar asentada una alteracion que nadie comprobo).
+        private static bool DvhAlterado_704ILR(BE_Pago_704ILR persistido_704ILR)
+            => persistido_704ILR.Dvh_704ILR != null &&
+               persistido_704ILR.Dvh_704ILR != ValidadorDeIntegridad_704ILR.CalcularDVH_704ILR(persistido_704ILR);
+
+        // El cobro o la anulacion ya quedaron confirmados en la base: el digito
+        // verificador vertical de Pagos es evidencia derivada, como el de Reservas en
+        // BLL_Reserva. Un fallo aca no se informa como error del movimiento —el
+        // reintento lo duplicaria—: queda asentado como excepcion y la verificacion del
+        // proximo arranque detecta y alerta un digito vertical desactualizado.
+        // 'operacion' completa la frase del asiento: "al cobro #N..." / "a la anulacion...".
+        private static void RecalcularDVVertical_704ILR(string operacion_704ILR)
+        {
+            try
+            {
+                BLL_Integridad_704ILR.RecalcularDVVerticalPagos_704ILR();
+            }
+            catch (Exception ex_704ILR)
+            {
+                BLL_Bitacora_704ILR.RegistrarExcepcion_704ILR(ex_704ILR, "Pagos",
+                    $"evidencia posterior {operacion_704ILR} (DV vertical)");
+            }
+        }
 
         private static void AsentarDvhNoCoincidente_704ILR(int reservaId_704ILR, string operacion_704ILR)
             => BLL_Bitacora_704ILR.Registrar_704ILR("Integridad", "Operacion sobre dato alterado", CriticidadBitacora_704ILR.Error,

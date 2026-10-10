@@ -684,7 +684,7 @@ namespace EvenTech.UI
             if (r_704ILR == ClienteResult_704ILR.Success_704ILR)
             {
                 LimpiarForm_704ILR();
-                // CUN002, paso 5: el cliente que se acaba de guardar queda seleccionado en la
+                // CUN003, paso 5: el cliente que se acaba de guardar queda seleccionado en la
                 // grilla con su ficha cargada, para poder seguir operando con el sin buscarlo.
                 // Vale para el alta y para la edicion. Si la recarga fallo, su error queda a
                 // la vista y no se selecciona una fila de la lista anterior.

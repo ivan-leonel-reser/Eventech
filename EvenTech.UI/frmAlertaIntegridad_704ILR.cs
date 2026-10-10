@@ -14,7 +14,8 @@ namespace EvenTech.UI
     {
         // La verificacion devuelve cada inconsistencia como texto en castellano (es
         // tambien el detalle que queda asentado en bitacora). La pantalla reconoce
-        // las tres formas que produce y las muestra con la leyenda del idioma activo.
+        // las formas que produce, de las reservas y de los pagos, y las muestra con
+        // la leyenda del idioma activo.
         private static readonly Regex RxDvhFaltante_704ILR =
             new Regex(@"^Reserva #(\d+): sin DV horizontal almacenado", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
         private static readonly Regex RxDvhNoCoincide_704ILR =
@@ -23,6 +24,12 @@ namespace EvenTech.UI
             new Regex(@"^(el )?DV vertical de Reservas no coincide", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
         private static readonly Regex RxEstadoFueraDominio_704ILR =
             new Regex(@"^Reserva #(\d+): estado almacenado fuera del dominio", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+        private static readonly Regex RxPagoDvhFaltante_704ILR =
+            new Regex(@"^Pago #(\d+) \(reserva #(\d+)\): sin DV horizontal almacenado", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+        private static readonly Regex RxPagoDvhNoCoincide_704ILR =
+            new Regex(@"^Pago #(\d+) \(reserva #(\d+)\): (el )?DV horizontal no coincide", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+        private static readonly Regex RxDvvPagosNoCoincide_704ILR =
+            new Regex(@"^(el )?DV vertical de Pagos no coincide", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
 
         public frmAlertaIntegridad_704ILR(IReadOnlyList<string> inconsistencias_704ILR)
         {
@@ -186,6 +193,23 @@ namespace EvenTech.UI
 
             if (RxDvvNoCoincide_704ILR.IsMatch(inconsistencia_704ILR))
                 return Tr_704ILR.F_704ILR("ALERT_DVV_NO_COINCIDE", "El DV vertical de Reservas no coincide (filas agregadas, quitadas o reordenadas por fuera del sistema).");
+
+            Match pagoFaltante_704ILR = RxPagoDvhFaltante_704ILR.Match(inconsistencia_704ILR);
+            if (pagoFaltante_704ILR.Success
+                && int.TryParse(pagoFaltante_704ILR.Groups[1].Value, NumberStyles.None, CultureInfo.InvariantCulture, out int idPagoFaltante_704ILR)
+                && int.TryParse(pagoFaltante_704ILR.Groups[2].Value, NumberStyles.None, CultureInfo.InvariantCulture, out int idReservaFaltante_704ILR))
+                return Tr_704ILR.F_704ILR("ALERT_PAGO_DVH_FALTANTE", "Pago #{0} (reserva #{1}): sin DV horizontal almacenado.",
+                    idPagoFaltante_704ILR, idReservaFaltante_704ILR);
+
+            Match pagoDistinto_704ILR = RxPagoDvhNoCoincide_704ILR.Match(inconsistencia_704ILR);
+            if (pagoDistinto_704ILR.Success
+                && int.TryParse(pagoDistinto_704ILR.Groups[1].Value, NumberStyles.None, CultureInfo.InvariantCulture, out int idPagoDistinto_704ILR)
+                && int.TryParse(pagoDistinto_704ILR.Groups[2].Value, NumberStyles.None, CultureInfo.InvariantCulture, out int idReservaDistinta_704ILR))
+                return Tr_704ILR.F_704ILR("ALERT_PAGO_DVH_NO_COINCIDE", "Pago #{0} (reserva #{1}): el DV horizontal no coincide (posible alteración externa).",
+                    idPagoDistinto_704ILR, idReservaDistinta_704ILR);
+
+            if (RxDvvPagosNoCoincide_704ILR.IsMatch(inconsistencia_704ILR))
+                return Tr_704ILR.F_704ILR("ALERT_DVV_PAGOS_NO_COINCIDE", "El DV vertical de Pagos no coincide (filas agregadas, quitadas o reordenadas por fuera del sistema).");
 
             return inconsistencia_704ILR;
         }

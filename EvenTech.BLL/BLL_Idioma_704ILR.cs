@@ -267,10 +267,12 @@ namespace EvenTech.BLL
             { "ALERT_DVH_NO_COINCIDE",      "{0}" },            // numero de reserva con el DV horizontal alterado
             { "ALERT_ESTADO_FUERA_DOMINIO", "{0}" },            // numero de reserva con el estado fuera del dominio
             { "ALERT_NO_VERIFICADA",        "{0}" },            // causa de la falla de la verificacion
+            { "ALERT_PAGO_DVH_FALTANTE",    "{0} {1}" },        // numero de pago sin DV horizontal, numero de su reserva
+            { "ALERT_PAGO_DVH_NO_COINCIDE", "{0} {1}" },        // numero de pago con el DV horizontal alterado, numero de su reserva
             { "ASG_QUITAR_CONF",            "{0}" },            // empleado que se quita del equipo
             { "ASG_RESUMEN",                "{0} {1} {2} {3}" },// asignados, confirmados, pendientes, rechazados
             { "ASG_SIN_CUENTA_CONF",        "{0}" },            // empleado sin cuenta vinculada
-            { "AUD_RECALC_OK",              "{0} {1}" },        // reservas recalculadas, inconsistencias
+            { "AUD_RECALC_OK",              "{0} {1}" },        // reservas recalculadas (con sus pagos), inconsistencias
             { "CONN_ESQUEMA_INCOMPLETO",    "{0} {1}" },        // base, objetos faltantes
             { "COORD_EVENTO",               "{0} {1} {2} {3} {4}" }, // reserva, fecha, salon, cliente, invitados
             { "CRYPTO_CLAVE_INVALIDA",      "{0}" },            // ruta del archivo de clave

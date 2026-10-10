@@ -91,7 +91,7 @@ namespace EvenTech.UI
             _numMonto_704ILR = new CampoImporte_704ILR { Minimum = 0, Maximum = BLL_Reserva_704ILR.MontoMaximo_704ILR, DecimalPlaces = 2, Increment = 1000, Width = 135, Font = Theme_704ILR.FontInput_704ILR, Margin = new Padding(0, 0, Theme_704ILR.SpaceSm_704ILR, 0), TextAlign = HorizontalAlignment.Right };
             // La observacion es el unico campo de la fila sin rotulo (la fila es
             // horizontal y no hay lugar para uno): el texto de ejemplo le da nombre en
-            // pantalla, que es el que cita el CUN004. MaxLength = ancho real de
+            // pantalla, que es el que cita el CUN005. MaxLength = ancho real de
             // Pagos.Observacion: sin el, un texto mas largo se guardaria recortado.
             _txtObs_704ILR = Ui_704ILR.Input_704ILR(); _txtObs_704ILR.Width = 150; _txtObs_704ILR.Margin = new Padding(0, 0, Theme_704ILR.SpaceSm_704ILR, 0);
             _txtObs_704ILR.MaxLength = 200;

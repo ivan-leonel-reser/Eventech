@@ -384,11 +384,21 @@ BEGIN
         Monto        DECIMAL(12,2) NOT NULL,
         Fecha        DATETIME NOT NULL CONSTRAINT DF_Pagos_Fecha DEFAULT GETDATE(),
         Observacion  NVARCHAR(200) NULL,
+        Dvh          NVARCHAR(64) NULL,
         CONSTRAINT FK_Pagos_Reserva FOREIGN KEY (ReservaId)    REFERENCES dbo.Reservas(Id),
         CONSTRAINT FK_Pagos_Metodo  FOREIGN KEY (MetodoPagoId) REFERENCES dbo.MetodosPago(Id)
     );
     CREATE INDEX IX_Pagos_Reserva ON dbo.Pagos(ReservaId);
 END
+GO
+
+-- Dvh: digito verificador horizontal del pago (T07/T08). Lo calcula y graba la
+-- capa de negocio en la misma transaccion del cobro; el vertical de la tabla va
+-- en DVVertical. Una base anterior recibe la columna vacia: la aplicacion
+-- establece la linea base de esos pagos la primera vez que calcula el digito
+-- vertical de la tabla, y lo deja asentado en la bitacora.
+IF COL_LENGTH('dbo.Pagos','Dvh') IS NULL
+    ALTER TABLE dbo.Pagos ADD Dvh NVARCHAR(64) NULL;
 GO
 
 -- Seed de salones de ejemplo para poder operar.
@@ -717,8 +727,9 @@ END
 GO
 
 -- ===========================================================================
--- Digitos verificadores (T07/T08). El DV horizontal vive en Reservas.Dvh;
--- el DV vertical (uno por tabla protegida) en esta tabla.
+-- Digitos verificadores (T07/T08). El DV horizontal vive en la propia fila
+-- (Reservas.Dvh y Pagos.Dvh); el DV vertical (uno por tabla protegida: Reservas
+-- y Pagos) en esta tabla.
 -- ===========================================================================
 IF OBJECT_ID('dbo.DVVertical','U') IS NULL
 BEGIN
@@ -974,8 +985,8 @@ GO
         (N'ES', N'AUD_TAB_LOGIN', N'Auditoría de login'),             (N'EN', N'AUD_TAB_LOGIN', N'Login audit'),                    (N'PT', N'AUD_TAB_LOGIN', N'Auditoria de login'),
         -- Integridad (T08): recalculo de linea base desde Auditoria
         (N'ES', N'AUD_RECALC_BTN', N'Recalcular línea base'), (N'EN', N'AUD_RECALC_BTN', N'Recalculate baseline'), (N'PT', N'AUD_RECALC_BTN', N'Recalcular linha de base'),
-        (N'ES', N'AUD_RECALC_CONFIRMA', N'¿Recalcular los dígitos verificadores de todas las reservas? Usar después de corregir datos alterados: la línea base nueva pasa a ser la referencia de integridad.'), (N'EN', N'AUD_RECALC_CONFIRMA', N'Recalculate the verification digits of all reservations? Use after fixing altered data: the new baseline becomes the integrity reference.'), (N'PT', N'AUD_RECALC_CONFIRMA', N'Recalcular os dígitos verificadores de todas as reservas? Usar após corrigir dados alterados: a nova linha de base passa a ser a referência de integridade.'),
-        (N'ES', N'AUD_RECALC_OK', N'Línea base recalculada ({0} reservas). Verificación posterior: {1} inconsistencia(s).'), (N'EN', N'AUD_RECALC_OK', N'Baseline recalculated ({0} reservations). Post-check: {1} inconsistency(ies).'), (N'PT', N'AUD_RECALC_OK', N'Linha de base recalculada ({0} reservas). Verificação posterior: {1} inconsistência(s).')
+        (N'ES', N'AUD_RECALC_CONFIRMA', N'¿Recalcular los dígitos verificadores de todas las reservas y de todos los pagos? Usar después de corregir datos alterados: la línea base nueva pasa a ser la referencia de integridad.'), (N'EN', N'AUD_RECALC_CONFIRMA', N'Recalculate the verification digits of all reservations and all payments? Use after fixing altered data: the new baseline becomes the integrity reference.'), (N'PT', N'AUD_RECALC_CONFIRMA', N'Recalcular os dígitos verificadores de todas as reservas e de todos os pagamentos? Usar após corrigir dados alterados: a nova linha de base passa a ser a referência de integridade.'),
+        (N'ES', N'AUD_RECALC_OK', N'Línea base recalculada ({0} reservas, con sus pagos). Verificación posterior: {1} inconsistencia(s).'), (N'EN', N'AUD_RECALC_OK', N'Baseline recalculated ({0} reservations, with their payments). Post-check: {1} inconsistency(ies).'), (N'PT', N'AUD_RECALC_OK', N'Linha de base recalculada ({0} reservas, com seus pagamentos). Verificação posterior: {1} inconsistência(s).')
     ) AS v(Codigo, Clave, Texto)
 )
 INSERT INTO dbo.Traducciones (IdiomaId, Clave, Texto)
@@ -1245,7 +1256,7 @@ GO
         (N'ES', N'MSG_RES_CAPACIDAD', N'El salón no alcanza para la cantidad de invitados indicada.'), (N'EN', N'MSG_RES_CAPACIDAD', N'The venue cannot hold the number of guests entered.'), (N'PT', N'MSG_RES_CAPACIDAD', N'O salão não comporta a quantidade de convidados informada.'),
         (N'ES', N'MSG_RES_INVITADOS', N'Indica la cantidad de invitados estimada: hace falta para confirmar y no puede ser negativa.'), (N'EN', N'MSG_RES_INVITADOS', N'Enter the estimated number of guests: it is required to confirm and cannot be negative.'), (N'PT', N'MSG_RES_INVITADOS', N'Informe a quantidade estimada de convidados: é necessária para confirmar e não pode ser negativa.'),
         (N'ES', N'MSG_RES_TRANSICION_GEN', N'El cambio de estado solicitado no está admitido.'), (N'EN', N'MSG_RES_TRANSICION_GEN', N'The requested status change is not allowed.'), (N'PT', N'MSG_RES_TRANSICION_GEN', N'A mudança de estado solicitada não é admitida.'),
-        -- Alta de cliente: confirmacion en pantalla (CUN002, paso 5)
+        -- Alta de cliente: confirmacion en pantalla (CUN003, paso 5)
         (N'ES', N'MSG_CLI_CREADO', N'Cliente registrado.'), (N'EN', N'MSG_CLI_CREADO', N'Customer registered.'), (N'PT', N'MSG_CLI_CREADO', N'Cliente registrado.')
     ) AS v(Codigo, Clave, Texto)
 )
@@ -2055,7 +2066,7 @@ GO
 -- Idempotente, con el mismo patron que db/schema.sql: corre sobre la base que
 -- indica -d, despues de las semillas de traducciones, y se puede repetir.
 -- Resumen de la consulta de disponibilidad cuando ningun salon esta disponible y
--- no hay propuesta alternativa que informar (CUN001, paso 4 y flujo 4.1): no hay
+-- no hay propuesta alternativa que informar (CUN002, paso 4 y flujo 4.1): no hay
 -- salones registrados, ninguno alcanza en capacidad, o los que alcanzan no tienen
 -- una fecha libre dentro del horizonte de busqueda.
 ;WITH Txt(Codigo, Clave, Texto) AS (
@@ -3615,7 +3626,18 @@ GO
         (N'ES', N'BACC_CONFIRMACIONES_REINICIADAS', N'Confirmaciones reiniciadas'), (N'EN', N'BACC_CONFIRMACIONES_REINICIADAS', N'Confirmations reset'), (N'PT', N'BACC_CONFIRMACIONES_REINICIADAS', N'Confirmações reiniciadas'),
         -- Cronograma ya generado con respuestas pendientes (RN-11): se puede modificar,
         -- siempre con responsables confirmados
-        (N'ES', N'MSG_CRO_PENDIENTES', N'Hay respuestas pendientes: cada actividad tiene que quedar a cargo de personal confirmado.'), (N'EN', N'MSG_CRO_PENDIENTES', N'Some replies are pending: every activity must be assigned to confirmed staff.'), (N'PT', N'MSG_CRO_PENDIENTES', N'Há respostas pendentes: cada atividade deve ficar a cargo de pessoal confirmado.')
+        (N'ES', N'MSG_CRO_PENDIENTES', N'Hay respuestas pendientes: cada actividad tiene que quedar a cargo de personal confirmado.'), (N'EN', N'MSG_CRO_PENDIENTES', N'Some replies are pending: every activity must be assigned to confirmed staff.'), (N'PT', N'MSG_CRO_PENDIENTES', N'Há respostas pendentes: cada atividade deve ficar a cargo de pessoal confirmado.'),
+        -- Alerta de integridad: inconsistencias de los pagos (digito verificador de Pagos).
+        -- La verificacion las devuelve en castellano y la pantalla las traduce.
+        (N'ES', N'ALERT_PAGO_DVH_FALTANTE', N'Pago #{0} (reserva #{1}): sin DV horizontal almacenado.'),
+        (N'EN', N'ALERT_PAGO_DVH_FALTANTE', N'Payment #{0} (reservation #{1}): no stored horizontal check digit.'),
+        (N'PT', N'ALERT_PAGO_DVH_FALTANTE', N'Pagamento #{0} (reserva #{1}): sem DV horizontal armazenado.'),
+        (N'ES', N'ALERT_PAGO_DVH_NO_COINCIDE', N'Pago #{0} (reserva #{1}): el DV horizontal no coincide (posible alteración externa).'),
+        (N'EN', N'ALERT_PAGO_DVH_NO_COINCIDE', N'Payment #{0} (reservation #{1}): the horizontal check digit does not match (possible external alteration).'),
+        (N'PT', N'ALERT_PAGO_DVH_NO_COINCIDE', N'Pagamento #{0} (reserva #{1}): o DV horizontal não confere (possível alteração externa).'),
+        (N'ES', N'ALERT_DVV_PAGOS_NO_COINCIDE', N'El DV vertical de Pagos no coincide (filas agregadas, quitadas o reordenadas por fuera del sistema).'),
+        (N'EN', N'ALERT_DVV_PAGOS_NO_COINCIDE', N'The vertical check digit of Payments does not match (rows added, removed or reordered outside the system).'),
+        (N'PT', N'ALERT_DVV_PAGOS_NO_COINCIDE', N'O DV vertical de Pagamentos não confere (linhas adicionadas, removidas ou reordenadas fora do sistema).')
     ) AS v(Codigo, Clave, Texto)
 )
 INSERT INTO dbo.Traducciones (IdiomaId, Clave, Texto)
@@ -3692,6 +3714,33 @@ UPDATE dbo.Clientes SET Apellido = N'Pérez'
  WHERE Dni = N'30111222' AND Nombre = N'Juan' COLLATE Latin1_General_CS_AS AND Apellido = N'Perez' COLLATE Latin1_General_CS_AS;
 UPDATE dbo.Clientes SET Nombre = N'María', Apellido = N'Gómez'
  WHERE Dni = N'28999333' AND Nombre = N'Maria' COLLATE Latin1_General_CS_AS AND Apellido = N'Gomez' COLLATE Latin1_General_CS_AS;
+GO
+
+-- ===========================================================================
+-- Herramienta de integridad: el recalculo de la linea base alcanza tambien a los
+-- pagos (digito verificador de Pagos). Los dos textos de la herramienta pasan a
+-- decirlo; el segundo sigue informando la cantidad de reservas ({0}), con los
+-- mismos marcadores: una traduccion editada, que el script conserva, sigue
+-- siendo cierta. Mismo criterio que las demas correcciones de fabrica: alcanza a
+-- cualquier idioma cuyo texto sea exactamente el de fabrica anterior
+-- (intercalacion binaria y la misma longitud en bytes) y conserva una traduccion
+-- editada por el usuario. Idempotente.
+-- ===========================================================================
+;WITH Fix(Clave, Anterior, Nuevo) AS (
+    SELECT * FROM (VALUES
+        (N'AUD_RECALC_CONFIRMA', N'¿Recalcular los dígitos verificadores de todas las reservas? Usar después de corregir datos alterados: la línea base nueva pasa a ser la referencia de integridad.', N'¿Recalcular los dígitos verificadores de todas las reservas y de todos los pagos? Usar después de corregir datos alterados: la línea base nueva pasa a ser la referencia de integridad.'),
+        (N'AUD_RECALC_CONFIRMA', N'Recalculate the verification digits of all reservations? Use after fixing altered data: the new baseline becomes the integrity reference.', N'Recalculate the verification digits of all reservations and all payments? Use after fixing altered data: the new baseline becomes the integrity reference.'),
+        (N'AUD_RECALC_CONFIRMA', N'Recalcular os dígitos verificadores de todas as reservas? Usar após corrigir dados alterados: a nova linha de base passa a ser a referência de integridade.', N'Recalcular os dígitos verificadores de todas as reservas e de todos os pagamentos? Usar após corrigir dados alterados: a nova linha de base passa a ser a referência de integridade.'),
+        (N'AUD_RECALC_OK', N'Línea base recalculada ({0} reservas). Verificación posterior: {1} inconsistencia(s).', N'Línea base recalculada ({0} reservas, con sus pagos). Verificación posterior: {1} inconsistencia(s).'),
+        (N'AUD_RECALC_OK', N'Baseline recalculated ({0} reservations). Post-check: {1} inconsistency(ies).', N'Baseline recalculated ({0} reservations, with their payments). Post-check: {1} inconsistency(ies).'),
+        (N'AUD_RECALC_OK', N'Linha de base recalculada ({0} reservas). Verificação posterior: {1} inconsistência(s).', N'Linha de base recalculada ({0} reservas, com seus pagamentos). Verificação posterior: {1} inconsistência(s).')
+    ) AS v(Clave, Anterior, Nuevo)
+)
+UPDATE t SET Texto = f.Nuevo
+FROM dbo.Traducciones t
+JOIN Fix f ON f.Clave = t.Clave
+WHERE t.Texto COLLATE Latin1_General_BIN = f.Anterior COLLATE Latin1_General_BIN
+  AND DATALENGTH(t.Texto) = DATALENGTH(f.Anterior);
 GO
 
 -- ===========================================================================
