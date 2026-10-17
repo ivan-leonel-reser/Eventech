@@ -3637,7 +3637,16 @@ GO
         (N'PT', N'ALERT_PAGO_DVH_NO_COINCIDE', N'Pagamento #{0} (reserva #{1}): o DV horizontal não confere (possível alteração externa).'),
         (N'ES', N'ALERT_DVV_PAGOS_NO_COINCIDE', N'El DV vertical de Pagos no coincide (filas agregadas, quitadas o reordenadas por fuera del sistema).'),
         (N'EN', N'ALERT_DVV_PAGOS_NO_COINCIDE', N'The vertical check digit of Payments does not match (rows added, removed or reordered outside the system).'),
-        (N'PT', N'ALERT_DVV_PAGOS_NO_COINCIDE', N'O DV vertical de Pagamentos não confere (linhas adicionadas, removidas ou reordenadas fora do sistema).')
+        (N'PT', N'ALERT_DVV_PAGOS_NO_COINCIDE', N'O DV vertical de Pagamentos não confere (linhas adicionadas, removidas ou reordenadas fora do sistema).'),
+        -- Version del sistema y commit del que salio el codigo (pie de la pantalla de acceso
+        -- y de la ventana principal, y "Acerca de")
+        (N'ES', N'APP_VERSION', N'Versión {0}'), (N'EN', N'APP_VERSION', N'Version {0}'), (N'PT', N'APP_VERSION', N'Versão {0}'),
+        (N'ES', N'APP_COMMIT', N'commit {0}'), (N'EN', N'APP_COMMIT', N'commit {0}'), (N'PT', N'APP_COMMIT', N'commit {0}'),
+        (N'ES', N'APP_SIN_COMMIT', N'sin datos del commit'), (N'EN', N'APP_SIN_COMMIT', N'no commit data'), (N'PT', N'APP_SIN_COMMIT', N'sem dados do commit'),
+        (N'ES', N'APP_CON_CAMBIOS', N'(compilado con cambios sin commitear)'), (N'EN', N'APP_CON_CAMBIOS', N'(built with uncommitted changes)'), (N'PT', N'APP_CON_CAMBIOS', N'(compilado com alterações sem commit)'),
+        (N'ES', N'ACERCA_TITULO', N'Acerca de EvenTech'), (N'EN', N'ACERCA_TITULO', N'About EvenTech'), (N'PT', N'ACERCA_TITULO', N'Sobre o EvenTech'),
+        (N'ES', N'ACERCA_COMMIT', N'Commit: {0}'), (N'EN', N'ACERCA_COMMIT', N'Commit: {0}'), (N'PT', N'ACERCA_COMMIT', N'Commit: {0}'),
+        (N'ES', N'ACERCA_FECHA', N'Fecha del commit: {0}'), (N'EN', N'ACERCA_FECHA', N'Commit date: {0}'), (N'PT', N'ACERCA_FECHA', N'Data do commit: {0}')
     ) AS v(Codigo, Clave, Texto)
 )
 INSERT INTO dbo.Traducciones (IdiomaId, Clave, Texto)

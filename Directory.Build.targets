@@ -1,0 +1,74 @@
+<Project>
+  <!--
+    Sello del commit. Cada ensamblado lleva como version de producto la version de la
+    entrega mas el commit del que salio el codigo: "2.0.0+<hash de 40 caracteres>". La
+    pantalla de acceso y el pie de la ventana principal lo muestran, y asi se comprueba
+    que el programa compilado desde el zip entregado es el mismo commit que esta en el
+    repositorio.
+
+    De donde sale el commit, en este orden:
+      1. commit.txt, en la raiz. En el repositorio dice literalmente "$Format:%H %cs$";
+         .gitattributes lo marca con export-subst, asi que "git archive" (el zip de la
+         entrega) y la descarga en zip del repositorio lo reemplazan por el hash y la
+         fecha del commit archivado. Es el caso del codigo compilado desde un zip, que no
+         trae la carpeta .git.
+      2. git, si commit.txt sigue sin reemplazar (compilando desde el repositorio). Si
+         hay cambios sin commitear, se agrega ".modificado": ese ejecutable no es el de
+         ningun commit.
+      3. Sin ninguno de los dos, la version queda sola y la pantalla dice que no hay datos
+         del commit.
+
+    El hash no se puede guardar en un archivo commiteado: guardarlo cambiaria el commit.
+  -->
+  <Target Name="SellarCommit_704ILR" BeforeTargets="GetAssemblyVersion" Condition="'$(InformationalVersion)' == ''">
+    <ReadLinesFromFile File="$(MSBuildThisFileDirectory)commit.txt" Condition="Exists('$(MSBuildThisFileDirectory)commit.txt')">
+      <Output TaskParameter="Lines" ItemName="_LineaCommit_704ILR" />
+    </ReadLinesFromFile>
+
+    <PropertyGroup>
+      <_TextoCommit_704ILR>@(_LineaCommit_704ILR)</_TextoCommit_704ILR>
+      <_TextoCommit_704ILR>$(_TextoCommit_704ILR.Trim())</_TextoCommit_704ILR>
+      <_PatronArchivo_704ILR>^([0-9a-f]{40}) (\d{4}-\d{2}-\d{2})$</_PatronArchivo_704ILR>
+      <_Hash_704ILR Condition="$([System.Text.RegularExpressions.Regex]::IsMatch('$(_TextoCommit_704ILR)', '$(_PatronArchivo_704ILR)'))">$([System.Text.RegularExpressions.Regex]::Replace('$(_TextoCommit_704ILR)', '$(_PatronArchivo_704ILR)', '$1'))</_Hash_704ILR>
+      <_FechaCommit_704ILR Condition="'$(_Hash_704ILR)' != ''">$([System.Text.RegularExpressions.Regex]::Replace('$(_TextoCommit_704ILR)', '$(_PatronArchivo_704ILR)', '$2'))</_FechaCommit_704ILR>
+    </PropertyGroup>
+
+    <!-- Desde el repositorio: se le pregunta a git. Si git no esta instalado o la carpeta
+         no es un repositorio, la salida no tiene forma de hash y no se usa. -->
+    <Exec Command="git rev-parse HEAD" WorkingDirectory="$(MSBuildThisFileDirectory)" Condition="'$(_Hash_704ILR)' == ''"
+          ConsoleToMSBuild="true" EchoOff="true" IgnoreExitCode="true" ContinueOnError="true"
+          StandardOutputImportance="low" StandardErrorImportance="low">
+      <Output TaskParameter="ConsoleOutput" PropertyName="_GitHash_704ILR" />
+    </Exec>
+    <PropertyGroup Condition="'$(_Hash_704ILR)' == '' And $([System.Text.RegularExpressions.Regex]::IsMatch('$(_GitHash_704ILR)', '^[0-9a-f]{40}$'))">
+      <_Hash_704ILR>$(_GitHash_704ILR)</_Hash_704ILR>
+      <_DesdeGit_704ILR>true</_DesdeGit_704ILR>
+    </PropertyGroup>
+    <Exec Command="git log -1 --format=%25%25cs" WorkingDirectory="$(MSBuildThisFileDirectory)" Condition="'$(_DesdeGit_704ILR)' == 'true'"
+          ConsoleToMSBuild="true" EchoOff="true" IgnoreExitCode="true" ContinueOnError="true"
+          StandardOutputImportance="low" StandardErrorImportance="low">
+      <Output TaskParameter="ConsoleOutput" PropertyName="_GitFecha_704ILR" />
+    </Exec>
+    <!-- Archivos versionados modificados o archivos nuevos sin ignorar (bin y obj lo
+         estan): cualquiera de los dos hace que el ejecutable no sea el del commit. -->
+    <Exec Command="git status --porcelain" WorkingDirectory="$(MSBuildThisFileDirectory)" Condition="'$(_DesdeGit_704ILR)' == 'true'"
+          ConsoleToMSBuild="true" EchoOff="true" IgnoreExitCode="true" ContinueOnError="true"
+          StandardOutputImportance="low" StandardErrorImportance="low">
+      <Output TaskParameter="ConsoleOutput" ItemName="_GitEstado_704ILR" />
+    </Exec>
+    <PropertyGroup Condition="'$(_DesdeGit_704ILR)' == 'true'">
+      <_FechaCommit_704ILR Condition="$([System.Text.RegularExpressions.Regex]::IsMatch('$(_GitFecha_704ILR)', '^\d{4}-\d{2}-\d{2}$'))">$(_GitFecha_704ILR)</_FechaCommit_704ILR>
+      <_Sufijo_704ILR Condition="'@(_GitEstado_704ILR->Count())' != '0'">.modificado</_Sufijo_704ILR>
+    </PropertyGroup>
+
+    <PropertyGroup>
+      <InformationalVersion Condition="'$(_Hash_704ILR)' != ''">$(Version)+$(_Hash_704ILR)$(_Sufijo_704ILR)</InformationalVersion>
+    </PropertyGroup>
+    <ItemGroup Condition="'$(_FechaCommit_704ILR)' != ''">
+      <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+        <_Parameter1>FechaCommit</_Parameter1>
+        <_Parameter2>$(_FechaCommit_704ILR)</_Parameter2>
+      </AssemblyAttribute>
+    </ItemGroup>
+  </Target>
+</Project>

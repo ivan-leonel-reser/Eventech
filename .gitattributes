@@ -1,0 +1,3 @@
+# El zip de la entrega (git archive) y la descarga en zip del repositorio reemplazan
+# el contenido de commit.txt por el hash y la fecha del commit. Ver Directory.Build.targets.
+commit.txt export-subst

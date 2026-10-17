@@ -262,6 +262,8 @@ namespace EvenTech.BLL
         // falta, el editor rechaza cualquier texto suyo que conserve el marcador.
         private static readonly Dictionary<string, string> MarcadoresPorClave_704ILR = new Dictionary<string, string>(StringComparer.Ordinal)
         {
+            { "ACERCA_COMMIT",              "{0}" },            // hash del commit (o "sin datos del commit")
+            { "ACERCA_FECHA",               "{0}" },            // fecha del commit, ya formateada
             { "AGE_EVENTO",                 "{0} {1} {2}" },    // fecha del evento, salon, numero de reserva
             { "ALERT_DVH_FALTANTE",         "{0}" },            // numero de reserva sin DV horizontal almacenado
             { "ALERT_DVH_NO_COINCIDE",      "{0}" },            // numero de reserva con el DV horizontal alterado
@@ -269,6 +271,8 @@ namespace EvenTech.BLL
             { "ALERT_NO_VERIFICADA",        "{0}" },            // causa de la falla de la verificacion
             { "ALERT_PAGO_DVH_FALTANTE",    "{0} {1}" },        // numero de pago sin DV horizontal, numero de su reserva
             { "ALERT_PAGO_DVH_NO_COINCIDE", "{0} {1}" },        // numero de pago con el DV horizontal alterado, numero de su reserva
+            { "APP_COMMIT",                 "{0}" },            // los siete primeros caracteres del commit
+            { "APP_VERSION",                "{0}" },            // version del sistema ("2.0.0")
             { "ASG_QUITAR_CONF",            "{0}" },            // empleado que se quita del equipo
             { "ASG_RESUMEN",                "{0} {1} {2} {3}" },// asignados, confirmados, pendientes, rechazados
             { "ASG_SIN_CUENTA_CONF",        "{0}" },            // empleado sin cuenta vinculada

@@ -22,6 +22,41 @@ namespace EvenTech.UI
         public static string F_704ILR(string clave_704ILR, string defecto_704ILR, params object[] args_704ILR)
             => GestorDeIdioma_704ILR.GetInstance_704ILR.Formatear_704ILR(clave_704ILR, defecto_704ILR, args_704ILR);
 
+        // Version y commit en una linea, para el pie de la pantalla de acceso y de la ventana
+        // principal: "Versión 2.0.0 · commit 480f5c4". El commit es el que el repositorio
+        // muestra en su historial; con el se comprueba que el programa compilado desde el
+        // zip entregado es el del repositorio (ver VersionSistema_704ILR).
+        public static string TextoVersion_704ILR()
+        {
+            VersionSistema_704ILR v_704ILR = VersionSistema_704ILR.Actual_704ILR;
+            string texto_704ILR = F_704ILR("APP_VERSION", "Versión {0}", v_704ILR.Version_704ILR) + " · ";
+            if (v_704ILR.Commit_704ILR == null)
+                return texto_704ILR + F_704ILR("APP_SIN_COMMIT", "sin datos del commit");
+            texto_704ILR += F_704ILR("APP_COMMIT", "commit {0}", v_704ILR.CommitCorto_704ILR);
+            if (v_704ILR.ConCambios_704ILR)
+                texto_704ILR += " " + F_704ILR("APP_CON_CAMBIOS", "(compilado con cambios sin commitear)");
+            return texto_704ILR;
+        }
+
+        // Detalle de "Acerca de": la version, el commit completo y su fecha.
+        public static string DetalleVersion_704ILR()
+        {
+            VersionSistema_704ILR v_704ILR = VersionSistema_704ILR.Actual_704ILR;
+            var lineas_704ILR = new List<string>
+            {
+                "EvenTech",
+                F_704ILR("APP_VERSION", "Versión {0}", v_704ILR.Version_704ILR),
+                F_704ILR("ACERCA_COMMIT", "Commit: {0}", v_704ILR.Commit_704ILR ?? F_704ILR("APP_SIN_COMMIT", "sin datos del commit"))
+            };
+            // Fecha con patron fijo y cultura invariante, como el resto de las fechas en pantalla.
+            if (v_704ILR.FechaCommit_704ILR.HasValue)
+                lineas_704ILR.Add(F_704ILR("ACERCA_FECHA", "Fecha del commit: {0}",
+                    v_704ILR.FechaCommit_704ILR.Value.ToString("dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture)));
+            if (v_704ILR.ConCambios_704ILR)
+                lineas_704ILR.Add(F_704ILR("APP_CON_CAMBIOS", "(compilado con cambios sin commitear)"));
+            return string.Join(Environment.NewLine, lineas_704ILR);
+        }
+
         // Texto para el usuario ante una excepcion capturada en una pantalla. Si la causa
         // es la base de datos (una SqlException en la cadena de excepciones) nunca se
         // muestra el texto del motor, que sale en ingles, con el nombre de la base y la

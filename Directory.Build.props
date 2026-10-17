@@ -1,0 +1,16 @@
+<Project>
+  <!-- Propiedades comunes a todos los proyectos de la solucion. MSBuild lee este archivo
+       antes que cada .csproj (lo busca hacia arriba desde la carpeta del proyecto). -->
+  <PropertyGroup>
+    <!-- Version de la entrega: la unica que se escribe a mano. La llevan todos los
+         ensamblados; el instalador la lee del ejecutable y la reinstalacion la compara con
+         la que encuentra instalada. Directory.Build.targets le agrega el commit del que
+         salio el codigo (ver ahi). -->
+    <Version>2.0.0</Version>
+    <Company>Ivan Leonel Reser</Company>
+    <Product>EvenTech</Product>
+    <!-- El commit lo pone Directory.Build.targets, tambien cuando el codigo sale de un zip
+         sin la carpeta .git: el mecanismo del SDK solo lo encuentra con git a mano. -->
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+  </PropertyGroup>
+</Project>

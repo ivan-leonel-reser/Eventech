@@ -76,6 +76,17 @@ $archivos_704ILR = @(Get-ChildItem -LiteralPath $Publicado_704ILR -Recurse -File
 $megas_704ILR = ($archivos_704ILR | Measure-Object -Property Length -Sum).Sum / 1MB
 Write-Host ('Aplicacion publicada: version {0}, {1} archivos, {2:N0} MB' -f `
     (Get-Item -LiteralPath $Ejecutable_704ILR).VersionInfo.FileVersion, $archivos_704ILR.Count, $megas_704ILR)
+# Version de producto: version de la entrega + commit del que salio el codigo (ver
+# Directory.Build.targets). Es lo que muestra la aplicacion para compararla con el
+# repositorio, asi que el instalador de una entrega se arma con el repositorio limpio.
+$Producto_704ILR = (Get-Item -LiteralPath $Ejecutable_704ILR).VersionInfo.ProductVersion
+Write-Host ('Version de producto: {0}' -f $Producto_704ILR)
+if ($Producto_704ILR -notmatch '\+[0-9a-f]{40}') {
+    Write-Warning 'La aplicacion publicada no lleva el commit: no se va a poder comparar con el repositorio.'
+}
+elseif ($Producto_704ILR -like '*.modificado') {
+    Write-Warning 'La aplicacion se publico con cambios sin commitear: no corresponde a ningun commit del repositorio.'
+}
 
 # --------------------------------------------------------------------------- 2
 Paso_704ILR '2. Compilar el instalador'

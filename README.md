@@ -34,6 +34,34 @@ paso a paso con capturas, en el manual de instalación que acompaña la entrega.
 
 Las secciones siguientes describen la puesta en marcha **desde el código fuente**.
 
+## Versión y commit
+
+El sistema muestra su versión y el commit del que salió el código: al pie de la
+pantalla de acceso y a la izquierda del pie de la ventana principal
+(`Versión 2.0.0 · commit 480f5c4`). Un clic sobre ese texto abre **Acerca de**, con
+el hash completo y la fecha del commit. Así se comprueba que el programa compilado
+desde el zip de una entrega es el mismo commit que está en el repositorio, en la
+rama de esa entrega.
+
+- La versión se escribe a mano en un solo lugar: `<Version>` de
+  `Directory.Build.props`. La llevan todos los ensamblados y el instalador.
+- El commit lo agrega `Directory.Build.targets` al compilar, como versión de
+  producto de cada ensamblado (`2.0.0+<hash>`; también se ve en Propiedades →
+  Detalles del ejecutable). Lo toma de `commit.txt`, que en el repositorio dice
+  `$Format:%H %cs$`: por `.gitattributes` (`export-subst`), `git archive` y la
+  descarga en zip del repositorio lo reemplazan por el hash y la fecha del commit
+  archivado. Compilando desde el repositorio, se lo pregunta a git.
+- Si se compila con cambios sin commitear, el texto lo dice: ese ejecutable no
+  corresponde a ningún commit. Sin `commit.txt` reemplazado y sin git, dice que no
+  hay datos del commit.
+
+El zip de una entrega se arma con `git archive` del commit entregado (no copiando la
+carpeta), para que lleve `commit.txt` con su hash:
+
+```bat
+git archive --format=zip -9 --prefix=EvenTech/ -o EvenTech.zip <commit> -- . ":(exclude).gitignore"
+```
+
 ## Requisitos
 
 | Componente | Versión mínima |
@@ -264,10 +292,10 @@ superposición, confirmación de disponibilidad, cronograma, tareas, ejecución 
 incidencias, reprogramación y cancelación), las trece reglas de negocio, cobros
 simultáneos, guardados simultáneos (el dígito verificador vertical se recalcula de
 a un puesto por vez), el dígito verificador de los pagos (un pago alterado,
-duplicado o quitado por fuera se detecta) y restauración de versiones. Son 53
-casos numerados `[1]` a `[53]`, más un bloque `[limpieza]` y un `[cierre]` que
-vuelve a verificar la integridad de toda la base al terminar: 55 casos y 880
-verificaciones en total.
+duplicado o quitado por fuera se detecta), restauración de versiones y el sello de
+versión y commit de los ensamblados. Son 54 casos numerados `[1]` a `[54]`, más un
+bloque `[limpieza]` y un `[cierre]` que vuelve a verificar la integridad de toda la
+base al terminar: 56 casos y 905 verificaciones en total.
 
 ```bat
 dotnet run --project EvenTech.SmokeTest
@@ -308,4 +336,8 @@ la fecha del día, sobre un salón que esté libre hoy.
 | `instalador/scripts/` | Guiones del asistente: instancia, base de datos y conexión |
 | `instalador/construir.ps1` | Publica la aplicación y compila el instalador |
 | `instalador/README.md` | Alcance, pasos y construcción del instalador |
+| `Directory.Build.props` | Versión de la entrega, común a todos los proyectos |
+| `Directory.Build.targets` | Agrega a cada ensamblado el commit del que salió el código |
+| `commit.txt` | Hash y fecha del commit, que completa `git archive` (ver "Versión y commit") |
+| `.gitattributes` | Marca `commit.txt` para que `git archive` lo complete |
 | `_build.bat` | Compilación con log en `_build_log.txt` |

@@ -19,7 +19,7 @@ namespace EvenTech.UI
     public class frmMain_704ILR : FormBase_704ILR, IObservadorIdioma_704ILR
     {
         private Panel _pnlContent_704ILR;
-        private Label _lblPageTitle_704ILR, _lblWelcome_704ILR;
+        private Label _lblPageTitle_704ILR, _lblWelcome_704ILR, _lblVersion_704ILR;
         private AppButton_704ILR _btnLogout_704ILR;
         private LangSelector_704ILR _lang_704ILR;
         private Label _btnMax_704ILR;
@@ -288,7 +288,7 @@ namespace EvenTech.UI
                 Dock = DockStyle.Bottom,
                 Height = 46,
                 BackColor = Theme_704ILR.BgContent_704ILR,
-                Padding = new Padding(0, 0, Theme_704ILR.SpaceXl_704ILR, 0)
+                Padding = new Padding(Theme_704ILR.SpaceXl_704ILR, 0, Theme_704ILR.SpaceXl_704ILR, 0)
             };
             var footerSep_704ILR = new Panel { Dock = DockStyle.Top, Height = 1, BackColor = Theme_704ILR.Border_704ILR };
             var footerGrid_704ILR = new TableLayoutPanel
@@ -302,6 +302,21 @@ namespace EvenTech.UI
             footerGrid_704ILR.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
             footerGrid_704ILR.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             _lang_704ILR = new LangSelector_704ILR(dark_704ILR: false, allowManage_704ILR: true) { Anchor = AnchorStyles.Right };
+            // Version y commit a la izquierda del pie, a la vista desde cualquier seccion. Un
+            // clic abre "Acerca de" con el commit completo y su fecha.
+            _lblVersion_704ILR = new Label
+            {
+                Font = Theme_704ILR.FontCaption_704ILR,
+                ForeColor = Theme_704ILR.TextMuted_704ILR,
+                AutoSize = true,
+                Anchor = AnchorStyles.Left,
+                Cursor = Cursors.Hand,
+                BackColor = Color.Transparent
+            };
+            _lblVersion_704ILR.Click += (s_704ILR, e_704ILR) => MostrarAcercaDe_704ILR();
+            _lblVersion_704ILR.MouseEnter += (s_704ILR, e_704ILR) => _lblVersion_704ILR.ForeColor = Theme_704ILR.Accent_704ILR;
+            _lblVersion_704ILR.MouseLeave += (s_704ILR, e_704ILR) => _lblVersion_704ILR.ForeColor = Theme_704ILR.TextMuted_704ILR;
+            footerGrid_704ILR.Controls.Add(_lblVersion_704ILR, 0, 0);
             footerGrid_704ILR.Controls.Add(_lang_704ILR, 1, 0);
             footer_704ILR.Controls.Add(footerGrid_704ILR);
             footer_704ILR.Controls.Add(footerSep_704ILR);
@@ -499,6 +514,7 @@ namespace EvenTech.UI
         {
             foreach (var it_704ILR in _items_704ILR) it_704ILR.Caption_704ILR.Text = TextoMenu_704ILR(it_704ILR.Key_704ILR);
             if (_btnLogout_704ILR != null) _btnLogout_704ILR.Text = T_704ILR("MENU_SALIR", "Cerrar sesión");
+            if (_lblVersion_704ILR != null) _lblVersion_704ILR.Text = Tr_704ILR.TextoVersion_704ILR();
             if (_lblWelcome_704ILR != null)
             {
                 string usuario_704ILR = SessionManager_704ILR.IsSessionActive_704ILR ? SessionManager_704ILR.GetInstance_704ILR.User_704ILR.Username_704ILR : "?";
@@ -510,6 +526,14 @@ namespace EvenTech.UI
                 MostrarBloqueado_704ILR();                       // usuario sin rol: pantalla bloqueada
             else if (_activo_704ILR == _itInicio_704ILR)
                 AbrirSeccion_704ILR(_itInicio_704ILR);                  // recarga la portada traducida
+        }
+
+        // "Acerca de": version, commit completo y fecha del commit. El texto de un cuadro de
+        // mensaje se copia con Ctrl+C, asi que el hash se puede pegar en el repositorio.
+        private void MostrarAcercaDe_704ILR()
+        {
+            MessageBox.Show(this, Tr_704ILR.DetalleVersion_704ILR(), T_704ILR("ACERCA_TITULO", "Acerca de EvenTech"),
+                MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
         // Pantalla para usuarios sin perfil asignado: mensaje + sin navegacion

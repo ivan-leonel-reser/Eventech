@@ -3933,6 +3933,96 @@ try
 }
 catch (Exception ex53_704ILR) { Excepcion_704ILR("[53]", ex53_704ILR); }
 
+// [54] Version y commit. Cada ensamblado lleva la version de la entrega y el commit
+// del que salio el codigo (Directory.Build.targets); la pantalla de acceso y la
+// ventana principal los muestran para comparar el programa con el repositorio. Se
+// verifica la lectura del sello, que todos los ensamblados lleven el mismo, que el
+// commit sea el HEAD del repositorio cuando la prueba corre dentro de uno, y las
+// traducciones y plantillas de los textos que lo muestran.
+Caso_704ILR("[54] Version y commit del sistema:");
+try
+{
+    string hashV_704ILR = new string('a', 20) + new string('0', 20);
+    var vOk_704ILR = VersionSistema_704ILR.Interpretar_704ILR("2.0.0+" + hashV_704ILR, "2026-10-10");
+    Esperar_704ILR("version del sello", vOk_704ILR.Version_704ILR, "2.0.0");
+    Esperar_704ILR("commit del sello", vOk_704ILR.Commit_704ILR, hashV_704ILR);
+    Esperar_704ILR("commit corto (siete caracteres)", vOk_704ILR.CommitCorto_704ILR, "aaaaaaa");
+    Esperar_704ILR("fecha del commit", vOk_704ILR.FechaCommit_704ILR, (DateTime?)new DateTime(2026, 10, 10));
+    Esperar_704ILR("sin cambios sin commitear", vOk_704ILR.ConCambios_704ILR, false);
+
+    var vMod_704ILR = VersionSistema_704ILR.Interpretar_704ILR("2.0.0+" + hashV_704ILR + ".modificado", "2026-10-10");
+    Esperar_704ILR("compilado con cambios: se marca", vMod_704ILR.ConCambios_704ILR, true);
+    Esperar_704ILR("compilado con cambios: conserva el commit", vMod_704ILR.Commit_704ILR, hashV_704ILR);
+
+    var vSin_704ILR = VersionSistema_704ILR.Interpretar_704ILR("2.0.0", null);
+    Esperar_704ILR("sin commit: version", vSin_704ILR.Version_704ILR, "2.0.0");
+    Esperar_704ILR("sin commit: commit", vSin_704ILR.Commit_704ILR, null);
+    Esperar_704ILR("sin commit: fecha", vSin_704ILR.FechaCommit_704ILR, null);
+
+    // Lo que no tiene la forma del sello no se muestra a medias.
+    var vMal_704ILR = VersionSistema_704ILR.Interpretar_704ILR("2.0.0+480f5c4", "2026-10-10");
+    Esperar_704ILR("hash incompleto: sin datos", vMal_704ILR.Commit_704ILR == null && vMal_704ILR.Version_704ILR == "?", true);
+    Esperar_704ILR("sin version de producto: sin datos", VersionSistema_704ILR.Interpretar_704ILR(null, null).Version_704ILR, "?");
+    Esperar_704ILR("fecha ilegible: se descarta",
+        VersionSistema_704ILR.Interpretar_704ILR("2.0.0+" + hashV_704ILR, "$Format:%cs$").FechaCommit_704ILR, null);
+
+    // El sello real: todos los ensamblados de la solucion llevan el mismo.
+    var actual_704ILR = VersionSistema_704ILR.Actual_704ILR;
+    Console.WriteLine($"  sello de esta compilacion: {actual_704ILR.Version_704ILR} / {actual_704ILR.Commit_704ILR ?? "sin commit"}" +
+                      (actual_704ILR.ConCambios_704ILR ? " (con cambios sin commitear)" : ""));
+    var asmV_704ILR = typeof(VersionSistema_704ILR).Assembly.GetName().Version;
+    Esperar_704ILR("version del sello = version del ensamblado",
+        actual_704ILR.Version_704ILR, $"{asmV_704ILR.Major}.{asmV_704ILR.Minor}.{asmV_704ILR.Build}");
+    Esperar_704ILR("el sello trae el commit", actual_704ILR.Commit_704ILR != null, true);
+    foreach (var asm_704ILR in new[] { typeof(EvenTech.BE.BE_Reserva_704ILR).Assembly, typeof(EvenTech.DAL.DAL_Reserva_704ILR).Assembly,
+                                       typeof(BLL_Reserva_704ILR).Assembly, System.Reflection.Assembly.GetEntryAssembly() })
+    {
+        var otro_704ILR = VersionSistema_704ILR.DeEnsamblado_704ILR(asm_704ILR);
+        Esperar_704ILR($"mismo sello en {asm_704ILR.GetName().Name}",
+            otro_704ILR.Version_704ILR + "+" + otro_704ILR.Commit_704ILR + otro_704ILR.ConCambios_704ILR,
+            actual_704ILR.Version_704ILR + "+" + actual_704ILR.Commit_704ILR + actual_704ILR.ConCambios_704ILR);
+    }
+
+    // Dentro de un repositorio, el commit del sello es el HEAD (desde un zip no hay
+    // repositorio y el sello sale de commit.txt: no hay contra que comparar).
+    string head_704ILR = null;
+    try
+    {
+        var git_704ILR = new System.Diagnostics.ProcessStartInfo("git", "rev-parse HEAD")
+        {
+            WorkingDirectory = AppContext.BaseDirectory,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+        using var proc_704ILR = System.Diagnostics.Process.Start(git_704ILR);
+        string salida_704ILR = proc_704ILR.StandardOutput.ReadToEnd().Trim();
+        proc_704ILR.WaitForExit(10000);
+        if (proc_704ILR.ExitCode == 0 && System.Text.RegularExpressions.Regex.IsMatch(salida_704ILR, "^[0-9a-f]{40}$"))
+            head_704ILR = salida_704ILR;
+    }
+    catch (System.ComponentModel.Win32Exception) { }   // git no esta instalado
+    if (head_704ILR == null)
+        Console.WriteLine("  sin repositorio git a mano: no se compara el sello con el HEAD");
+    else
+        Esperar_704ILR("commit del sello = HEAD del repositorio", actual_704ILR.Commit_704ILR, head_704ILR);
+
+    // Los textos que muestran la version: sembrados en los tres idiomas y con sus
+    // marcadores registrados en el editor de idiomas.
+    string[] clavesV_704ILR = { "APP_VERSION", "APP_COMMIT", "APP_SIN_COMMIT", "APP_CON_CAMBIOS", "ACERCA_TITULO", "ACERCA_COMMIT", "ACERCA_FECHA" };
+    foreach (var idi_704ILR in BLL_Idioma_704ILR.GetIdiomas_704ILR().Where(i_704ILR => i_704ILR.Codigo_704ILR is "ES" or "EN" or "PT"))
+    {
+        var trad_704ILR = BLL_Idioma_704ILR.GetTraducciones_704ILR(idi_704ILR.Id_704ILR);
+        Esperar_704ILR($"claves de la version en {idi_704ILR.Codigo_704ILR}", clavesV_704ILR.Count(c_704ILR => trad_704ILR.ContainsKey(c_704ILR)), clavesV_704ILR.Length);
+    }
+    Esperar_704ILR("plantilla de la version con su marcador",
+        BLL_Idioma_704ILR.PrimeraPlantillaInvalida_704ILR(new Dictionary<string, string> { { "APP_VERSION", "Version {0}" }, { "ACERCA_FECHA", "Fecha: {0}" } }), null);
+    Esperar_704ILR("plantilla de la version sin su marcador: se rechaza",
+        BLL_Idioma_704ILR.PrimeraPlantillaInvalida_704ILR(new Dictionary<string, string> { { "APP_COMMIT", "commit" } }), "APP_COMMIT");
+}
+catch (Exception ex54_704ILR) { Excepcion_704ILR("[54]", ex54_704ILR); }
+
 // ---------------------------------------------------------------------------
 // Limpieza final: lo que cada caso no alcanzo a limpiar (por una excepcion en el
 // medio) se cancela o se borra aca, con asercion. Las reservas de prueba quedan

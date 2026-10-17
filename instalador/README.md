@@ -76,7 +76,10 @@ de 64 bits con .NET 8 incluido, compila `EvenTech.iss` y deja
 Las carpetas `publicado` y `salida` se generan y no se versionan.
 
 La versión del instalador se lee del ejecutable publicado: se cambia en un solo
-lugar, la propiedad `Version` de `EvenTech.UI/EvenTech.UI.csproj`.
+lugar, la propiedad `Version` de `Directory.Build.props`. El guion informa además
+el commit que lleva la aplicación publicada y avisa si se publicó con cambios sin
+commitear: el instalador de una entrega se arma desde el commit entregado, con el
+repositorio limpio (ver "Versión y commit" en el README del repositorio).
 
 El respaldo `db/EvenTechDB.bak` viaja **dentro** del instalador. Como sus
 cotizaciones y reservas pendientes vencen por fecha (regla RN-01), el instalador se

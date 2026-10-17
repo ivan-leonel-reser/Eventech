@@ -29,7 +29,7 @@
   #error No se encuentra la aplicacion publicada. Ejecutar construir.ps1, que la publica antes de compilar.
 #endif
 
-; La version se lee del ejecutable publicado (propiedad Version de EvenTech.UI.csproj).
+; La version se lee del ejecutable publicado (propiedad Version de Directory.Build.props).
 #define Mayor_704ILR
 #define Menor_704ILR
 #define Revision_704ILR

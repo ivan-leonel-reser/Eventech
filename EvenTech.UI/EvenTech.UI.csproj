@@ -8,15 +8,11 @@
     <Nullable>disable</Nullable>
     <LangVersion>latest</LangVersion>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <!-- Identidad del ejecutable instalado. La version es la de la entrega y es la
-         unica que se escribe a mano: el instalador la lee de este ejecutable, y la
-         reinstalacion la compara con la que encuentra instalada. El icono es el de
-         los accesos directos, del menu Inicio y de "Aplicaciones instaladas". -->
-    <Version>2.0.0</Version>
-    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
-    <Product>EvenTech</Product>
+    <!-- Identidad del ejecutable instalado. La version, el producto y la empresa son de
+         toda la solucion (Directory.Build.props), y el commit lo agrega
+         Directory.Build.targets. El icono es el de los accesos directos, del menu Inicio
+         y de "Aplicaciones instaladas". -->
     <AssemblyTitle>EvenTech</AssemblyTitle>
-    <Company>Ivan Leonel Reser</Company>
     <ApplicationIcon>Assets\eventech.ico</ApplicationIcon>
     <!-- Sin conciencia de DPI. Todas las pantallas estan dimensionadas en pixeles de
          96 DPI: con PerMonitorV2 las letras crecian con la escala de Windows y el layout

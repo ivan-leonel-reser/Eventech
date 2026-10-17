@@ -14,7 +14,7 @@ namespace EvenTech.UI
     public class frmLogin_704ILR : FormBase_704ILR, IObservadorIdioma_704ILR
     {
         private TextBox _txtUser_704ILR, _txtPass_704ILR;
-        private Label _lblUser_704ILR, _lblPass_704ILR, _lblTagline_704ILR, _lblStatus_704ILR, _lblCrearCuenta_704ILR;
+        private Label _lblUser_704ILR, _lblPass_704ILR, _lblTagline_704ILR, _lblStatus_704ILR, _lblCrearCuenta_704ILR, _lblVersion_704ILR;
         private CheckBox _chkRemember_704ILR;
         private AppButton_704ILR _btnLogin_704ILR;
 
@@ -219,7 +219,17 @@ namespace EvenTech.UI
             tbl_704ILR.Controls.Add(new Panel { BackColor = Color.Transparent }, 0, 6); // spacer
             tbl_704ILR.Controls.Add(_btnLogin_704ILR, 0, 7);
             tbl_704ILR.Controls.Add(_lblStatus_704ILR, 0, 8);
-            tbl_704ILR.Controls.Add(new Panel { BackColor = Color.Transparent }, 0, 9); // fill
+            // Version y commit, al pie del espacio libre: se ven antes de ingresar, para
+            // comparar el programa con el commit del repositorio.
+            _lblVersion_704ILR = new Label
+            {
+                Dock = DockStyle.Fill,
+                ForeColor = Theme_704ILR.TextLight_704ILR,
+                Font = Theme_704ILR.FontSmall_704ILR,
+                TextAlign = ContentAlignment.BottomCenter,
+                BackColor = Color.Transparent
+            };
+            tbl_704ILR.Controls.Add(_lblVersion_704ILR, 0, 9); // fill
 
             body_704ILR.Controls.Add(tbl_704ILR);
 
@@ -344,6 +354,7 @@ namespace EvenTech.UI
             if (_lblCrearCuenta_704ILR != null) _lblCrearCuenta_704ILR.Text = T_704ILR("LOGIN_CREATE", "¿No tenés cuenta? Crear");
             if (_lblTagline_704ILR != null)     _lblTagline_704ILR.Text     = T_704ILR("LOGIN_TAGLINE", "Gestión de eventos y reservas");
             if (_chkRemember_704ILR != null)    _chkRemember_704ILR.Text    = T_704ILR("LOGIN_REMEMBER", "Recordar cuenta");
+            if (_lblVersion_704ILR != null)     _lblVersion_704ILR.Text     = Tr_704ILR.TextoVersion_704ILR();
             // El mensaje de estado a la vista se vuelve a armar en el idioma nuevo.
             if (_lblStatus_704ILR != null)      _lblStatus_704ILR.Text      = _mensajeEstado_704ILR?.Invoke() ?? "";
         }
