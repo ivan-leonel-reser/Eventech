@@ -200,13 +200,14 @@ namespace EvenTech.DAL
         }
 
         // Desbloqueo por admin: quita el bloqueo y resetea el contador de intentos.
-        public static void Desbloquear_704ILR(int userId_704ILR)
+        // Devuelve las filas afectadas: 0 si la cuenta no existe.
+        public static int Desbloquear_704ILR(int userId_704ILR)
         {
             using (var cn_704ILR = new DAL_DB_Connection_704ILR())
             using (var cmd_704ILR = new SqlCommand("UPDATE dbo.Users SET Blocked = 0, FailedAttempts = 0 WHERE Id = @id", cn_704ILR.OpenConnection_704ILR()))
             {
                 cmd_704ILR.Parameters.Add("@id", SqlDbType.Int).Value = userId_704ILR;
-                cmd_704ILR.ExecuteNonQuery();
+                return cmd_704ILR.ExecuteNonQuery();
             }
         }
     }

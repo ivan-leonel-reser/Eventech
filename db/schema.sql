@@ -3660,6 +3660,54 @@ GROUP BY i.Id, t.Clave;   -- una sola fila por idioma+clave: una clave repetida 
                           -- bloque de arriba no puede romper UQ_Traducciones.
 GO
 
+-- ===========================================================================
+-- Revision de validaciones (31/10/2026). Idempotente.
+--  * CK_Reservas_FechaEventoDia: la operacion se registra por dia completo y la
+--    aplicacion guarda FechaEvento a las 00:00. UX_Reservas_SalonFecha_Confirmada
+--    compara (SalonId, FechaEvento) tal cual: con otra hora, dos CONFIRMADAS del
+--    mismo salon y dia no chocaban (RN-03). La capa de negocio normaliza la fecha;
+--    la restriccion asegura que el indice compara dias. Se agrega solo si todas las
+--    filas ya cumplen (mismo criterio que CK_Reservas_EstadoCoordinacion): una base
+--    con datos alterados por fuera no se modifica en silencio.
+--  * Avisos de rechazos nuevos de la capa de negocio: texto de traduccion de mas de
+--    250 caracteres o con una clave que no es del idioma, observacion del pago de
+--    mas de 200 caracteres, y composicion o asignacion de perfiles que nombra un
+--    perfil, un permiso o una cuenta inexistente. Inserta solo lo que falte. Va
+--    antes de la copia a los idiomas agregados por el usuario, que las recibe.
+-- ===========================================================================
+IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = 'CK_Reservas_FechaEventoDia' AND parent_object_id = OBJECT_ID('dbo.Reservas'))
+   AND NOT EXISTS (SELECT 1 FROM dbo.Reservas WHERE FechaEvento <> CAST(CAST(FechaEvento AS DATE) AS DATETIME))
+    ALTER TABLE dbo.Reservas WITH CHECK ADD CONSTRAINT CK_Reservas_FechaEventoDia
+        CHECK (FechaEvento = CAST(CAST(FechaEvento AS DATE) AS DATETIME));
+GO
+
+;WITH Txt(Codigo, Clave, Texto) AS (
+    SELECT * FROM (VALUES
+        (N'ES', N'IDI_TEXTO_LARGO', N'El texto de ''{0}'' supera los 250 caracteres.'),
+        (N'EN', N'IDI_TEXTO_LARGO', N'The text for ''{0}'' exceeds 250 characters.'),
+        (N'PT', N'IDI_TEXTO_LARGO', N'O texto de ''{0}'' ultrapassa 250 caracteres.'),
+        (N'ES', N'IDI_CLAVE_INVALIDA', N'''{0}'' no es una clave de este idioma. Volvé a cargar el idioma.'),
+        (N'EN', N'IDI_CLAVE_INVALIDA', N'''{0}'' is not a key of this language. Reload the language.'),
+        (N'PT', N'IDI_CLAVE_INVALIDA', N'''{0}'' não é uma chave deste idioma. Carregue o idioma novamente.'),
+        (N'ES', N'MSG_PAGO_OBS_LARGA', N'La observación no puede superar los 200 caracteres.'),
+        (N'EN', N'MSG_PAGO_OBS_LARGA', N'The note cannot exceed 200 characters.'),
+        (N'PT', N'MSG_PAGO_OBS_LARGA', N'A observação não pode ultrapassar 200 caracteres.'),
+        (N'ES', N'MSG_PERF_REFERENCIA', N'No se guardó: un perfil, un permiso o una cuenta ya no existe. Volvé a abrir la sección para ver los datos actuales.'),
+        (N'EN', N'MSG_PERF_REFERENCIA', N'Not saved: a profile, a permission or an account no longer exists. Reopen the section to see the current data.'),
+        (N'PT', N'MSG_PERF_REFERENCIA', N'Não foi salvo: um perfil, uma permissão ou uma conta não existe mais. Abra a seção novamente para ver os dados atuais.')
+    ) AS v(Codigo, Clave, Texto)
+)
+INSERT INTO dbo.Traducciones (IdiomaId, Clave, Texto)
+SELECT i.Id, t.Clave, MIN(t.Texto)
+FROM Txt t
+JOIN dbo.Idiomas i ON i.Codigo = t.Codigo
+WHERE NOT EXISTS (
+    SELECT 1 FROM dbo.Traducciones x WHERE x.IdiomaId = i.Id AND x.Clave = t.Clave
+)
+GROUP BY i.Id, t.Clave;   -- una sola fila por idioma+clave: una clave repetida en el
+                          -- bloque de arriba no puede romper UQ_Traducciones.
+GO
+
 -- ---------------------------------------------------------------------------
 -- Idiomas agregados desde Gestion de Idiomas. Al crearlos, la aplicacion les
 -- copia todas las claves del espanol; las claves que el script suma despues solo

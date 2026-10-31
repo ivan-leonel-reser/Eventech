@@ -210,6 +210,18 @@ namespace EvenTech.Services
             return true;
         }
 
+        // Recorta un texto accesorio al ancho de su columna sin partir un caracter: si el
+        // corte cae entre las dos mitades de un par sustituto (un emoji, por ejemplo), el
+        // par entero queda afuera. Partido, la base guardaba la mitad suelta como el
+        // caracter de reemplazo U+FFFD.
+        public static string Recortar_704ILR(string texto_704ILR, int maximo_704ILR)
+        {
+            if (texto_704ILR == null || texto_704ILR.Length <= maximo_704ILR) return texto_704ILR;
+            int corte_704ILR = maximo_704ILR;
+            if (corte_704ILR > 0 && char.IsHighSurrogate(texto_704ILR[corte_704ILR - 1])) corte_704ILR--;
+            return texto_704ILR.Substring(0, corte_704ILR);
+        }
+
         // El texto tal como se ve, para guardar y comparar nombres: sin los caracteres
         // que no ocupan lugar, con cada tramo de espacios o rellenos como un espacio
         // comun (ninguno en los bordes) y en forma canonica compuesta (una "n" seguida

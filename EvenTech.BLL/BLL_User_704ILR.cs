@@ -20,7 +20,8 @@ namespace EvenTech.BLL
     public enum AsignacionPerfilResult_704ILR
     {
         Success_704ILR,
-        SinGestorDePerfiles_704ILR   // el cambio empeoraba la continuidad de PERFILES_GESTION (ver BLL_Perfil_704ILR.DejaSinGestor_704ILR)
+        SinGestorDePerfiles_704ILR,  // el cambio empeoraba la continuidad de PERFILES_GESTION (ver BLL_Perfil_704ILR.DejaSinGestor_704ILR)
+        ReferenciaInvalida_704ILR    // alguna cuenta o perfil del lote no existe
     }
 
     // Alta de usuarios. La password en claro nunca llega aca: la UI manda solo
@@ -37,12 +38,22 @@ namespace EvenTech.BLL
         public static bool FormatoUsernameValido_704ILR(string username_704ILR)
             => !string.IsNullOrWhiteSpace(username_704ILR) && UsernameRegex_704ILR.IsMatch(username_704ILR);
 
+        private static readonly Regex HashRegex_704ILR = new Regex(@"^[0-9a-f]{64}\z");
+        private static readonly string HashVacio_704ILR = Encrypt_704ILR.HashValue_704ILR(string.Empty);
+        private static bool HashValido_704ILR(string hash_704ILR) => hash_704ILR != null && HashRegex_704ILR.IsMatch(hash_704ILR);
+
         public static CreateUserResult_704ILR CreateUser_704ILR(string username_704ILR, string hashedPassword_704ILR)
         {
             if (!FormatoUsernameValido_704ILR(username_704ILR))
                 return CreateUserResult_704ILR.InvalidUsername_704ILR;
 
-            if (string.IsNullOrEmpty(hashedPassword_704ILR) || hashedPassword_704ILR.Length != 64)
+            // El hash es el SHA-256 en hexadecimal y minusculas que calcula la pantalla
+            // (Encrypt_704ILR.HashValue_704ILR). Otra cosa de 64 caracteres dejaba una cuenta
+            // con la que nunca se podia ingresar: el login compara en forma ordinal. El hash
+            // de la contraseña vacia tampoco se admite: es un valor conocido y la pantalla
+            // exige una contraseña (de al menos 4 caracteres, regla que solo ella puede
+            // medir, porque la contraseña en claro no sale de la pantalla).
+            if (!HashValido_704ILR(hashedPassword_704ILR) || hashedPassword_704ILR == HashVacio_704ILR)
                 return CreateUserResult_704ILR.InvalidPassword_704ILR;
 
             if (DAL_User_704ILR.ExistsUsername_704ILR(username_704ILR))
@@ -94,15 +105,30 @@ namespace EvenTech.BLL
         // entre la validacion y la escritura, lo que la regla leyo.
         public static AsignacionPerfilResult_704ILR AsignarPerfiles_704ILR(IDictionary<int, int?> cambios_704ILR)
         {
+            BLL_Permisos_704ILR.Exigir_704ILR("PERFILES_GESTION", "asignar perfiles a usuarios");
             if (cambios_704ILR == null || cambios_704ILR.Count == 0) return AsignacionPerfilResult_704ILR.Success_704ILR;
 
-            string rechazadas_704ILR = null;
+            string rechazadas_704ILR = null, inexistentes_704ILR = null;
             var asientos_704ILR = new List<KeyValuePair<CriticidadBitacora_704ILR, string>>();
             bool grabado_704ILR = DAL_User_704ILR.SetPerfiles_704ILR(cambios_704ILR, () =>
             {
                 var usuarios_704ILR = DAL_User_704ILR.GetAll_704ILR().ToDictionary(u_704ILR => u_704ILR.Id_704ILR);
                 string Cuenta_704ILR(int id_704ILR) =>
                     usuarios_704ILR.TryGetValue(id_704ILR, out var u_704ILR) ? $"'{u_704ILR.Username_704ILR}' (#{id_704ILR})" : "#" + id_704ILR;
+
+                // Una cuenta o un perfil que no existe no se asigna: el UPDATE no afectaba
+                // ninguna fila (o chocaba con la clave foranea) y la bitacora asentaba una
+                // asignacion que no habia ocurrido.
+                var perfiles_704ILR = new HashSet<int>(DAL_Perfil_704ILR.GetAll_704ILR().Select(p_704ILR => p_704ILR.Id_704ILR));
+                var faltan_704ILR = cambios_704ILR
+                    .Where(kv_704ILR => !usuarios_704ILR.ContainsKey(kv_704ILR.Key) || (kv_704ILR.Value.HasValue && !perfiles_704ILR.Contains(kv_704ILR.Value.Value)))
+                    .Select(kv_704ILR => $"usuario #{kv_704ILR.Key} -> {BLL_Perfil_704ILR.DescribirPerfil_704ILR(kv_704ILR.Value)}")
+                    .ToList();
+                if (faltan_704ILR.Count > 0)
+                {
+                    inexistentes_704ILR = string.Join(", ", faltan_704ILR);
+                    return false;
+                }
 
                 if (BLL_Perfil_704ILR.DejaSinGestor_704ILR(null, cambios_704ILR))
                 {
@@ -127,6 +153,12 @@ namespace EvenTech.BLL
                 return true;
             });
 
+            if (!grabado_704ILR && inexistentes_704ILR != null)
+            {
+                BLL_Bitacora_704ILR.Registrar_704ILR("Perfiles", "Asignacion rechazada", CriticidadBitacora_704ILR.Advertencia,
+                    $"Las asignaciones propuestas nombran cuentas o perfiles que no existen ({inexistentes_704ILR})");
+                return AsignacionPerfilResult_704ILR.ReferenciaInvalida_704ILR;
+            }
             if (!grabado_704ILR)
             {
                 BLL_Bitacora_704ILR.Registrar_704ILR("Perfiles", "Asignacion rechazada", CriticidadBitacora_704ILR.Advertencia,
@@ -139,14 +171,17 @@ namespace EvenTech.BLL
         }
 
         // Desbloqueo de cuenta por un administrador (RF01.3): quita el bloqueo y
-        // resetea el contador de intentos fallidos.
-        public static void Desbloquear_704ILR(int userId_704ILR)
+        // resetea el contador de intentos fallidos. Devuelve false, sin asentar nada, si
+        // la cuenta no existe (antes se asentaba un desbloqueo que no habia ocurrido).
+        public static bool Desbloquear_704ILR(int userId_704ILR)
         {
+            BLL_Permisos_704ILR.Exigir_704ILR("PERFILES_GESTION", "desbloquear una cuenta");
             BE_User_704ILR usuario_704ILR = DAL_User_704ILR.GetById_704ILR(userId_704ILR);
-            DAL_User_704ILR.Desbloquear_704ILR(userId_704ILR);
+            if (DAL_User_704ILR.Desbloquear_704ILR(userId_704ILR) == 0) return false;
             string cuenta_704ILR = usuario_704ILR == null ? "#" + userId_704ILR : $"'{usuario_704ILR.Username_704ILR}' (#{userId_704ILR})";
             BLL_Bitacora_704ILR.Registrar_704ILR("Usuarios", "Desbloqueo de cuenta", CriticidadBitacora_704ILR.Info,
                 $"Usuario {cuenta_704ILR} desbloqueado");
+            return true;
         }
     }
 }

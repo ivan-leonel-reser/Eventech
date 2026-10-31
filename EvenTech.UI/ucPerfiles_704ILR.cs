@@ -358,7 +358,13 @@ namespace EvenTech.UI
             if (!Permisos_704ILR.Exigir_704ILR("PERFILES_GESTION", FindForm(), "desbloquear la cuenta '" + u_704ILR.Username_704ILR + "'")) return;
             try
             {
-                BLL_User_704ILR.Desbloquear_704ILR(u_704ILR.Id_704ILR);
+                if (!BLL_User_704ILR.Desbloquear_704ILR(u_704ILR.Id_704ILR))
+                {
+                    // La cuenta ya no existe (se borro por fuera). La grilla no se recarga: se
+                    // descartarian los perfiles elegidos y todavia no guardados en otras filas.
+                    MensajeAsig_704ILR(() => T_704ILR("MSG_PERF_REFERENCIA", TextoReferenciaInvalida_704ILR), error_704ILR: true);
+                    return;
+                }
                 // Solo cambia el estado de esa cuenta: se actualiza su fila sin recargar
                 // la grilla, que descartaria los perfiles elegidos en otras filas y
                 // todavia no guardados.
@@ -919,6 +925,11 @@ namespace EvenTech.UI
                     MostrarError_704ILR(() => T_704ILR("MSG_PERF_SIN_GESTOR", TextoSinGestor_704ILR));
                     return;
                 }
+                if (res_704ILR == PerfilResult_704ILR.ReferenciaInvalida_704ILR)
+                {
+                    MostrarError_704ILR(() => T_704ILR("MSG_PERF_REFERENCIA", TextoReferenciaInvalida_704ILR));
+                    return;
+                }
 
                 // Refresca la rama: los permisos heredados que muestran los demas
                 // perfiles pueden haber cambiado con esta edicion.
@@ -1072,6 +1083,8 @@ namespace EvenTech.UI
             }
         }
 
+        private const string TextoReferenciaInvalida_704ILR = "No se guardó: un perfil, un permiso o una cuenta ya no existe. Volvé a abrir la sección para ver los datos actuales.";
+
         private const string TextoSinGestor_704ILR = "No se puede guardar: ningún usuario activo quedaría con permiso para gestionar perfiles y desbloquear cuentas.";
 
         private void MostrarError_704ILR(Func<string> texto_704ILR)
@@ -1201,11 +1214,19 @@ namespace EvenTech.UI
                 Dictionary<int, int?> cambios_704ILR = CambiosDeAsignacion_704ILR();
                 // Las filas cambiadas se graban juntas: la regla de que siempre quede
                 // alguien que gestione perfiles se evalua sobre el resultado completo.
-                if (cambios_704ILR.Count > 0 &&
-                    BLL_User_704ILR.AsignarPerfiles_704ILR(cambios_704ILR) == AsignacionPerfilResult_704ILR.SinGestorDePerfiles_704ILR)
+                AsignacionPerfilResult_704ILR resAsig_704ILR = cambios_704ILR.Count > 0
+                    ? BLL_User_704ILR.AsignarPerfiles_704ILR(cambios_704ILR) : AsignacionPerfilResult_704ILR.Success_704ILR;
+                if (resAsig_704ILR == AsignacionPerfilResult_704ILR.SinGestorDePerfiles_704ILR)
                 {
                     // No se graba nada y la grilla conserva lo elegido para corregirlo.
                     MensajeAsig_704ILR(() => T_704ILR("MSG_PERF_SIN_GESTOR", TextoSinGestor_704ILR), error_704ILR: true);
+                    return;
+                }
+                // Una cuenta o un perfil de la grilla ya no existe (se borro por fuera): nada se
+                // grabo y la grilla conserva lo elegido.
+                if (resAsig_704ILR == AsignacionPerfilResult_704ILR.ReferenciaInvalida_704ILR)
+                {
+                    MensajeAsig_704ILR(() => T_704ILR("MSG_PERF_REFERENCIA", TextoReferenciaInvalida_704ILR), error_704ILR: true);
                     return;
                 }
                 // La grilla se recarga con lo persistido: el proximo guardado parte

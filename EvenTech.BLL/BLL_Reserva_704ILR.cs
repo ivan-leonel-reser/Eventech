@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Globalization;
 using Microsoft.Data.SqlClient;
 using EvenTech.BE;
@@ -164,6 +165,7 @@ namespace EvenTech.BLL
         // reserva antes de una baja simultanea la reescribia entera y la reabria.
         public static ReservaResult_704ILR Renovar_704ILR(int reservaId_704ILR)
         {
+            BLL_Permisos_704ILR.Exigir_704ILR("RESERVA_EDITAR", "renovar una reserva");
             BE_Reserva_704ILR r_704ILR;
             bool dvhAlterado_704ILR;
             string estadoAlterado_704ILR;
@@ -223,6 +225,7 @@ namespace EvenTech.BLL
         public static ReservaResult_704ILR Cancelar_704ILR(int reservaId_704ILR,
             out decimal retenido_704ILR, out decimal reembolsable_704ILR)
         {
+            BLL_Permisos_704ILR.Exigir_704ILR("RESERVA_EDITAR", "cancelar una reserva");
             retenido_704ILR = 0m;
             reembolsable_704ILR = 0m;
 
@@ -323,6 +326,7 @@ namespace EvenTech.BLL
         public static ReservaResult_704ILR Crear_704ILR(BE_Reserva_704ILR reserva_704ILR,
             IList<BE_ReservaServicio_704ILR> servicios_704ILR, out int nuevoId_704ILR)
         {
+            BLL_Permisos_704ILR.Exigir_704ILR("RESERVA_CREAR", "crear una reserva");
             nuevoId_704ILR = 0;
             if (reserva_704ILR == null) return ReservaResult_704ILR.InvalidCliente_704ILR;
 
@@ -444,7 +448,10 @@ namespace EvenTech.BLL
         public static ReservaResult_704ILR Actualizar_704ILR(BE_Reserva_704ILR reserva_704ILR,
             IList<BE_ReservaServicio_704ILR> servicios_704ILR)
         {
-            if (reserva_704ILR.Id_704ILR <= 0) return ReservaResult_704ILR.NotFound_704ILR;
+            BLL_Permisos_704ILR.Exigir_704ILR("RESERVA_EDITAR", "editar una reserva");
+            // Sin reserva no hay nada que modificar: la misma respuesta que un id inexistente
+            // (antes una reserva nula terminaba en una excepcion de referencia nula).
+            if (reserva_704ILR == null || reserva_704ILR.Id_704ILR <= 0) return ReservaResult_704ILR.NotFound_704ILR;
 
             BE_Reserva_704ILR antes_704ILR = null;
             bool lineasCambiaron_704ILR = false;
@@ -665,6 +672,7 @@ namespace EvenTech.BLL
         // version, cabecera y lineas en una sola transaccion (ver el encabezado de la clase).
         public static ReservaResult_704ILR RestaurarVersion_704ILR(int reservaId_704ILR, int mementoId_704ILR)
         {
+            BLL_Permisos_704ILR.Exigir_704ILR("RESERVA_RESTAURAR", "restaurar una version de una reserva");
             BE_Reserva_704ILR actual_704ILR = null, restaurada_704ILR = null;
             BE_ReservaMemento_704ILR memento_704ILR = null;
             bool lineasCambian_704ILR = false;
@@ -956,11 +964,26 @@ namespace EvenTech.BLL
         {
             if (servicios_704ILR == null) return true;
             if (!BLL_ReservaServicio_704ILR.ValidarLineas_704ILR(servicios_704ILR)) return false;
+            // Cada linea nombra un servicio del catalogo: uno inexistente chocaba con la
+            // clave foranea dentro de la transaccion y llegaba como error tecnico.
+            var catalogo_704ILR = new HashSet<int>(DAL_Servicio_704ILR.GetAll_704ILR().Select(s_704ILR => s_704ILR.Id_704ILR));
             foreach (var linea_704ILR in servicios_704ILR)
+            {
+                if (!catalogo_704ILR.Contains(linea_704ILR.ServicioId_704ILR)) return false;
+                // El precio se toma como lo guarda la columna (DECIMAL(12,2), redondeo
+                // comercial, el mismo del catalogo y de los cobros) ANTES de sumar: con
+                // 3 x 10,005 el total quedaba en 30,02 y las lineas guardadas sumaban
+                // 30,03, y el monto dejaba de ser la suma de sus lineas.
+                linea_704ILR.PrecioUnitario_704ILR = AlCentavo_704ILR(linea_704ILR.PrecioUnitario_704ILR);
                 if (linea_704ILR.PrecioUnitario_704ILR > MontoMaximo_704ILR) return false;
+            }
             reserva_704ILR.Monto_704ILR = BLL_ReservaServicio_704ILR.Total_704ILR(servicios_704ILR);
             return true;
         }
+
+        // Importe redondeado a centavos con el redondeo comercial (mitad hacia arriba).
+        private static decimal AlCentavo_704ILR(decimal importe_704ILR) =>
+            decimal.Round(importe_704ILR, 2, MidpointRounding.AwayFromZero);
 
         // True si algun campo auditado de la cabecera difiere entre lo persistido y
         // lo pedido (mismos campos que CamposAuditados_704ILR).
@@ -1115,6 +1138,17 @@ namespace EvenTech.BLL
                 reserva_704ILR.FechaEvento_704ILR > FechaEventoMaxima_704ILR ||
                 (!permitirFechaPasada_704ILR && reserva_704ILR.FechaEvento_704ILR.Date < DateTime.Today))
                 return ReservaResult_704ILR.InvalidFecha_704ILR;
+
+            // La operacion se registra por dia completo (G02): la fecha del evento se guarda
+            // a las 00:00, como la carga la ficha. El indice unico de las CONFIRMADA
+            // (UX_Reservas_SalonFecha_Confirmada) compara (salon, FechaEvento) tal cual:
+            // con otra hora, dos confirmaciones simultaneas del mismo salon y dia no se
+            // veian entre si y el indice tampoco las frenaba (RN-03).
+            reserva_704ILR.FechaEvento_704ILR = reserva_704ILR.FechaEvento_704ILR.Date;
+
+            // El monto se toma como lo guarda la columna DECIMAL(12,2), igual que los
+            // cobros: las reglas (RN-04) y el control de cambios comparan lo que queda escrito.
+            reserva_704ILR.Monto_704ILR = AlCentavo_704ILR(reserva_704ILR.Monto_704ILR);
 
             // Monto entre cero y lo que la base puede almacenar (MontoMaximo_704ILR).
             if (reserva_704ILR.Monto_704ILR < 0 || reserva_704ILR.Monto_704ILR > MontoMaximo_704ILR)

@@ -2568,10 +2568,23 @@ int EventoConfirmado_704ILR(int clienteId_704ILR, int salonId_704ILR, int diasVi
 }
 
 // Sesion del usuario de prueba de [2], que [43] vincula con el empleado A: es la
-// identidad con la que ese empleado responde sus turnos y consulta sus tareas.
+// identidad con la que ese empleado responde sus turnos y consulta sus tareas. La
+// capa de negocio exige DISPONIBILIDAD_CONFIRMAR a la sesion que responde (tercera
+// capa del control de acceso), asi que la cuenta lleva el perfil Empleado, como las
+// de la base de demostracion: sin perfil, la ventana principal ni siquiera la deja
+// entrar. Se asigna sin sesion abierta, antes de ingresar.
+bool cuentaConPerfilEmpleado_704ILR = false;
 bool SesionDelEmpleado_704ILR()
 {
     if (SessionManager_704ILR.IsSessionActive_704ILR) BLL_Login_704ILR.Logout_704ILR();
+    if (!cuentaConPerfilEmpleado_704ILR)
+    {
+        var cuentaEmp_704ILR = BLL_User_704ILR.GetAll_704ILR().FirstOrDefault(u_704ILR => u_704ILR.Username_704ILR == newUser_704ILR);
+        var perfilEmp_704ILR = BLL_Perfil_704ILR.GetPerfiles_704ILR().FirstOrDefault(p_704ILR => p_704ILR.Nombre_704ILR == "Empleado");
+        if (cuentaEmp_704ILR != null && perfilEmp_704ILR != null &&
+            BLL_User_704ILR.AsignarPerfil_704ILR(cuentaEmp_704ILR.Id_704ILR, perfilEmp_704ILR.Id_704ILR) == AsignacionPerfilResult_704ILR.Success_704ILR)
+            cuentaConPerfilEmpleado_704ILR = true;
+    }
     return BLL_Login_704ILR.Authenticate_704ILR(newUser_704ILR, Encrypt_704ILR.HashValue_704ILR("pass1234")).Result_704ILR == LoginResult_704ILR.Success_704ILR;
 }
 
@@ -3029,9 +3042,13 @@ try
         Esperar_704ILR("la cuenta de prueba pasa a representar a B", VincularCuenta_704ILR(empA_704ILR, empB_704ILR), true);
         Esperar_704ILR("sesion del empleado B", SesionDelEmpleado_704ILR(), true);
         Esperar_704ILR("B confirma su turno de R1", BLL_AsignacionPersonal_704ILR.Confirmar_704ILR(asigB1b_704ILR, out _), CoordinacionResult_704ILR.Success_704ILR);
+        // La tarea la asigna el coordinador, no la sesion del empleado: la capa de negocio
+        // exige TAREAS_ASIGNAR a la sesion abierta.
+        CerrarSesion_704ILR();
         Esperar_704ILR("R1 listo con B confirmado", EstadoCoord_704ILR(evR1_704ILR), EvenTech.BE.EstadoCoordinacion_704ILR.LISTO);
         Esperar_704ILR("tarea para B", BLL_Tarea_704ILR.Asignar_704ILR(Tarea_704ILR(evR1_704ILR, empB_704ILR, "Atender la barra", H_704ILR(20), H_704ILR(21)), out int tareaB_704ILR), CoordinacionResult_704ILR.Success_704ILR);
         // Cada empleado ve solo sus tareas.
+        Esperar_704ILR("sesion del empleado B (agenda)", SesionDelEmpleado_704ILR(), true);
         Esperar_704ILR("mis tareas (empleado B)", BLL_Tarea_704ILR.GetMisTareas_704ILR(evR1_704ILR).Count, 1);
         CerrarSesion_704ILR();
         // Quien tiene tareas no se quita del equipo, aunque no tenga actividades a cargo.
@@ -4022,6 +4039,192 @@ try
         BLL_Idioma_704ILR.PrimeraPlantillaInvalida_704ILR(new Dictionary<string, string> { { "APP_COMMIT", "commit" } }), "APP_COMMIT");
 }
 catch (Exception ex54_704ILR) { Excepcion_704ILR("[54]", ex54_704ILR); }
+
+// [55] Validaciones reforzadas tras la revision del 31/10/2026: lo que la capa de
+// negocio aceptaba solo porque la pantalla nunca lo mandaba. Cada bloque reproduce el
+// defecto que se encontro llamando a la capa de negocio directamente y espera el
+// rechazo (o la normalizacion) que ahora hace la propia capa.
+Caso_704ILR("[55] Validaciones reforzadas (fecha por dia, montos, referencias, textos y permisos en la capa de negocio):");
+try
+{
+    CerrarSesion_704ILR();
+    var sal55_704ILR = BLL_Salon_704ILR.GetAll_704ILR().Where(s_704ILR => s_704ILR.Capacidad_704ILR >= 50).ToList();
+    var cli55_704ILR = BLL_Cliente_704ILR.GetAll_704ILR();
+    var srv55_704ILR = BLL_Servicio_704ILR.GetActivos_704ILR();
+    if (sal55_704ILR.Count == 0 || cli55_704ILR.Count == 0 || srv55_704ILR.Count == 0)
+    {
+        Omitir_704ILR("[55]", "faltan salones con capacidad, clientes o servicios sembrados");
+    }
+    else
+    {
+        int sal_704ILR = sal55_704ILR[0].Id_704ILR, cli_704ILR = cli55_704ILR[0].Id_704ILR;
+
+        // RN-03 por dia: la fecha del evento se guarda a las 00:00 aunque llegue con hora.
+        DateTime dia55_704ILR = FechaLibre_704ILR(sal_704ILR, DateTime.Today.AddDays(7000 + desfasaje_704ILR));
+        var conHora_704ILR = NuevaReserva_704ILR(cli_704ILR, sal_704ILR, 0, EvenTech.BE.EstadoReserva_704ILR.PENDIENTE, 1000m, 20);
+        conHora_704ILR.FechaEvento_704ILR = dia55_704ILR.AddHours(15).AddMinutes(30);
+        Esperar_704ILR("alta con la fecha a las 15:30", BLL_Reserva_704ILR.Crear_704ILR(conHora_704ILR, out int r55_704ILR), ReservaResult_704ILR.Success_704ILR);
+        Anotar_704ILR(r55_704ILR);
+        Esperar_704ILR("la fecha se guarda a las 00:00",
+            Escalar_704ILR("SELECT CASE WHEN FechaEvento = @d THEN 1 ELSE 0 END FROM dbo.Reservas WHERE Id = @id", ("@d", dia55_704ILR), ("@id", r55_704ILR)), 1);
+
+        // Confirmaciones simultaneas del mismo salon y dia con horas distintas: antes
+        // quedaban varias CONFIRMADAS (el indice unico compara la fecha con su hora).
+        var ids55_704ILR = new List<int>();
+        for (int k_704ILR = 0; k_704ILR < 4; k_704ILR++)
+        {
+            var p_704ILR = NuevaReserva_704ILR(cli_704ILR, sal_704ILR, 0, EvenTech.BE.EstadoReserva_704ILR.PENDIENTE, 1000m, 20);
+            p_704ILR.FechaEvento_704ILR = dia55_704ILR.AddHours(k_704ILR + 1);
+            if (BLL_Reserva_704ILR.Crear_704ILR(p_704ILR, out int idp_704ILR) == ReservaResult_704ILR.Success_704ILR)
+            {
+                Anotar_704ILR(idp_704ILR);
+                Adelanto_704ILR(idp_704ILR, 100m);
+                ids55_704ILR.Add(idp_704ILR);
+            }
+        }
+        Esperar_704ILR("cuatro pendientes con adelanto el mismo dia", ids55_704ILR.Count, 4);
+        var resultados55_704ILR = new System.Collections.Concurrent.ConcurrentBag<ReservaResult_704ILR>();
+        using (var barrera55_704ILR = new Barrier(ids55_704ILR.Count))
+        {
+            var tareas55_704ILR = ids55_704ILR.Select(id_704ILR => Task.Run(() =>
+            {
+                var c_704ILR = BLL_Reserva_704ILR.GetById_704ILR(id_704ILR);
+                c_704ILR.Estado_704ILR = EvenTech.BE.EstadoReserva_704ILR.CONFIRMADA;
+                barrera55_704ILR.SignalAndWait();
+                resultados55_704ILR.Add(BLL_Reserva_704ILR.Actualizar_704ILR(c_704ILR));
+            })).ToArray();
+            Task.WaitAll(tareas55_704ILR);
+        }
+        Esperar_704ILR("confirmaciones simultaneas aceptadas", resultados55_704ILR.Count(r_704ILR => r_704ILR == ReservaResult_704ILR.Success_704ILR), 1);
+        Esperar_704ILR("una sola CONFIRMADA ese dia en ese salon (RN-03)",
+            Escalar_704ILR("SELECT COUNT(*) FROM dbo.Reservas WHERE SalonId = @s AND CAST(FechaEvento AS DATE) = @d AND Estado = 'CONFIRMADA'",
+                ("@s", sal_704ILR), ("@d", dia55_704ILR.Date)), 1);
+        foreach (int id_704ILR in ids55_704ILR) BLL_Reserva_704ILR.Cancelar_704ILR(id_704ILR, out _, out _);
+
+        // La base tambien lo exige: una fecha con hora escrita por fuera se rechaza.
+        int numero55_704ILR = 0, idCruda_704ILR = 0;
+        try
+        {
+            idCruda_704ILR = EvenTech.DAL.DAL_Reserva_704ILR.Insert_704ILR(new EvenTech.BE.BE_Reserva_704ILR
+            {
+                ClienteId_704ILR = cli_704ILR, SalonId_704ILR = sal_704ILR, FechaEvento_704ILR = dia55_704ILR.AddHours(9),
+                Estado_704ILR = EvenTech.BE.EstadoReserva_704ILR.COTIZACION, Monto_704ILR = 1m, Dvh_704ILR = "smoke"
+            });
+        }
+        catch (Microsoft.Data.SqlClient.SqlException exCk_704ILR) { numero55_704ILR = exCk_704ILR.Number; }
+        if (idCruda_704ILR > 0) Ejecutar_704ILR("DELETE FROM dbo.Reservas WHERE Id = @id", ("@id", idCruda_704ILR));
+        Esperar_704ILR("CK_Reservas_FechaEventoDia rechaza una fecha con hora (547)", numero55_704ILR, 547);
+
+        // El monto es la suma de las lineas tal como quedan guardadas (precio a centavos).
+        var lineas55_704ILR = new List<EvenTech.BE.BE_ReservaServicio_704ILR>
+            { new EvenTech.BE.BE_ReservaServicio_704ILR { ServicioId_704ILR = srv55_704ILR[0].Id_704ILR, Cantidad_704ILR = 3, PrecioUnitario_704ILR = 10.005m } };
+        Esperar_704ILR("alta con precio de tres decimales",
+            BLL_Reserva_704ILR.Crear_704ILR(NuevaReserva_704ILR(cli_704ILR, sal_704ILR, 7010, EvenTech.BE.EstadoReserva_704ILR.COTIZACION, 0m), lineas55_704ILR, out int rLin_704ILR),
+            ReservaResult_704ILR.Success_704ILR);
+        Anotar_704ILR(rLin_704ILR);
+        Esperar_704ILR("monto = suma de las lineas guardadas",
+            Escalar_704ILR("SELECT CASE WHEN r.Monto = (SELECT SUM(Cantidad * PrecioUnitario) FROM dbo.ReservaServicio WHERE ReservaId = r.Id) THEN 1 ELSE 0 END FROM dbo.Reservas r WHERE r.Id = @id",
+                ("@id", rLin_704ILR)), 1);
+
+        // Referencias inexistentes: un resultado de la capa de negocio, no un error del motor.
+        int reservasAntes_704ILR = Escalar_704ILR("SELECT COUNT(*) FROM dbo.Reservas");
+        Esperar_704ILR("linea con un servicio inexistente",
+            BLL_Reserva_704ILR.Crear_704ILR(NuevaReserva_704ILR(cli_704ILR, sal_704ILR, 7011, EvenTech.BE.EstadoReserva_704ILR.COTIZACION, 0m),
+                new List<EvenTech.BE.BE_ReservaServicio_704ILR> { new EvenTech.BE.BE_ReservaServicio_704ILR { ServicioId_704ILR = int.MaxValue, Cantidad_704ILR = 1, PrecioUnitario_704ILR = 1m } }, out _),
+            ReservaResult_704ILR.InvalidMonto_704ILR);
+        Esperar_704ILR("sin reserva huerfana", Escalar_704ILR("SELECT COUNT(*) FROM dbo.Reservas"), reservasAntes_704ILR);
+        Esperar_704ILR("modificar una reserva nula", BLL_Reserva_704ILR.Actualizar_704ILR(null), ReservaResult_704ILR.NotFound_704ILR);
+        Esperar_704ILR("cobro con un metodo inexistente",
+            BLL_Pago_704ILR.Registrar_704ILR(new EvenTech.BE.BE_Pago_704ILR { ReservaId_704ILR = r55_704ILR, MetodoPagoId_704ILR = int.MaxValue, Monto_704ILR = 1m }, out _),
+            PagoResult_704ILR.MetodoInvalido_704ILR);
+        int metodo55_704ILR = BLL_Pago_704ILR.GetMetodos_704ILR()[0].Id_704ILR;
+        Esperar_704ILR("observacion de 201 caracteres",
+            BLL_Pago_704ILR.Registrar_704ILR(new EvenTech.BE.BE_Pago_704ILR { ReservaId_704ILR = r55_704ILR, MetodoPagoId_704ILR = metodo55_704ILR, Monto_704ILR = 1m, Observacion_704ILR = new string('7', 201) }, out _),
+            PagoResult_704ILR.ObservacionLarga_704ILR);
+        Esperar_704ILR("observacion de 200 caracteres",
+            BLL_Pago_704ILR.Registrar_704ILR(new EvenTech.BE.BE_Pago_704ILR { ReservaId_704ILR = r55_704ILR, MetodoPagoId_704ILR = metodo55_704ILR, Monto_704ILR = 1m, Observacion_704ILR = new string('7', 200) }, out int pago55_704ILR),
+            PagoResult_704ILR.Success_704ILR);
+        Esperar_704ILR("se guarda entera", Escalar_704ILR("SELECT LEN(Observacion) FROM dbo.Pagos WHERE Id = @id", ("@id", pago55_704ILR)), 200);
+
+        // Perfiles y cuentas inexistentes: sin exito ni asiento de algo que no ocurrio.
+        int asigAntes_704ILR = Asientos_704ILR("Perfiles", "Asignacion de perfil");
+        Esperar_704ILR("asignar perfil a una cuenta inexistente",
+            BLL_User_704ILR.AsignarPerfiles_704ILR(new Dictionary<int, int?> { [int.MaxValue] = null }), AsignacionPerfilResult_704ILR.ReferenciaInvalida_704ILR);
+        Esperar_704ILR("sin asiento de asignacion", Asientos_704ILR("Perfiles", "Asignacion de perfil"), asigAntes_704ILR);
+        int desbloqAntes_704ILR = Asientos_704ILR("Usuarios", "Desbloqueo de cuenta");
+        Esperar_704ILR("desbloquear una cuenta inexistente", BLL_User_704ILR.Desbloquear_704ILR(int.MaxValue), false);
+        Esperar_704ILR("sin asiento de desbloqueo", Asientos_704ILR("Usuarios", "Desbloqueo de cuenta"), desbloqAntes_704ILR);
+        Esperar_704ILR("composicion con un permiso inexistente",
+            BLL_Perfil_704ILR.GuardarComposicion_704ILR(BLL_Perfil_704ILR.GetPerfiles_704ILR()[0].Id_704ILR, new[] { int.MaxValue }, null), PerfilResult_704ILR.ReferenciaInvalida_704ILR);
+        Esperar_704ILR("perfil con descripcion de 300 caracteres",
+            BLL_Perfil_704ILR.CrearPerfil_704ILR("Smoke55 " + suf_704ILR, new string('d', 300), out int perfil55_704ILR), PerfilResult_704ILR.Success_704ILR);
+        if (perfil55_704ILR > 0) perfilesDeLaCorrida_704ILR.Add(perfil55_704ILR);
+        Esperar_704ILR("descripcion recortada a 250 por la capa de negocio",
+            Escalar_704ILR("SELECT LEN(Descripcion) FROM dbo.Perfiles WHERE Id = @id", ("@id", perfil55_704ILR)), 250);
+        BorrarPerfilDePrueba_704ILR(perfil55_704ILR);
+
+        // Contraseña: solo el hash que calcula la pantalla y nunca el de la cadena vacia.
+        Esperar_704ILR("alta con el hash de la contraseña vacia",
+            BLL_User_704ILR.CreateUser_704ILR("smoke55v_" + suf_704ILR, Encrypt_704ILR.HashValue_704ILR("")), CreateUserResult_704ILR.InvalidPassword_704ILR);
+        Esperar_704ILR("alta con el hash en mayusculas",
+            BLL_User_704ILR.CreateUser_704ILR("smoke55m_" + suf_704ILR, Encrypt_704ILR.HashValue_704ILR("pass1234").ToUpperInvariant()), CreateUserResult_704ILR.InvalidPassword_704ILR);
+
+        // Recorte de textos accesorios sin partir un caracter.
+        string recortado55_704ILR = GestorDeIdioma_704ILR.Recortar_704ILR(new string('a', 249) + "\U0001F600" + "bbb", 250);
+        Esperar_704ILR("recorte que no parte un emoji", recortado55_704ILR.Length == 249 && !char.IsSurrogate(recortado55_704ILR[^1]), true);
+
+        // Traducciones: largo y clave exacta.
+        string cod55_704ILR = "Z" + suf_704ILR.Substring(suf_704ILR.Length - 4);
+        Esperar_704ILR("idioma de prueba", BLL_Idioma_704ILR.CrearIdioma_704ILR(cod55_704ILR, "Smoke55 " + suf_704ILR, out int idi55_704ILR), IdiomaResult_704ILR.Success_704ILR);
+        string plantilla55_704ILR = Escalar_704ILR("SELECT COUNT(*) FROM dbo.Traducciones WHERE IdiomaId = @i AND Clave = 'LOGIN_INTENTOS'", ("@i", idi55_704ILR)) == 1
+            ? BLL_Idioma_704ILR.GetTraducciones_704ILR(idi55_704ILR)["LOGIN_INTENTOS"] : null;
+        Esperar_704ILR("texto de 251 caracteres con la plantilla",
+            BLL_Idioma_704ILR.GuardarTraducciones_704ILR(idi55_704ILR, new Dictionary<string, string> { ["LOGIN_INTENTOS"] = new string('x', 244) + " {0} {1} " }, out _),
+            TraduccionResult_704ILR.TextoLargo_704ILR);
+        Esperar_704ILR("clave con otra capitalizacion",
+            BLL_Idioma_704ILR.GuardarTraducciones_704ILR(idi55_704ILR, new Dictionary<string, string> { ["login_intentos"] = "Intento" }, out string claveMal_704ILR),
+            TraduccionResult_704ILR.ClaveInvalida_704ILR);
+        Esperar_704ILR("nombra la clave rechazada", claveMal_704ILR, "login_intentos");
+        Esperar_704ILR("LOGIN_INTENTOS intacta", BLL_Idioma_704ILR.GetTraducciones_704ILR(idi55_704ILR)["LOGIN_INTENTOS"], plantilla55_704ILR);
+        BorrarIdiomaDePrueba_704ILR(idi55_704ILR);
+
+        // Dos altas simultaneas con el mismo nombre de idioma: una sola.
+        string nombreConc_704ILR = "Smoke55c " + suf_704ILR;
+        var altas55_704ILR = new System.Collections.Concurrent.ConcurrentBag<IdiomaResult_704ILR>();
+        using (var barreraI_704ILR = new Barrier(4))
+        {
+            var tareasI_704ILR = Enumerable.Range(0, 4).Select(k_704ILR => Task.Run(() =>
+            {
+                barreraI_704ILR.SignalAndWait();
+                altas55_704ILR.Add(BLL_Idioma_704ILR.CrearIdioma_704ILR("Y" + k_704ILR + suf_704ILR.Substring(suf_704ILR.Length - 3), nombreConc_704ILR, out _));
+            })).ToArray();
+            Task.WaitAll(tareasI_704ILR);
+        }
+        Esperar_704ILR("altas simultaneas aceptadas", altas55_704ILR.Count(r_704ILR => r_704ILR == IdiomaResult_704ILR.Success_704ILR), 1);
+        Esperar_704ILR("un solo idioma con ese nombre", Escalar_704ILR("SELECT COUNT(*) FROM dbo.Idiomas WHERE Nombre = @n", ("@n", nombreConc_704ILR)), 1);
+        foreach (var idioma_704ILR in BLL_Idioma_704ILR.GetIdiomas_704ILR().Where(i_704ILR => i_704ILR.Nombre_704ILR == nombreConc_704ILR).ToList())
+            BorrarIdiomaDePrueba_704ILR(idioma_704ILR.Id_704ILR);
+
+        // Tercera capa del control de acceso: una sesion sin el permiso no escribe por la
+        // capa de negocio, aunque saltee la pantalla. La sesion del empleado de prueba
+        // (perfil Empleado) no tiene CLIENTES_GESTION ni CRONOGRAMA_GESTION.
+        Esperar_704ILR("sesion del empleado (perfil Empleado)", SesionDelEmpleado_704ILR(), true);
+        int denegadosAntes_704ILR = Asientos_704ILR("Seguridad", "Acceso denegado");
+        int clientesAntes_704ILR = Escalar_704ILR("SELECT COUNT(*) FROM dbo.Clientes");
+        string denegado_704ILR = "sin excepcion";
+        try { BLL_Cliente_704ILR.Crear_704ILR(new EvenTech.BE.BE_Cliente_704ILR { Nombre_704ILR = "Smoke55" }, out _); }
+        catch (PermisoDenegadoException_704ILR exPerm_704ILR) { denegado_704ILR = exPerm_704ILR.Clave_704ILR; }
+        string denegado2_704ILR = "sin excepcion";
+        try { BLL_Cronograma_704ILR.Eliminar_704ILR(r55_704ILR); }
+        catch (PermisoDenegadoException_704ILR exPerm2_704ILR) { denegado2_704ILR = exPerm2_704ILR.Clave_704ILR; }
+        CerrarSesion_704ILR();
+        Esperar_704ILR("alta de cliente sin CLIENTES_GESTION", denegado_704ILR, "CLIENTES_GESTION");
+        Esperar_704ILR("eliminar un cronograma sin CRONOGRAMA_GESTION", denegado2_704ILR, "CRONOGRAMA_GESTION");
+        Esperar_704ILR("ningun cliente nuevo", Escalar_704ILR("SELECT COUNT(*) FROM dbo.Clientes"), clientesAntes_704ILR);
+        Esperar_704ILR("asientos 'Acceso denegado'", Asientos_704ILR("Seguridad", "Acceso denegado") - denegadosAntes_704ILR, 2);
+    }
+}
+catch (Exception ex55_704ILR) { Excepcion_704ILR("[55]", ex55_704ILR); CerrarSesion_704ILR(); }
 
 // ---------------------------------------------------------------------------
 // Limpieza final: lo que cada caso no alcanzo a limpiar (por una excepcion en el

@@ -34,6 +34,7 @@ namespace EvenTech.BLL
         // quien todavia no respondio y, recien entonces, quitarlo del equipo.
         public static CoordinacionResult_704ILR Guardar_704ILR(int reservaId_704ILR, IList<BE_CronogramaActividad_704ILR> actividades_704ILR)
         {
+            BLL_Permisos_704ILR.Exigir_704ILR("CRONOGRAMA_GESTION", "guardar un cronograma");
             if (actividades_704ILR == null || actividades_704ILR.Count == 0) return CoordinacionResult_704ILR.SinActividades_704ILR;
 
             // Cada actividad se normaliza como se guarda: la descripcion tal como se ve
@@ -117,6 +118,7 @@ namespace EvenTech.BLL
         // primero se quitan.
         public static CoordinacionResult_704ILR Eliminar_704ILR(int reservaId_704ILR)
         {
+            BLL_Permisos_704ILR.Exigir_704ILR("CRONOGRAMA_GESTION", "eliminar un cronograma");
             CoordinacionResult_704ILR resultado_704ILR;
             using (var cn_704ILR = new DAL_DB_Connection_704ILR())
             {

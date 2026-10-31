@@ -270,8 +270,11 @@ independiente del estado comercial: `SIN_ASIGNAR` (sin personal), `EN_COORDINACI
   cada cobro guardan el horizontal en la misma transacción y recalculan el
   vertical; se verifican al arrancar, antes del login, y delatan una fila
   alterada, agregada o quitada por fuera del sistema.
-- Permisos por perfil con **denegar por defecto** y doble control: la sección se
-  oculta y la acción se vuelve a exigir al ejecutarse. Los permisos efectivos se
+- Permisos por perfil con **denegar por defecto** y triple control: la sección se
+  oculta, la pantalla vuelve a exigir el permiso al ejecutar la acción y la capa de
+  negocio lo exige otra vez a la sesión abierta antes de escribir (un rechazo ahí
+  se asienta como «Acceso denegado» y se informa como «sin permiso»). Sin sesión
+  abierta opera el propio sistema (arranque, instalador, pruebas). Los permisos efectivos se
   resuelven al iniciar sesión y rigen durante toda ella: un cambio de perfil, de
   composición o de asignación se aplica desde el siguiente inicio de sesión del
   usuario afectado.
@@ -293,9 +296,12 @@ incidencias, reprogramación y cancelación), las trece reglas de negocio, cobro
 simultáneos, guardados simultáneos (el dígito verificador vertical se recalcula de
 a un puesto por vez), el dígito verificador de los pagos (un pago alterado,
 duplicado o quitado por fuera se detecta), restauración de versiones y el sello de
-versión y commit de los ensamblados. Son 54 casos numerados `[1]` a `[54]`, más un
-bloque `[limpieza]` y un `[cierre]` que vuelve a verificar la integridad de toda la
-base al terminar: 56 casos y 905 verificaciones en total.
+versión y commit de los ensamblados, y las validaciones que la capa de negocio
+hace aunque la pantalla nunca le mande el dato (fecha del evento por día, importes
+a centavos, referencias inexistentes, textos que no entran en su columna, permisos
+de la sesión). Son 55 casos numerados `[1]` a `[55]`, más un bloque `[limpieza]` y
+un `[cierre]` que vuelve a verificar la integridad de toda la base al terminar: 57
+casos y 945 verificaciones en total.
 
 ```bat
 dotnet run --project EvenTech.SmokeTest

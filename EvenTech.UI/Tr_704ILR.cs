@@ -75,6 +75,10 @@ namespace EvenTech.UI
         // por nombre de tipo y de propiedad para no atar la UI al proveedor de datos.
         public static string MensajeExcepcion_704ILR(Exception ex_704ILR)
         {
+            // La capa de negocio volvio a exigir un permiso que la sesion no tiene (tercera
+            // capa del control de acceso): el mismo aviso que la segunda capa de la pantalla.
+            if (ex_704ILR is EvenTech.BLL.PermisoDenegadoException_704ILR)
+                return F_704ILR("MSG_SIN_PERMISO", "No tenés permiso para realizar esta acción.");
             Exception sql_704ILR = PrimeraSqlException_704ILR(ex_704ILR);
             if (sql_704ILR != null)
                 return SinConexion_704ILR(sql_704ILR)

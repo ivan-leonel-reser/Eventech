@@ -397,6 +397,18 @@ namespace EvenTech.UI
                 }
                 // CMP_FILTER es el filtro del cuadro "Guardar como" del comprobante: sin
                 // pares descripcion|patron el cuadro no se abre y el boton queda inservible.
+                if (res_704ILR == TraduccionResult_704ILR.TextoLargo_704ILR)
+                {
+                    Mensaje_704ILR(Tr_704ILR.F_704ILR("IDI_TEXTO_LARGO",
+                        "El texto de '{0}' supera los 250 caracteres.", clave_704ILR), true);
+                    return false;
+                }
+                if (res_704ILR == TraduccionResult_704ILR.ClaveInvalida_704ILR)
+                {
+                    Mensaje_704ILR(Tr_704ILR.F_704ILR("IDI_CLAVE_INVALIDA",
+                        "'{0}' no es una clave de este idioma. Volvé a cargar el idioma.", clave_704ILR), true);
+                    return false;
+                }
                 if (res_704ILR == TraduccionResult_704ILR.FiltroInvalido_704ILR)
                 {
                     Mensaje_704ILR(Tr_704ILR.F_704ILR("IDI_FILTRO_INVALIDO",

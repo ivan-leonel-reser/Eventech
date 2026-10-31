@@ -17,7 +17,8 @@ namespace EvenTech.BLL
         ReservaInvalida_704ILR,       // la reserva no existe o su estado almacenado esta fuera del ciclo de vida (RN-05)
         ReservaCancelada_704ILR,      // estado terminal: no admite movimientos de cobro
         PagoInvalido_704ILR,          // el pago a anular no existe o es de otra reserva
-        ConfirmadaSinAdelanto_704ILR  // RN-07: la anulacion dejaria una CONFIRMADA sin nada cobrado
+        ConfirmadaSinAdelanto_704ILR, // RN-07: la anulacion dejaria una CONFIRMADA sin nada cobrado
+        ObservacionLarga_704ILR       // la observacion no entra en Pagos.Observacion (200)
     }
 
     // Reglas de negocio de pagos (Proceso 1, paso 5): cobro de adelanto/saldo de
@@ -31,6 +32,9 @@ namespace EvenTech.BLL
     // alterado, agregado o quitado por fuera del sistema.
     public static class BLL_Pago_704ILR
     {
+        // Ancho de Pagos.Observacion. Publico: la pantalla de cobros limita el tipeo con el.
+        public const int MaxObservacion_704ILR = 200;
+
         // Los importes del detalle de la bitacora se escriben siempre con el mismo
         // formato ("1500,50", el de los asientos que ya trae la base de demostracion),
         // sin depender de la configuracion regional de la estacion que opero: antes el
@@ -54,9 +58,19 @@ namespace EvenTech.BLL
 
         public static PagoResult_704ILR Registrar_704ILR(BE_Pago_704ILR p_704ILR, out int nuevoId_704ILR)
         {
+            BLL_Permisos_704ILR.Exigir_704ILR("PAGOS_REGISTRAR", "registrar un pago");
             nuevoId_704ILR = 0;
             if (p_704ILR == null || p_704ILR.ReservaId_704ILR <= 0) return PagoResult_704ILR.ReservaInvalida_704ILR;
-            if (p_704ILR.MetodoPagoId_704ILR <= 0) return PagoResult_704ILR.MetodoInvalido_704ILR;
+            // El metodo tiene que ser uno del catalogo: uno inexistente chocaba con la clave
+            // foranea dentro de la transaccion y llegaba como error tecnico.
+            if (p_704ILR.MetodoPagoId_704ILR <= 0 ||
+                !DAL_MetodoPago_704ILR.GetAll_704ILR().Exists(m_704ILR => m_704ILR.Id_704ILR == p_704ILR.MetodoPagoId_704ILR))
+                return PagoResult_704ILR.MetodoInvalido_704ILR;
+            // La observacion (la referencia bancaria de un pago electronico, por ejemplo) entra
+            // en el digito verificador del pago: no se guarda recortada. Antes la recortaba en
+            // silencio el parametro de la capa de datos.
+            if (p_704ILR.Observacion_704ILR != null && p_704ILR.Observacion_704ILR.Length > MaxObservacion_704ILR)
+                return PagoResult_704ILR.ObservacionLarga_704ILR;
             // Pagos.Monto es DECIMAL(12,2) y la pantalla muestra dos decimales: las reglas
             // se aplican sobre el importe que se guarda y que el usuario ve. Antes 0,004
             // pasaba como positivo y se guardaba un pago de 0,00, y 1000,004 superaba un
@@ -166,6 +180,7 @@ namespace EvenTech.BLL
         // reserva CONFIRMADA no puede quedar sin nada cobrado (RN-07).
         public static PagoResult_704ILR Eliminar_704ILR(int pagoId_704ILR, int reservaId_704ILR)
         {
+            BLL_Permisos_704ILR.Exigir_704ILR("PAGOS_ANULAR", "anular un pago");
             if (pagoId_704ILR <= 0 || reservaId_704ILR <= 0) return PagoResult_704ILR.ReservaInvalida_704ILR;
 
             // Misma transaccion que el cobro (ver Registrar_704ILR). La cabecera se

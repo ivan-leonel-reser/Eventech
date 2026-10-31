@@ -43,6 +43,7 @@ namespace EvenTech.BLL
         public static CoordinacionResult_704ILR Asignar_704ILR(int reservaId_704ILR, int empleadoId_704ILR, string rol_704ILR,
             TimeSpan horaInicio_704ILR, TimeSpan horaFin_704ILR, out int asignacionId_704ILR, out BE_AsignacionPersonal_704ILR conflicto_704ILR)
         {
+            BLL_Permisos_704ILR.Exigir_704ILR("PERSONAL_ASIGNAR", "asignar personal");
             asignacionId_704ILR = 0;
             conflicto_704ILR = null;
 
@@ -133,6 +134,7 @@ namespace EvenTech.BLL
         // del cronograma a cargo o tareas en el evento: primero se reasignan.
         public static CoordinacionResult_704ILR Quitar_704ILR(int asignacionId_704ILR)
         {
+            BLL_Permisos_704ILR.Exigir_704ILR("PERSONAL_ASIGNAR", "quitar personal");
             BE_AsignacionPersonal_704ILR asignacion_704ILR = asignacionId_704ILR <= 0 ? null : DAL_AsignacionPersonal_704ILR.GetById_704ILR(asignacionId_704ILR);
             if (asignacion_704ILR == null) return CoordinacionResult_704ILR.AsignacionInvalida_704ILR;
 
@@ -193,6 +195,7 @@ namespace EvenTech.BLL
         private static CoordinacionResult_704ILR Responder_704ILR(int asignacionId_704ILR, bool acepta_704ILR, string motivo_704ILR,
             out BE_AsignacionPersonal_704ILR conflicto_704ILR)
         {
+            BLL_Permisos_704ILR.Exigir_704ILR("DISPONIBILIDAD_CONFIRMAR", "responder un turno");
             conflicto_704ILR = null;
             BE_Empleado_704ILR deLaSesion_704ILR = BLL_Empleado_704ILR.GetDeLaSesion_704ILR();
             if (deLaSesion_704ILR == null)
@@ -209,7 +212,7 @@ namespace EvenTech.BLL
             {
                 motivo_704ILR = GestorDeIdioma_704ILR.TextoVisible_704ILR(motivo_704ILR);
                 if (motivo_704ILR.Length == 0) return CoordinacionResult_704ILR.MotivoObligatorio_704ILR;
-                if (motivo_704ILR.Length > MaxMotivo_704ILR) motivo_704ILR = motivo_704ILR.Substring(0, MaxMotivo_704ILR);
+                motivo_704ILR = GestorDeIdioma_704ILR.Recortar_704ILR(motivo_704ILR, MaxMotivo_704ILR);
             }
 
             BE_AsignacionPersonal_704ILR asignacion_704ILR = asignacionId_704ILR <= 0 ? null : DAL_AsignacionPersonal_704ILR.GetById_704ILR(asignacionId_704ILR);

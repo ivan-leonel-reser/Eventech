@@ -52,6 +52,7 @@ namespace EvenTech.BLL
 
         public static EmpleadoResult_704ILR Crear_704ILR(BE_Empleado_704ILR e_704ILR, out int nuevoId_704ILR)
         {
+            BLL_Permisos_704ILR.Exigir_704ILR("EMPLEADOS_GESTION", "crear un empleado");
             nuevoId_704ILR = 0;
             var v_704ILR = Validar_704ILR(e_704ILR, 0);
             if (v_704ILR != EmpleadoResult_704ILR.Success_704ILR) return v_704ILR;
@@ -76,6 +77,7 @@ namespace EvenTech.BLL
 
         public static EmpleadoResult_704ILR Actualizar_704ILR(BE_Empleado_704ILR e_704ILR)
         {
+            BLL_Permisos_704ILR.Exigir_704ILR("EMPLEADOS_GESTION", "modificar un empleado");
             if (e_704ILR == null || e_704ILR.Id_704ILR <= 0 || DAL_Empleado_704ILR.GetById_704ILR(e_704ILR.Id_704ILR) == null)
                 return EmpleadoResult_704ILR.NotFound_704ILR;
             var v_704ILR = Validar_704ILR(e_704ILR, e_704ILR.Id_704ILR);

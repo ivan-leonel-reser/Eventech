@@ -50,6 +50,7 @@ namespace EvenTech.BLL
         // 01:30 ocurre despues de la medianoche.
         public static CoordinacionResult_704ILR Asignar_704ILR(BE_Tarea_704ILR tarea_704ILR, out int nuevoId_704ILR)
         {
+            BLL_Permisos_704ILR.Exigir_704ILR("TAREAS_ASIGNAR", "asignar una tarea");
             nuevoId_704ILR = 0;
             if (tarea_704ILR == null) return CoordinacionResult_704ILR.DescripcionInvalida_704ILR;
 
@@ -59,7 +60,7 @@ namespace EvenTech.BLL
             // Los recursos son un dato accesorio: se recortan a lo que entra.
             tarea_704ILR.Recursos_704ILR = GestorDeIdioma_704ILR.TextoVisible_704ILR(tarea_704ILR.Recursos_704ILR);
             if (tarea_704ILR.Recursos_704ILR.Length > MaxRecursos_704ILR)
-                tarea_704ILR.Recursos_704ILR = tarea_704ILR.Recursos_704ILR.Substring(0, MaxRecursos_704ILR);
+                tarea_704ILR.Recursos_704ILR = GestorDeIdioma_704ILR.Recortar_704ILR(tarea_704ILR.Recursos_704ILR, MaxRecursos_704ILR);
             if (!BLL_Coordinacion_704ILR.HoraDelDia_704ILR(tarea_704ILR.HoraInicio_704ILR) || !BLL_Coordinacion_704ILR.HoraDelDia_704ILR(tarea_704ILR.HoraFin_704ILR))
                 return CoordinacionResult_704ILR.FranjaInvalida_704ILR;
             tarea_704ILR.HoraInicio_704ILR = BLL_Coordinacion_704ILR.AlMinuto_704ILR(tarea_704ILR.HoraInicio_704ILR);
@@ -123,6 +124,7 @@ namespace EvenTech.BLL
 
         public static CoordinacionResult_704ILR Quitar_704ILR(int tareaId_704ILR)
         {
+            BLL_Permisos_704ILR.Exigir_704ILR("TAREAS_ASIGNAR", "quitar una tarea");
             BE_Tarea_704ILR tarea_704ILR = tareaId_704ILR <= 0 ? null : DAL_Tarea_704ILR.GetById_704ILR(tareaId_704ILR);
             if (tarea_704ILR == null) return CoordinacionResult_704ILR.TareaInvalida_704ILR;
 

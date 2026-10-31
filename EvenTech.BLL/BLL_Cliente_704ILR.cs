@@ -48,6 +48,7 @@ namespace EvenTech.BLL
 
         public static ClienteResult_704ILR Crear_704ILR(BE_Cliente_704ILR c_704ILR, out int nuevoId_704ILR)
         {
+            BLL_Permisos_704ILR.Exigir_704ILR("CLIENTES_GESTION", "crear un cliente");
             nuevoId_704ILR = 0;
             var v_704ILR = Validar_704ILR(c_704ILR, 0);
             if (v_704ILR != ClienteResult_704ILR.Success_704ILR) return v_704ILR;
@@ -74,6 +75,7 @@ namespace EvenTech.BLL
 
         public static ClienteResult_704ILR Actualizar_704ILR(BE_Cliente_704ILR c_704ILR)
         {
+            BLL_Permisos_704ILR.Exigir_704ILR("CLIENTES_GESTION", "modificar un cliente");
             if (c_704ILR == null || c_704ILR.Id_704ILR <= 0 || !DAL_Cliente_704ILR.Exists_704ILR(c_704ILR.Id_704ILR)) return ClienteResult_704ILR.NotFound_704ILR;
             var v_704ILR = Validar_704ILR(c_704ILR, c_704ILR.Id_704ILR);
             if (v_704ILR != ClienteResult_704ILR.Success_704ILR) return v_704ILR;

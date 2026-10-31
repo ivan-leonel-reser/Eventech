@@ -32,6 +32,7 @@ namespace EvenTech.BLL
         // Se omite, sigue a la vista de la verificacion y el asiento la nombra.
         public static int RecalcularTodo_704ILR()
         {
+            BLL_Permisos_704ILR.Exigir_704ILR("INTEGRIDAD_RECALC", "recalcular la linea base de integridad");
             var reservas_704ILR = DAL_Reserva_704ILR.GetAll_704ILR();
             List<int> fueraDeDominio_704ILR = DAL_Reserva_704ILR.IdsConEstadoFueraDeDominio_704ILR();
             var omitir_704ILR = new HashSet<int>(fueraDeDominio_704ILR);

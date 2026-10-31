@@ -27,6 +27,7 @@ namespace EvenTech.BLL
 
         public static ServicioResult_704ILR Crear_704ILR(BE_Servicio_704ILR s_704ILR, out int nuevoId_704ILR)
         {
+            BLL_Permisos_704ILR.Exigir_704ILR("SERVICIOS_GESTION", "crear un servicio");
             nuevoId_704ILR = 0;
             var v_704ILR = Validar_704ILR(s_704ILR, 0);
             if (v_704ILR != ServicioResult_704ILR.Success_704ILR)
@@ -58,6 +59,7 @@ namespace EvenTech.BLL
 
         public static ServicioResult_704ILR Actualizar_704ILR(BE_Servicio_704ILR s_704ILR)
         {
+            BLL_Permisos_704ILR.Exigir_704ILR("SERVICIOS_GESTION", "modificar un servicio");
             BE_Servicio_704ILR guardado_704ILR = s_704ILR == null || s_704ILR.Id_704ILR <= 0 ? null : DAL_Servicio_704ILR.GetById_704ILR(s_704ILR.Id_704ILR);
             if (guardado_704ILR == null) return ServicioResult_704ILR.NotFound_704ILR;
             var v_704ILR = Validar_704ILR(s_704ILR, s_704ILR.Id_704ILR);
@@ -138,7 +140,7 @@ namespace EvenTech.BLL
             if (GestorDeIdioma_704ILR.TextoEnBlanco_704ILR(s_704ILR.Nombre_704ILR) || s_704ILR.Nombre_704ILR.Length > MaxNombre_704ILR)
                 return ServicioResult_704ILR.NombreInvalido_704ILR;
             if (s_704ILR.Descripcion_704ILR != null && s_704ILR.Descripcion_704ILR.Trim().Length > MaxDescripcion_704ILR)
-                s_704ILR.Descripcion_704ILR = s_704ILR.Descripcion_704ILR.Trim().Substring(0, MaxDescripcion_704ILR);
+                s_704ILR.Descripcion_704ILR = GestorDeIdioma_704ILR.Recortar_704ILR(s_704ILR.Descripcion_704ILR.Trim(), MaxDescripcion_704ILR);
             if (s_704ILR.Precio_704ILR < 0)
                 return ServicioResult_704ILR.PrecioInvalido_704ILR;
             if (PrecioComoSeGuarda_704ILR(s_704ILR.Precio_704ILR) > MaxPrecio_704ILR)

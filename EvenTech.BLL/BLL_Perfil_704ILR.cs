@@ -8,7 +8,8 @@ using EvenTech.Services;
 
 namespace EvenTech.BLL
 {
-    public enum PerfilResult_704ILR { Success_704ILR, NombreInvalido_704ILR, NombreDuplicado_704ILR, ReferenciaCircular_704ILR, SinGestorDePerfiles_704ILR }
+    public enum PerfilResult_704ILR { Success_704ILR, NombreInvalido_704ILR, NombreDuplicado_704ILR, ReferenciaCircular_704ILR, SinGestorDePerfiles_704ILR,
+        ReferenciaInvalida_704ILR }   // el perfil, un permiso o un perfil incluido de la composicion no existe
 
     // Composicion de un perfil todavia no guardada: permite resolver el Composite
     // "como quedaria" antes de persistir.
@@ -42,6 +43,7 @@ namespace EvenTech.BLL
         // Alta de un perfil nuevo (luego se le asignan permisos y usuarios).
         public static PerfilResult_704ILR CrearPerfil_704ILR(string nombre_704ILR, string descripcion_704ILR, out int nuevoId_704ILR)
         {
+            BLL_Permisos_704ILR.Exigir_704ILR("PERFILES_GESTION", "crear un perfil");
             nuevoId_704ILR = 0;
             nombre_704ILR = NormalizarNombre_704ILR(nombre_704ILR);
             if (nombre_704ILR.Length == 0 || nombre_704ILR.Length > 80)
@@ -51,7 +53,11 @@ namespace EvenTech.BLL
 
             try
             {
-                nuevoId_704ILR = DAL_Perfil_704ILR.Insert_704ILR(nombre_704ILR, string.IsNullOrWhiteSpace(descripcion_704ILR) ? null : descripcion_704ILR.Trim());
+                // La descripcion es un dato accesorio: se recorta a lo que entra en
+                // Perfiles.Descripcion, como la del catalogo de servicios, sin partir un
+                // caracter (antes la recortaba en silencio el parametro de la capa de datos).
+                nuevoId_704ILR = DAL_Perfil_704ILR.Insert_704ILR(nombre_704ILR, string.IsNullOrWhiteSpace(descripcion_704ILR)
+                    ? null : GestorDeIdioma_704ILR.Recortar_704ILR(descripcion_704ILR.Trim(), MaxDescripcion_704ILR));
             }
             catch (Microsoft.Data.SqlClient.SqlException ex_704ILR) when (ex_704ILR.Number == 2627 || ex_704ILR.Number == 2601)
             {
@@ -139,6 +145,7 @@ namespace EvenTech.BLL
         public static PerfilResult_704ILR GuardarComposicion_704ILR(int perfilId_704ILR, IEnumerable<int> permisoIds_704ILR,
             IEnumerable<int> perfilesIncluidos_704ILR)
         {
+            BLL_Permisos_704ILR.Exigir_704ILR("PERFILES_GESTION", "guardar la composicion de un perfil");
             var incluidos_704ILR = (perfilesIncluidos_704ILR ?? Enumerable.Empty<int>()).Distinct().ToList();
             // El catalogo de permisos no lo modifica la aplicacion: se lee antes del bloqueo.
             // Tambien lo que el perfil ya tiene guardado, que solo decide si se conserva un grupo
@@ -149,6 +156,22 @@ namespace EvenTech.BLL
             HashSet<int> guardados_704ILR = DAL_Perfil_704ILR.GetPermisoIds_704ILR(perfilId_704ILR);
             List<int> permisos_704ILR = NormalizarComposicion_704ILR(arbol_704ILR, permisoIds_704ILR, guardados_704ILR);
             var propuesta_704ILR = new ComposicionPropuesta_704ILR(perfilId_704ILR, permisos_704ILR, incluidos_704ILR);
+
+            // El perfil, cada permiso y cada perfil incluido tienen que existir: un id
+            // inexistente chocaba con la clave foranea dentro de la transaccion y llegaba
+            // como error tecnico. La aplicacion no da de baja perfiles ni permisos, asi que
+            // se controla antes del bloqueo.
+            var componentesExistentes_704ILR = new Dictionary<int, string>();
+            IndexarComponentes_704ILR(arbol_704ILR, componentesExistentes_704ILR);
+            var perfilesExistentes_704ILR = new HashSet<int>(GetPerfiles_704ILR().Select(p_704ILR => p_704ILR.Id_704ILR));
+            if (!perfilesExistentes_704ILR.Contains(perfilId_704ILR)
+                || permisos_704ILR.Any(p_704ILR => !componentesExistentes_704ILR.ContainsKey(p_704ILR))
+                || incluidos_704ILR.Any(i_704ILR => !perfilesExistentes_704ILR.Contains(i_704ILR)))
+            {
+                BLL_Bitacora_704ILR.Registrar_704ILR("Perfiles", "Composicion rechazada", CriticidadBitacora_704ILR.Advertencia,
+                    $"La composicion propuesta del perfil #{perfilId_704ILR} nombra un perfil o un permiso que no existe");
+                return PerfilResult_704ILR.ReferenciaInvalida_704ILR;
+            }
 
             // Las reglas se evaluan con el bloqueo de la gestion de perfiles ya tomado por la
             // transaccion que graba (DAL): otra grabacion simultanea de composiciones o de
@@ -312,6 +335,9 @@ namespace EvenTech.BLL
         }
 
         // Niveles de continuidad de la gestion de perfiles.
+        // Ancho de Perfiles.Descripcion.
+        private const int MaxDescripcion_704ILR = 250;
+
         private const int NivelSinGestor_704ILR = 0;          // ninguna cuenta activa resuelve PERFILES_GESTION
         private const int NivelGestorBloqueado_704ILR = 1;    // solo la resuelven cuentas activas bloqueadas
         private const int NivelGestorDisponible_704ILR = 2;   // la resuelve al menos una cuenta activa y no bloqueada

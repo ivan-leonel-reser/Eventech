@@ -26,7 +26,9 @@ namespace EvenTech.BLL
         Success_704ILR,
         TextoVacio_704ILR,          // un texto quedaba vacio, solo con espacios o con caracteres que no se ven
         PlantillaInvalida_704ILR,   // llaves sin cerrar o marcadores que no coinciden con los de la clave
-        FiltroInvalido_704ILR       // CMP_FILTER que no es un filtro del cuadro "Guardar como" (descripcion|patron)
+        FiltroInvalido_704ILR,      // CMP_FILTER que no es un filtro del cuadro "Guardar como" (descripcion|patron)
+        TextoLargo_704ILR,          // el texto no entra en Traducciones.Texto (250): se guardaba recortado y podia partir un marcador
+        ClaveInvalida_704ILR        // la clave no es una de las del idioma, escrita exactamente igual
     }
 
     // Orquesta la carga de idiomas/traducciones desde la base hacia el
@@ -38,6 +40,8 @@ namespace EvenTech.BLL
 
         // Ancho real de Idiomas.Nombre: la DAL recortaba en silencio un nombre mas largo.
         private const int MaxNombre_704ILR = 50;
+        // Ancho de Traducciones.Texto. Publico: la grilla del editor limita el tipeo con el.
+        public const int MaxTexto_704ILR = 250;
 
         // Codigo de idioma: 1 a 5 caracteres (ancho de Idiomas.Codigo), letras
         // ASCII, digitos o guion, empezando por letra ("ES", "PT-BR"). Se valida ya
@@ -116,6 +120,7 @@ namespace EvenTech.BLL
         // Un alta rechazada queda en bitacora con el motivo, como los demas rechazos.
         public static IdiomaResult_704ILR CrearIdioma_704ILR(string codigo_704ILR, string nombre_704ILR, out int nuevoId_704ILR)
         {
+            BLL_Permisos_704ILR.Exigir_704ILR("IDIOMAS_GESTION", "crear un idioma");
             nuevoId_704ILR = 0;
             string codigoNorm_704ILR = (codigo_704ILR ?? string.Empty).Trim().ToUpperInvariant();
             // El nombre se guarda y se compara tal como se ve: sin caracteres invisibles
@@ -134,16 +139,9 @@ namespace EvenTech.BLL
                 validacion_704ILR = IdiomaResult_704ILR.NombreInvalido_704ILR;
             else if (DAL_Idioma_704ILR.ExistsCodigo_704ILR(codigoNorm_704ILR))
                 validacion_704ILR = IdiomaResult_704ILR.CodigoDuplicado_704ILR;
-            // El selector de idioma solo muestra el nombre: dos nombres que se ven
-            // iguales no se distinguen. Se comparan las formas visibles, sin mayusculas y
-            // en compatibilidad (las letras de ancho completo valen como las comunes).
-            else
-            {
-                string claveNombre_704ILR = ClaveNombre_704ILR(nombreNorm_704ILR);
-                if (DAL_Idioma_704ILR.GetIdiomas_704ILR().Any(i_704ILR =>
-                        string.Equals(ClaveNombre_704ILR(i_704ILR.Nombre_704ILR), claveNombre_704ILR, StringComparison.OrdinalIgnoreCase)))
-                    validacion_704ILR = IdiomaResult_704ILR.NombreDuplicado_704ILR;
-            }
+            // Nombre que se ve igual al de otro idioma (ver NombreTomado_704ILR).
+            else if (NombreTomado_704ILR(DAL_Idioma_704ILR.GetIdiomas_704ILR(), nombreNorm_704ILR))
+                validacion_704ILR = IdiomaResult_704ILR.NombreDuplicado_704ILR;
 
             if (validacion_704ILR != IdiomaResult_704ILR.Success_704ILR)
                 return Rechazar_704ILR(validacion_704ILR, nombreNorm_704ILR, codigoNorm_704ILR);
@@ -166,6 +164,26 @@ namespace EvenTech.BLL
                     SqlConnection conn_704ILR = cn_704ILR.OpenConnection_704ILR();
                     using (SqlTransaction tx_704ILR = conn_704ILR.BeginTransaction())
                     {
+                        // Las altas se hacen de a una: con el bloqueo tomado se vuelven a
+                        // mirar codigo y nombre, que otra estacion pudo dar de alta despues
+                        // de la validacion de arriba. Sin esto dos altas simultaneas con el
+                        // mismo nombre y codigos distintos entraban las dos (el nombre no
+                        // tiene indice unico: se compara como se ve).
+                        DAL_Idioma_704ILR.TomarBloqueoAlta_704ILR(conn_704ILR, tx_704ILR);
+                        var existentes_704ILR = DAL_Idioma_704ILR.GetIdiomas_704ILR(conn_704ILR, tx_704ILR);
+                        IdiomaResult_704ILR choque_704ILR =
+                            existentes_704ILR.Any(i_704ILR => string.Equals(i_704ILR.Codigo_704ILR, codigoNorm_704ILR, StringComparison.OrdinalIgnoreCase))
+                                ? IdiomaResult_704ILR.CodigoDuplicado_704ILR
+                            : NombreTomado_704ILR(existentes_704ILR, nombreNorm_704ILR)
+                                ? IdiomaResult_704ILR.NombreDuplicado_704ILR
+                            : IdiomaResult_704ILR.Success_704ILR;
+                        if (choque_704ILR != IdiomaResult_704ILR.Success_704ILR)
+                        {
+                            nuevoId_704ILR = 0;
+                            tx_704ILR.Rollback();
+                            return Rechazar_704ILR(choque_704ILR, nombreNorm_704ILR, codigoNorm_704ILR);
+                        }
+
                         nuevoId_704ILR = DAL_Idioma_704ILR.InsertIdioma_704ILR(codigoNorm_704ILR, nombreNorm_704ILR, conn_704ILR, tx_704ILR);
                         idiomaInsertado_704ILR = true;
                         foreach (var kv_704ILR in textosBase_704ILR)
@@ -194,6 +212,16 @@ namespace EvenTech.BLL
             return IdiomaResult_704ILR.Success_704ILR;
         }
 
+        // El selector de idioma solo muestra el nombre: dos nombres que se ven iguales no
+        // se distinguen. Se comparan las formas visibles, sin mayusculas y en
+        // compatibilidad (las letras de ancho completo valen como las comunes).
+        private static bool NombreTomado_704ILR(IEnumerable<BE_Idioma_704ILR> idiomas_704ILR, string nombreNorm_704ILR)
+        {
+            string claveNombre_704ILR = ClaveNombre_704ILR(nombreNorm_704ILR);
+            return idiomas_704ILR.Any(i_704ILR =>
+                string.Equals(ClaveNombre_704ILR(i_704ILR.Nombre_704ILR), claveNombre_704ILR, StringComparison.OrdinalIgnoreCase));
+        }
+
         private static string MotivoRechazo_704ILR(IdiomaResult_704ILR r_704ILR)
         {
             switch (r_704ILR)
@@ -213,6 +241,8 @@ namespace EvenTech.BLL
                 case TraduccionResult_704ILR.TextoVacio_704ILR:        return "quedaba vacia.";
                 case TraduccionResult_704ILR.PlantillaInvalida_704ILR: return "tiene llaves sin cerrar o marcadores que no coinciden con los de la clave.";
                 case TraduccionResult_704ILR.FiltroInvalido_704ILR:    return "no es un filtro de archivos (descripcion|patron) del cuadro Guardar como.";
+                case TraduccionResult_704ILR.TextoLargo_704ILR:        return "supera los " + MaxTexto_704ILR + " caracteres.";
+                case TraduccionResult_704ILR.ClaveInvalida_704ILR:     return "no es una clave del idioma (se escribe exactamente igual).";
                 default:                                              return r_704ILR.ToString();
             }
         }
@@ -287,7 +317,9 @@ namespace EvenTech.BLL
             { "EMAIL_SALUDO",               "{0}" },            // nombre del cliente
             { "IDI_CAMBIOS_PENDIENTES",     "{0}" },            // idioma con ediciones sin guardar
             { "IDI_FILTRO_INVALIDO",        "{0}" },            // clave rechazada (CMP_FILTER)
+            { "IDI_CLAVE_INVALIDA",         "{0}" },            // clave rechazada (no es del idioma)
             { "IDI_PLANTILLA_INVALIDA",     "{0}" },            // clave rechazada
+            { "IDI_TEXTO_LARGO",            "{0}" },            // clave rechazada (texto de mas de 250)
             { "IDI_TEXTO_VACIO",            "{0}" },            // clave rechazada
             { "LOGIN_INTENTOS",             "{0} {1}" },        // intento, maximo de intentos
             { "MSG_COORD_SUPERPOSICION_DET", "{0} {1} {2} {3}" }, // RN-09: empleado y reserva, fecha y franja del turno con el que se superpone
@@ -411,13 +443,26 @@ namespace EvenTech.BLL
         // primera clave que lo provoco. Un lote vacio no escribe ni asienta nada.
         public static TraduccionResult_704ILR GuardarTraducciones_704ILR(int idiomaId_704ILR, IDictionary<string, string> textos_704ILR, out string claveRechazada_704ILR)
         {
+            BLL_Permisos_704ILR.Exigir_704ILR("IDIOMAS_GESTION", "guardar traducciones");
             claveRechazada_704ILR = null;
             if (textos_704ILR == null || textos_704ILR.Count == 0) return TraduccionResult_704ILR.Success_704ILR;
 
             TraduccionResult_704ILR resultado_704ILR = TraduccionResult_704ILR.Success_704ILR;
-            claveRechazada_704ILR = PrimerTextoVacio_704ILR(textos_704ILR);
-            if (claveRechazada_704ILR != null)
+            // Solo se editan las claves que el idioma ya tiene, escritas exactamente igual.
+            // Las plantillas y el filtro se buscan por la clave tal cual (comparacion
+            // ordinal) y la base no distingue mayusculas: "login_intentos" salteaba la
+            // validacion de marcadores y pisaba LOGIN_INTENTOS; una clave inventada se
+            // insertaba (y una de mas de 60 caracteres, recortada).
+            var clavesDelIdioma_704ILR = DAL_Idioma_704ILR.GetTraducciones_704ILR(idiomaId_704ILR);
+            claveRechazada_704ILR = textos_704ILR.Keys.FirstOrDefault(k_704ILR => k_704ILR == null || !clavesDelIdioma_704ILR.ContainsKey(k_704ILR));
+            if (claveRechazada_704ILR != null || textos_704ILR.Keys.Any(k_704ILR => k_704ILR == null))
+                resultado_704ILR = TraduccionResult_704ILR.ClaveInvalida_704ILR;
+            else if ((claveRechazada_704ILR = PrimerTextoVacio_704ILR(textos_704ILR)) != null)
                 resultado_704ILR = TraduccionResult_704ILR.TextoVacio_704ILR;
+            // El texto no entra en su columna: la capa de datos lo recortaba sin aviso, despues
+            // de validar la plantilla, y un marcador partido (" {0} {") rompia la pantalla.
+            else if ((claveRechazada_704ILR = textos_704ILR.FirstOrDefault(kv_704ILR => kv_704ILR.Value.Length > MaxTexto_704ILR).Key) != null)
+                resultado_704ILR = TraduccionResult_704ILR.TextoLargo_704ILR;
             else
             {
                 claveRechazada_704ILR = PrimeraPlantillaInvalida_704ILR(textos_704ILR);
@@ -464,6 +509,8 @@ namespace EvenTech.BLL
                 throw new ArgumentException("La traduccion de '" + clave_704ILR + "' tiene llaves sin cerrar o marcadores que no coinciden con los de la clave.");
             if (resultado_704ILR == TraduccionResult_704ILR.FiltroInvalido_704ILR)
                 throw new ArgumentException("La traduccion de '" + clave_704ILR + "' no es un filtro de archivos (descripcion|patron) del cuadro Guardar como.");
+            if (resultado_704ILR != TraduccionResult_704ILR.Success_704ILR)
+                throw new ArgumentException("La traduccion de '" + clave_704ILR + "' " + MotivoRechazo_704ILR(resultado_704ILR));
         }
     }
 }

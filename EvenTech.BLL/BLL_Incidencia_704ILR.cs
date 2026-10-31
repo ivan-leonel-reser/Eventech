@@ -23,6 +23,7 @@ namespace EvenTech.BLL
         // es opcional; si se indica, tiene que ser un integrante del equipo del evento.
         public static CoordinacionResult_704ILR Registrar_704ILR(BE_Incidencia_704ILR incidencia_704ILR, out int nuevoId_704ILR)
         {
+            BLL_Permisos_704ILR.Exigir_704ILR("EJECUCION_SUPERVISAR", "registrar una incidencia");
             nuevoId_704ILR = 0;
             if (incidencia_704ILR == null) return CoordinacionResult_704ILR.DescripcionInvalida_704ILR;
             incidencia_704ILR.Descripcion_704ILR = GestorDeIdioma_704ILR.TextoVisible_704ILR(incidencia_704ILR.Descripcion_704ILR);
@@ -65,9 +66,10 @@ namespace EvenTech.BLL
         // con el evento en ejecucion: cerrarlo exige que no quede ninguna abierta.
         public static CoordinacionResult_704ILR Resolver_704ILR(int incidenciaId_704ILR, string resolucion_704ILR)
         {
+            BLL_Permisos_704ILR.Exigir_704ILR("EJECUCION_SUPERVISAR", "resolver una incidencia");
             resolucion_704ILR = GestorDeIdioma_704ILR.TextoVisible_704ILR(resolucion_704ILR);
             if (resolucion_704ILR.Length == 0) return CoordinacionResult_704ILR.ResolucionObligatoria_704ILR;
-            if (resolucion_704ILR.Length > MaxResolucion_704ILR) resolucion_704ILR = resolucion_704ILR.Substring(0, MaxResolucion_704ILR);
+            resolucion_704ILR = GestorDeIdioma_704ILR.Recortar_704ILR(resolucion_704ILR, MaxResolucion_704ILR);
 
             BE_Incidencia_704ILR incidencia_704ILR = incidenciaId_704ILR <= 0 ? null : DAL_Incidencia_704ILR.GetById_704ILR(incidenciaId_704ILR);
             if (incidencia_704ILR == null) return CoordinacionResult_704ILR.IncidenciaInvalida_704ILR;

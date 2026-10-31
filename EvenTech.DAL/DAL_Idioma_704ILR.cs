@@ -9,11 +9,18 @@ namespace EvenTech.DAL
     {
         public static List<BE_Idioma_704ILR> GetIdiomas_704ILR()
         {
-            var list_704ILR = new List<BE_Idioma_704ILR>();
             using (var cn_704ILR = new DAL_DB_Connection_704ILR())
+                return GetIdiomas_704ILR(cn_704ILR.OpenConnection_704ILR(), null);
+        }
+
+        // Sobrecarga transaccional: el alta de un idioma relee los existentes con el
+        // bloqueo del alta ya tomado (TomarBloqueoAlta_704ILR).
+        public static List<BE_Idioma_704ILR> GetIdiomas_704ILR(SqlConnection conn_704ILR, SqlTransaction tx_704ILR)
+        {
+            var list_704ILR = new List<BE_Idioma_704ILR>();
             using (var cmd_704ILR = new SqlCommand(
                 "SELECT Id, Codigo, Nombre FROM dbo.Idiomas ORDER BY Nombre",
-                cn_704ILR.OpenConnection_704ILR()))
+                conn_704ILR, tx_704ILR))
             using (var r_704ILR = cmd_704ILR.ExecuteReader())
             {
                 while (r_704ILR.Read())
@@ -27,6 +34,28 @@ namespace EvenTech.DAL
                 }
             }
             return list_704ILR;
+        }
+
+        // Recurso del bloqueo de aplicacion que serializa las altas de idioma. La
+        // unicidad del NOMBRE (comparado como se ve, sin mayusculas y en compatibilidad)
+        // no se puede expresar con un indice de la base: sin este bloqueo dos altas
+        // simultaneas con el mismo nombre y codigos distintos pasaban las dos.
+        private const string RecursoAltaIdioma_704ILR = "EvenTech_AltaIdioma";
+
+        // Toma, dentro de la transaccion dada, el bloqueo exclusivo del alta de idiomas;
+        // se libera con el COMMIT o el ROLLBACK. Si otra alta lo retiene mas de 20 s, el
+        // servidor devuelve un error y no se graba nada.
+        public static void TomarBloqueoAlta_704ILR(SqlConnection conn_704ILR, SqlTransaction tx_704ILR)
+        {
+            using (var cmd_704ILR = new SqlCommand(
+                "DECLARE @r INT; " +
+                "EXEC @r = sp_getapplock @Resource = @recurso, @LockMode = N'Exclusive', @LockOwner = N'Transaction', @LockTimeout = 20000; " +
+                "IF @r < 0 RAISERROR(N'No se pudo obtener el bloqueo del alta de idiomas.', 16, 1);",
+                conn_704ILR, tx_704ILR))
+            {
+                cmd_704ILR.Parameters.Add("@recurso", SqlDbType.NVarChar, 255).Value = RecursoAltaIdioma_704ILR;
+                cmd_704ILR.ExecuteNonQuery();
+            }
         }
 
         public static bool ExistsCodigo_704ILR(string codigo_704ILR)

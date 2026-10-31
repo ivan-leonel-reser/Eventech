@@ -94,7 +94,7 @@ namespace EvenTech.UI
             // pantalla, que es el que cita el CUN005. MaxLength = ancho real de
             // Pagos.Observacion: sin el, un texto mas largo se guardaria recortado.
             _txtObs_704ILR = Ui_704ILR.Input_704ILR(); _txtObs_704ILR.Width = 150; _txtObs_704ILR.Margin = new Padding(0, 0, Theme_704ILR.SpaceSm_704ILR, 0);
-            _txtObs_704ILR.MaxLength = 200;
+            _txtObs_704ILR.MaxLength = BLL_Pago_704ILR.MaxObservacion_704ILR;
             _txtObs_704ILR.PlaceholderText = T_704ILR("COL_OBSERVACION", "Observación");
             // Lo que se cambie en el monto o en la observacion despues de un cobro ya no es
             // el segundo clic de ese cobro: se valida como cualquier intento (ver
@@ -266,6 +266,8 @@ namespace EvenTech.UI
                     Aviso_704ILR(T_704ILR("MSG_PAGO_MONTO", "Ingrese un monto válido.")); return;
                 case PagoResult_704ILR.MetodoInvalido_704ILR:
                     Aviso_704ILR(T_704ILR("MSG_PAGO_METODO", "Seleccione un método de pago.")); return;
+                case PagoResult_704ILR.ObservacionLarga_704ILR:
+                    Aviso_704ILR(T_704ILR("MSG_PAGO_OBS_LARGA", "La observación no puede superar los 200 caracteres.")); return;
                 // Estos tres rechazos pueden venir de un cambio hecho desde otra sesion (otro
                 // cobro, un total distinto, la reserva cancelada o con un estado ajeno): se
                 // vuelven a leer los pagos y el total antes del aviso, con el mismo criterio

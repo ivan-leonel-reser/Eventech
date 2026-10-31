@@ -191,6 +191,7 @@ namespace EvenTech.BLL
         // momento el plan queda congelado y lo que se sale de el se anota como incidencia.
         public static CoordinacionResult_704ILR IniciarEjecucion_704ILR(int reservaId_704ILR, bool confirmarFueraDeFecha_704ILR)
         {
+            BLL_Permisos_704ILR.Exigir_704ILR("EJECUCION_SUPERVISAR", "iniciar la ejecucion de un evento");
             CoordinacionResult_704ILR resultado_704ILR;
             BE_Reserva_704ILR reserva_704ILR;
             using (var cn_704ILR = new DAL_DB_Connection_704ILR())
@@ -234,6 +235,7 @@ namespace EvenTech.BLL
         // incidencia abierta (RN-13). CERRADO es terminal.
         public static CoordinacionResult_704ILR CerrarEvento_704ILR(int reservaId_704ILR)
         {
+            BLL_Permisos_704ILR.Exigir_704ILR("EJECUCION_SUPERVISAR", "cerrar un evento");
             CoordinacionResult_704ILR resultado_704ILR;
             int abiertas_704ILR = 0;
             using (var cn_704ILR = new DAL_DB_Connection_704ILR())
