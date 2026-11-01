@@ -14,8 +14,8 @@ namespace EvenTech.UI
     // (Ayuda\EvenTech.chm, junto al ejecutable) y se abre con el visor de ayuda de
     // Windows por medio de Help.ShowHelp, de WinForms: no hace falta ningun componente
     // adicional. Se llega de tres maneras: el item Ayuda del menu lateral (abre el
-    // indice), la tecla F1 en cualquier seccion o dialogo (abre el tema de esa pantalla)
-    // y las descripciones emergentes de los botones principales.
+    // manual en su primera pagina), la tecla F1 en cualquier seccion o dialogo (abre el tema de esa pantalla)
+    // y las descripciones emergentes del menu, la version y los botones del informe.
     //
     // Cada tema es una pagina del manual; el nombre de la constante es el de la pagina.
     // La prueba automatizada comprueba que cada tema exista dentro del archivo compilado.
