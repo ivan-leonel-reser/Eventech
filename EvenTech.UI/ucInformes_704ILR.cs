@@ -55,7 +55,7 @@ namespace EvenTech.UI
             root_704ILR.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             root_704ILR.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             root_704ILR.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-            root_704ILR.RowStyles.Add(new RowStyle(SizeType.Absolute, 74));
+            root_704ILR.RowStyles.Add(new RowStyle(SizeType.Absolute, 86));
             root_704ILR.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
             var lblTitle_704ILR = Ui_704ILR.H1_704ILR("Informe de gestión");
@@ -108,7 +108,9 @@ namespace EvenTech.UI
             {
                 kpis_704ILR.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20));
                 var tarjeta_704ILR = new CardPanel_704ILR { Dock = DockStyle.Fill, Margin = new Padding(i_704ILR == 0 ? 0 : Theme_704ILR.SpaceSm_704ILR, 0, 0, 0), Padding = new Padding(Theme_704ILR.SpaceMd_704ILR, 6, Theme_704ILR.SpaceMd_704ILR, 6) };
-                _kpiValor_704ILR[i_704ILR] = new Label { Dock = DockStyle.Fill, Font = Theme_704ILR.FontH2_704ILR, ForeColor = Theme_704ILR.TextOnLight_704ILR, TextAlign = ContentAlignment.MiddleLeft, BackColor = Color.Transparent, Text = "—" };
+                // El importe va en la letra de titulo y con puntos suspensivos si no entra: con
+                // importes de millones y la ventana en su tamano minimo, la de seccion no entraba.
+                _kpiValor_704ILR[i_704ILR] = new Label { Dock = DockStyle.Fill, Font = Theme_704ILR.FontTitle_704ILR, ForeColor = Theme_704ILR.TextOnLight_704ILR, TextAlign = ContentAlignment.MiddleLeft, AutoEllipsis = true, BackColor = Color.Transparent, Text = "—" };
                 _kpiTitulo_704ILR[i_704ILR] = new Label { Dock = DockStyle.Top, Height = 18, Font = Theme_704ILR.FontSmall_704ILR, ForeColor = Theme_704ILR.TextMuted_704ILR, BackColor = Color.Transparent };
                 tarjeta_704ILR.Controls.Add(_kpiValor_704ILR[i_704ILR]);
                 tarjeta_704ILR.Controls.Add(_kpiTitulo_704ILR[i_704ILR]);
@@ -191,7 +193,9 @@ namespace EvenTech.UI
             _kpiValor_704ILR[0].Text = inf_704ILR.TotalReservas_704ILR.ToString(CultureInfo.CurrentCulture);
             _kpiValor_704ILR[1].Text = confirmadas_704ILR.ToString(CultureInfo.CurrentCulture);
             _kpiValor_704ILR[2].Text = Importe_704ILR(inf_704ILR.Contratado_704ILR);
-            _kpiValor_704ILR[3].Text = Importe_704ILR(inf_704ILR.Cobrado_704ILR) + "  (" + Porcentaje_704ILR(inf_704ILR.PorcentajeCobrado_704ILR) + ")";
+            _kpiValor_704ILR[3].Text = Importe_704ILR(inf_704ILR.Cobrado_704ILR);
+            _kpiTitulo_704ILR[3].Text = T_704ILR("INF_COBRADO", "Cobrado") + " (" + Porcentaje_704ILR(inf_704ILR.PorcentajeCobrado_704ILR) + ")";
+            foreach (var v_704ILR in _kpiValor_704ILR) _tip_704ILR.SetToolTip(v_704ILR, v_704ILR.Text);
             _kpiValor_704ILR[4].Text = Importe_704ILR(inf_704ILR.Saldo_704ILR);
 
             foreach (var e_704ILR in inf_704ILR.PorEstado_704ILR)
@@ -272,7 +276,8 @@ namespace EvenTech.UI
             _kpiTitulo_704ILR[0].Text = T_704ILR("INF_KPI_RESERVAS", "Reservas del período");
             _kpiTitulo_704ILR[1].Text = T_704ILR("INF_KPI_CONFIRMADAS", "Confirmadas");
             _kpiTitulo_704ILR[2].Text = T_704ILR("INF_CONTRATADO", "Contratado");
-            _kpiTitulo_704ILR[3].Text = T_704ILR("INF_COBRADO", "Cobrado");
+            _kpiTitulo_704ILR[3].Text = _informe_704ILR == null ? T_704ILR("INF_COBRADO", "Cobrado")
+                : T_704ILR("INF_COBRADO", "Cobrado") + " (" + Porcentaje_704ILR(_informe_704ILR.PorcentajeCobrado_704ILR) + ")";
             _kpiTitulo_704ILR[4].Text = T_704ILR("INF_SALDO", "Saldo a cobrar");
             _tabEstados_704ILR.Text = T_704ILR("INF_TAB_ESTADOS", "Por estado");
             _tabSalones_704ILR.Text = T_704ILR("INF_TAB_SALONES", "Ocupación de salones");

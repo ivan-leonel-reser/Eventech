@@ -128,6 +128,11 @@ int Asientos_704ILR(string modulo_704ILR, string accion_704ILR = null) => Bitaco
 // con la fecha adelante el choque exige repetir el segundo del mismo dia.
 string suf_704ILR = DateTime.Now.ToString("yyMMddHHmmss");
 
+// El registro serializado de excepciones (A03) de toda la corrida va a una carpeta
+// temporal propia: una excepcion que asiente un caso no cae en el registro del equipo.
+string carpetaExcepcionesCorrida_704ILR = Path.Combine(Path.GetTempPath(), "eventech_smoke_registro_" + suf_704ILR);
+EvenTech.Services.RegistroDeExcepciones_704ILR.UsarCarpetaEnEstaEjecucion_704ILR(carpetaExcepcionesCorrida_704ILR);
+
 // Desplazamiento propio de esta corrida. Las reservas de prueba se agendan a
 // varios anios vista y con este desfasaje para no pisar fechas del negocio
 // (RN-03), y todas las que quedan CONFIRMADAS se cancelan al cerrar su caso, de
@@ -4572,7 +4577,7 @@ try
 catch (Exception ex58_704ILR) { Excepcion_704ILR("[58]", ex58_704ILR); CerrarSesion_704ILR(); }
 finally
 {
-    EvenTech.Services.RegistroDeExcepciones_704ILR.UsarCarpetaEnEstaEjecucion_704ILR(null);
+    EvenTech.Services.RegistroDeExcepciones_704ILR.UsarCarpetaEnEstaEjecucion_704ILR(carpetaExcepcionesCorrida_704ILR);
     try { if (Directory.Exists(carpeta58_704ILR)) Directory.Delete(carpeta58_704ILR, true); } catch { }
 }
 
