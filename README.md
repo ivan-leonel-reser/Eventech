@@ -23,16 +23,17 @@ organizada en cinco capas y sin frameworks de persistencia de terceros.
 ## Instalación
 
 El sistema se instala con el asistente `EvenTech_Instalador_v3.0.exe`, pensado para
-el usuario final: copia la aplicación —con .NET 8 incluido—, crea la base de datos
-con los datos de demostración en la instancia de SQL Server que se elija y deja
-configurada la conexión. El equipo solo necesita Windows 10 u 11 de 64 bits y SQL
-Server Express 2019 o superior; no hacen falta `sqlcmd` ni el SDK de .NET.
+el usuario final: lleva adentro todo lo que el sistema necesita. Si el equipo no tiene
+SQL Server, instala **SQL Server Express** (incluido en el instalador, previa aceptación
+de su licencia); después copia la aplicación —con .NET 8 incluido—, crea la base de
+datos con los datos de demostración y deja configurada la conexión. El equipo solo
+necesita Windows 10 (versión 1803 o posterior) u 11 de 64 bits; no hacen falta SQL
+Server, `sqlcmd` ni .NET instalados de antemano.
 
 Sobre una instalación anterior (o una instancia que ya tiene la base) el mismo
 asistente **reinstala**: muestra la versión instalada y la nueva, respalda la base y la
 actualiza conservando los datos (o, si se elige, la reemplaza por la de demostración),
-y si algo falla la devuelve al respaldo. Con los medios de SQL Server Express junto al
-instalador, también puede instalar el motor en un equipo que no tiene ninguno.
+y si algo falla la devuelve al respaldo.
 
 El instalador se genera con `instalador\construir.ps1`. Su alcance, sus pasos y sus
 decisiones de diseño están en **[instalador/README.md](instalador/README.md)**; el
@@ -74,7 +75,7 @@ git archive --format=zip -9 --prefix=EvenTech/ -o EvenTech.zip <commit> -- . ":(
 |---|---|
 | Sistema operativo | Windows 10 (x64) |
 | Runtime | .NET 8 Desktop Runtime (el instalador lo lleva incluido) |
-| Motor de base de datos | SQL Server Express 2019 (MSSQL15) |
+| Motor de base de datos | SQL Server Express 2019 (MSSQL15); el instalador incluye SQL Server 2022 Express y lo instala si el equipo no tiene ninguno |
 | Herramienta de línea de comandos | `sqlcmd` (ver nota) |
 | Para compilar | .NET 8 SDK |
 
@@ -321,7 +322,7 @@ informe de gestión y su PDF, el registro serializado de excepciones (ida y vuel
 caracteres especiales, archivos dañados, lotes, retención) y los temas de la ayuda en
 línea. Son 59 casos numerados `[1]` a `[59]`, más un bloque `[limpieza]` y un
 `[cierre]` que vuelve a verificar la integridad de toda la base al terminar: 61 casos y
-1046 verificaciones en total.
+1047 verificaciones en total.
 
 ```bat
 dotnet run --project EvenTech.SmokeTest

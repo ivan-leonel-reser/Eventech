@@ -4,20 +4,32 @@ construir.ps1 - genera el instalador de EvenTech.
     1. Publica la aplicacion para Windows de 64 bits con el entorno de ejecucion de
        .NET 8 incluido (carpeta "publicado"): quien instala no necesita tener .NET.
     2. Compila EvenTech.iss con Inno Setup 6. El instalador lleva adentro la
-       aplicacion publicada y el respaldo db\EvenTechDB.bak.
+       aplicacion publicada, el respaldo db\EvenTechDB.bak y SQL Server Express, que
+       instala si el equipo no tiene SQL Server: quien instala no necesita nada mas.
     3. Deja el instalador en la carpeta "salida" e informa su tamano y su SHA-256.
 
 Uso (PowerShell, desde cualquier carpeta):
     powershell -ExecutionPolicy Bypass -File construir.ps1
 
-Requisitos: SDK de .NET (8 o superior) e Inno Setup 6 (winget install JRSoftware.InnoSetup).
+Requisitos: SDK de .NET (8 o superior), Inno Setup 6 (winget install JRSoftware.InnoSetup)
+y los medios de SQL Server Express en la carpeta "motor\SQLServerExpress" (excluida del
+repositorio; ver README.md): la extraccion, sin modificar, de los medios "Core" que baja el
+instalador de SQL Server 2022 Express de Microsoft ("Descargar medios" > "Express Core").
+Sin ellos el guion se detiene, salvo con -SinMotor_704ILR.
 
 El instalador se genera DESPUES de regenerar db\EvenTechDB.bak: el respaldo viaja
 adentro, y sus cotizaciones y reservas pendientes vencen por fecha (regla RN-01).
 #>
 param(
     # Compila el instalador con la carpeta "publicado" tal como esta, sin volver a publicar.
-    [switch]$SinPublicar_704ILR
+    [switch]$SinPublicar_704ILR,
+
+    # Carpeta con los medios de SQL Server Express que el instalador lleva adentro.
+    [string]$MediosSqlExpress_704ILR = '',
+
+    # Genera el instalador SIN SQL Server Express (solo para pruebas: un equipo sin SQL
+    # Server no lo podria usar).
+    [switch]$SinMotor_704ILR
 )
 
 $ErrorActionPreference = 'Stop'
@@ -57,6 +69,35 @@ if (-not $Compilador_704ILR) {
 }
 if (-not $Compilador_704ILR) { throw 'No se encuentra Inno Setup 6 (ISCC.exe). Se instala con: winget install JRSoftware.InnoSetup' }
 
+# Medios de SQL Server Express: se incluyen tal como los distribuye Microsoft (su licencia
+# lo exige), asi que antes se comprueba que esten completos y firmados por Microsoft.
+if (-not $MediosSqlExpress_704ILR) { $MediosSqlExpress_704ILR = Join-Path $Aqui_704ILR 'motor\SQLServerExpress' }
+$DefinicionMotor_704ILR = $null
+if ($SinMotor_704ILR) {
+    Write-Warning 'Instalador SIN SQL Server Express (-SinMotor_704ILR): en un equipo sin SQL Server no se puede usar.'
+}
+else {
+    $Setup_704ILR = Join-Path $MediosSqlExpress_704ILR 'SETUP.EXE'
+    $Info_704ILR = Join-Path $MediosSqlExpress_704ILR 'MEDIAINFO.XML'
+    if (-not (Test-Path -LiteralPath $Setup_704ILR) -or -not (Test-Path -LiteralPath $Info_704ILR)) {
+        throw "No se encuentran los medios de SQL Server Express en $MediosSqlExpress_704ILR (SETUP.EXE y MEDIAINFO.XML). Ver instalador\README.md, o usar -SinMotor_704ILR para un instalador de prueba."
+    }
+    $firmados_704ILR = @(Get-ChildItem -LiteralPath $MediosSqlExpress_704ILR -Recurse -File |
+        Where-Object { $_.Extension -in '.exe', '.dll', '.msi', '.cab' })
+    $sinFirma_704ILR = @($firmados_704ILR | Where-Object {
+        $f_704ILR = Get-AuthenticodeSignature -LiteralPath $_.FullName
+        $f_704ILR.Status -ne 'Valid' -or $f_704ILR.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation'
+    })
+    if ($sinFirma_704ILR.Count -gt 0) {
+        throw ('Hay medios de SQL Server Express sin una firma valida de Microsoft: ' + (($sinFirma_704ILR | Select-Object -First 5 | ForEach-Object { $_.Name }) -join ', '))
+    }
+    $sobrantes_704ILR = @(Get-ChildItem -LiteralPath $MediosSqlExpress_704ILR -Filter 'SqlServerInstallConfig.ini' -Recurse -File)
+    if ($sobrantes_704ILR.Count -gt 0) {
+        throw 'Los medios traen SqlServerInstallConfig.ini, que escribe una instalacion local (lleva la cuenta de ese equipo): no es parte de los medios de Microsoft.'
+    }
+    $DefinicionMotor_704ILR = '/DMediosMotor_704ILR=' + (Resolve-Path -LiteralPath $MediosSqlExpress_704ILR).Path
+}
+
 # --------------------------------------------------------------------------- 1
 if ($SinPublicar_704ILR) {
     Paso_704ILR '1. Publicacion omitida (-SinPublicar_704ILR)'
@@ -91,7 +132,15 @@ elseif ($Producto_704ILR -like '*.modificado') {
 # --------------------------------------------------------------------------- 2
 Paso_704ILR '2. Compilar el instalador'
 Write-Host ('Respaldo incluido: {0} ({1:dd/MM/yyyy HH:mm})' -f $Respaldo_704ILR, (Get-Item -LiteralPath $Respaldo_704ILR).LastWriteTime)
-& $Compilador_704ILR '/Q' $Guion_704ILR
+$argumentosIscc_704ILR = @('/Q')
+if ($DefinicionMotor_704ILR) {
+    $medios_704ILR = @(Get-ChildItem -LiteralPath $MediosSqlExpress_704ILR -Recurse -File)
+    Write-Host ('SQL Server Express incluido: version {0}, {1} archivos, {2:N0} MB, {3} con firma de Microsoft' -f `
+        (Get-Item -LiteralPath $Setup_704ILR).VersionInfo.ProductVersion, $medios_704ILR.Count,
+        (($medios_704ILR | Measure-Object -Property Length -Sum).Sum / 1MB), $firmados_704ILR.Count)
+    $argumentosIscc_704ILR += $DefinicionMotor_704ILR
+}
+& $Compilador_704ILR @argumentosIscc_704ILR $Guion_704ILR
 if ($LASTEXITCODE -ne 0) { throw 'La compilacion del instalador fallo.' }
 
 # --------------------------------------------------------------------------- 3

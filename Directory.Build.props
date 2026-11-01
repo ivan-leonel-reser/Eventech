@@ -9,6 +9,10 @@
     <Version>3.0.0</Version>
     <Company>Ivan Leonel Reser</Company>
     <Product>EvenTech</Product>
+    <!-- Aviso de derechos de autor del programa: lo muestran Propiedades > Detalles del
+         ejecutable y "Acerca de". La licencia de SQL Server Express, que el instalador
+         lleva incluido, exige mostrarlo para distribuirlo junto con el programa. -->
+    <Copyright>&#169; 2026 Ivan Leonel Reser</Copyright>
     <!-- El commit lo pone Directory.Build.targets, tambien cuando el codigo sale de un zip
          sin la carpeta .git: el mecanismo del SDK solo lo encuentra con git a mano. -->
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>

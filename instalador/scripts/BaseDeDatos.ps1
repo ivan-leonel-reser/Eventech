@@ -17,6 +17,10 @@ BaseDeDatos.ps1 - operaciones del instalador sobre la instancia de SQL Server el
                    instalacion se cancelo despues de modificar la base).
     Verificar      abre la base y cuenta sus tablas y sus cuentas.
     Quitar         deshace la restauracion de ESTA ejecucion (instalacion cancelada).
+    Cuentas        no se conecta: informa las cuentas de Windows que administran la
+                   instancia que crea el asistente al instalar SQL Server Express (el
+                   usuario que corre el guion y el grupo de administradores del equipo,
+                   con el nombre que tiene en el idioma de Windows).
 
 El resultado se escribe en el archivo -Salida_704ILR como lineas CLAVE=valor (UTF-8
 con marca de orden de bytes, que es como lo lee el asistente) y en el codigo de
@@ -32,7 +36,7 @@ esquema (2.0 si tiene las tablas del personal, 1.0 si solo las de reservas).
 #>
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet('Diagnosticar', 'Restaurar', 'Actualizar', 'Reemplazar', 'Revertir', 'Verificar', 'Quitar')]
+    [ValidateSet('Diagnosticar', 'Restaurar', 'Actualizar', 'Reemplazar', 'Revertir', 'Verificar', 'Quitar', 'Cuentas')]
     [string]$Accion_704ILR,
 
     [Parameter(Mandatory = $true)]
@@ -604,8 +608,22 @@ function Quitar_704ILR {
     Terminar_704ILR 0
 }
 
+# ---------------------------------------------------------------------- Cuentas
+# El grupo de administradores se busca por su identificador (S-1-5-32-544) y no por su
+# nombre: en un Windows en espanol se llama "BUILTIN\Administradores" y el instalador de
+# SQL Server rechaza una cuenta que no existe. El asistente corre esta accion con la
+# cuenta de quien inicio la instalacion, que es la que va a usar el sistema.
+function Cuentas_704ILR {
+    $administradores_704ILR = (New-Object System.Security.Principal.SecurityIdentifier('S-1-5-32-544')).Translate([System.Security.Principal.NTAccount]).Value
+    Anotar_704ILR 'ADMINISTRADORES' $administradores_704ILR
+    Anotar_704ILR 'USUARIO' ([System.Security.Principal.WindowsIdentity]::GetCurrent().Name)
+    Anotar_704ILR 'ESTADO' 'CORRECTO'
+    Terminar_704ILR 0
+}
+
 try {
     switch ($Accion_704ILR) {
+        'Cuentas' { Cuentas_704ILR }
         'Diagnosticar' { Diagnosticar_704ILR }
         'Restaurar' { Restaurar_704ILR }
         'Actualizar' { Actualizar_704ILR }

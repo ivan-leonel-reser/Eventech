@@ -29,6 +29,8 @@ namespace EvenTech.Services
         public bool ConCambios_704ILR { get; private set; }
         // Fecha del commit, o null.
         public DateTime? FechaCommit_704ILR { get; private set; }
+        // Aviso de derechos de autor del ensamblado (Directory.Build.props), o null.
+        public string Copyright_704ILR { get; private set; }
 
         // Los siete primeros caracteres, como los muestra el repositorio.
         public string CommitCorto_704ILR => Commit_704ILR?.Substring(0, 7);
@@ -43,7 +45,9 @@ namespace EvenTech.Services
             string informacional_704ILR = ensamblado_704ILR?.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
             string fecha_704ILR = ensamblado_704ILR?.GetCustomAttributes<AssemblyMetadataAttribute>()
                 .FirstOrDefault(a_704ILR => a_704ILR.Key == "FechaCommit")?.Value;
-            return Interpretar_704ILR(informacional_704ILR, fecha_704ILR);
+            VersionSistema_704ILR v_704ILR = Interpretar_704ILR(informacional_704ILR, fecha_704ILR);
+            v_704ILR.Copyright_704ILR = ensamblado_704ILR?.GetCustomAttribute<AssemblyCopyrightAttribute>()?.Copyright;
+            return v_704ILR;
         }
 
         // Interpreta la version de producto y la fecha tal como las escribe la compilacion.

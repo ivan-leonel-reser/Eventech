@@ -1,16 +1,19 @@
 # Instalador de EvenTech
 
-Asistente de instalación y reinstalación del sistema para el usuario final. En un
-equipo que todavía no tiene EvenTech:
+Asistente de instalación y reinstalación del sistema para el usuario final. Lleva
+adentro todo lo que el sistema necesita para funcionar. En un equipo que todavía no
+tiene EvenTech:
 
-1. copia la aplicación, que lleva incluido el entorno de ejecución de .NET 8;
-2. crea la base de datos `EvenTechDB`, con sus datos de demostración, en la
-   instancia de SQL Server que elige quien instala;
-3. deja configurada la conexión de la aplicación a esa instancia.
+1. si el equipo no tiene SQL Server, instala **SQL Server Express**, que viaja dentro
+   del instalador (previa aceptación de su licencia);
+2. copia la aplicación, que lleva incluido el entorno de ejecución de .NET 8;
+3. crea la base de datos `EvenTechDB`, con sus datos de demostración, en la
+   instancia de SQL Server que elige quien instala (o en la recién instalada);
+4. deja configurada la conexión de la aplicación a esa instancia.
 
-Quien instala no necesita abrir una consola, tener `sqlcmd` ni escribir una cadena
-de conexión: el asistente detecta las instancias de SQL Server del equipo y las
-ofrece en una lista.
+Quien instala no necesita tener nada instalado de antemano, abrir una consola, tener
+`sqlcmd` ni escribir una cadena de conexión: el asistente detecta las instancias de
+SQL Server del equipo y las ofrece en una lista, y si no hay ninguna instala una.
 
 ## Alcance de esta versión
 
@@ -32,9 +35,12 @@ la instalación inicial de la primera y suma la **reinstalación**:
 - No instala una versión anterior sobre una posterior (ni la aplicación ni la base), ni
   toca una base `EvenTechDB` que no sea del sistema.
 - Con el sistema abierto no actualiza nada.
-- Si el paquete trae los medios de SQL Server Express (carpeta `SQLServerExpress` junto
-  al instalador) y el equipo no tiene ninguna instancia, ofrece instalar el motor en modo
-  silencioso, previa aceptación de su licencia.
+- **Instala el motor de base de datos.** El instalador lleva adentro SQL Server 2022
+  Express (los medios de Microsoft, sin modificar). Si el equipo no tiene ninguna
+  instancia de SQL Server, la opción de instalarlo aparece marcada: basta con aceptar su
+  licencia. Si ya tiene alguna, la opción queda disponible para crear una instancia nueva
+  (por ejemplo, si la existente es anterior a 2019). En una reinstalación no se ofrece,
+  salvo que no quede ninguna instancia o se lo pida con `/MOTOR=1`.
 
 La versión que dejó el asistente queda grabada en la base (propiedad extendida
 `EvenTech_Version`). Una base sin esa marca se reconoce por su esquema.
@@ -43,10 +49,10 @@ La versión que dejó el asistente queda grabada en la base (propiedad extendida
 
 | Componente | Requisito |
 |---|---|
-| Sistema operativo | Windows 10 u 11 de 64 bits |
-| Motor de base de datos | SQL Server Express 2019 o superior, instalado en el mismo equipo y con su servicio iniciado (o los medios de SQL Server Express en el paquete, para que el asistente lo instale) |
-| Usuario de Windows | Administrador del equipo y de la instancia de SQL Server (quien instaló SQL Server lo es) |
-| Espacio en disco | 170 MB para la aplicación y unos 80 MB para la base, en la carpeta de datos de SQL Server |
+| Sistema operativo | Windows 10 (versión 1803 o posterior, que trae .NET Framework 4.7.2, requisito de SQL Server 2022) u 11, de 64 bits |
+| Motor de base de datos | No se requiere: si el equipo no tiene SQL Server, el asistente instala SQL Server 2022 Express. También sirve una instancia de SQL Server 2019 o superior ya instalada en el mismo equipo |
+| Usuario de Windows | Administrador del equipo (y de la instancia de SQL Server, si se usa una existente: quien la instaló lo es) |
+| Espacio en disco | 170 MB para la aplicación y unos 80 MB para la base; si hay que instalar SQL Server Express, al menos 6 GB libres en el disco del sistema |
 | .NET | No se requiere: viaja incluido en el instalador |
 
 ## Pasos del asistente
@@ -55,7 +61,7 @@ La versión que dejó el asistente queda grabada en la base (propiedad extendida
 |---|---|
 | Bienvenida | Presenta lo que se va a instalar |
 | Carpeta de destino | Por defecto, `C:\Program Files\EvenTech` |
-| Instancia de SQL Server | Lista las instancias detectadas (propone la de la instalación anterior); al avanzar comprueba la elegida. Sin instancias y con los medios en el paquete, ofrece instalar SQL Server Express |
+| Instancia de SQL Server | Lista las instancias detectadas (propone la de la instalación anterior); al avanzar comprueba la elegida. Sin instancias, propone instalar SQL Server Express en `localhost\SQLEXPRESS` (marcado; falta aceptar la licencia) y, al avanzar, lo instala (entre 5 y 15 minutos) |
 | Actualización de la base de datos | Solo si la instancia ya tiene la base: lo que está, lo que viene y qué hacer con los datos |
 | Tareas adicionales | Acceso directo en el escritorio |
 | Listo para instalar | Resumen: carpeta, instancia (con su versión) y base |
@@ -82,9 +88,10 @@ EvenTech_Instalador_v3.0.exe /VERYSILENT /SUPPRESSMSGBOXES /INSTANCIA=localhost\
 
 Termina con código 0 si instaló y con otro código si la instancia no sirve o la base no
 se pudo preparar; el motivo queda en el registro. Sobre una base existente, `/BASE`
-elige qué hacer con ella: `CONSERVAR` (por defecto) o `REEMPLAZAR`. `/MOTOR=1` muestra
+elige qué hacer con ella: `CONSERVAR` (por defecto) o `REEMPLAZAR`. `/MOTOR=1` marca
 la opción de instalar SQL Server Express aunque haya instancias y
-`/ACEPTARLICENCIASQL=1` deja aceptada su licencia (para una instalación desatendida).
+`/ACEPTARLICENCIASQL=1` deja aceptada su licencia: sin ese parámetro una instalación
+desatendida nunca instala el motor.
 
 ## Cómo se construye
 
@@ -92,11 +99,26 @@ la opción de instalar SQL Server Express aunque haya instancias y
 powershell -ExecutionPolicy Bypass -File instalador\construir.ps1
 ```
 
-Requiere el SDK de .NET (8 o superior) e Inno Setup 6
-(`winget install JRSoftware.InnoSetup`). El guion publica la aplicación para Windows
-de 64 bits con .NET 8 incluido, compila `EvenTech.iss` y deja
-`salida\EvenTech_Instalador_v<versión>.exe`, del que informa el tamaño y el SHA-256.
-Las carpetas `publicado` y `salida` se generan y no se versionan.
+Requiere el SDK de .NET (8 o superior), Inno Setup 6
+(`winget install JRSoftware.InnoSetup`) y los medios de SQL Server Express en
+`instalador\motor\SQLServerExpress` (o en la carpeta que indique
+`-MediosSqlExpress_704ILR`). El guion publica la aplicación para Windows de 64 bits con
+.NET 8 incluido, comprueba que los medios estén completos y firmados por Microsoft,
+compila `EvenTech.iss` y deja `salida\EvenTech_Instalador_v<versión>.exe` (unos 380 MB:
+SQL Server Express ocupa 326), del que informa el tamaño y el SHA-256. Las carpetas
+`publicado`, `salida` y `motor` se generan o se copian y no se versionan.
+
+**Los medios de SQL Server Express** son la carpeta que deja el instalador web de
+Microsoft (`SQL2022-SSEI-Expr.exe`, opción *Descargar medios* > *Express Core*) al
+extraer su paquete `SQLEXPR_x64_ENU.exe` (`SQLEXPR_x64_ENU.exe /x:<carpeta>`), sin
+modificar: `SETUP.EXE`, `MEDIAINFO.XML` y sus subcarpetas. El guion se detiene si falta
+alguno, si un ejecutable o paquete no tiene una firma válida de Microsoft o si la
+carpeta trae `SqlServerInstallConfig.ini` (lo escribe una instalación local y lleva la
+cuenta de ese equipo). La licencia de SQL Server Express permite distribuirlo dentro de
+un programa propio (sección 2.b de sus términos): el programa le agrega funcionalidad
+principal, el instalador exige aceptar la licencia de Microsoft antes de instalarlo, los
+medios viajan sin modificar y el programa muestra su aviso de derechos de autor.
+`-SinMotor_704ILR` arma un instalador sin el motor, solo para pruebas.
 
 La versión del instalador se lee del ejecutable publicado: se cambia en un solo
 lugar, la propiedad `Version` de `Directory.Build.props`. El guion informa además
@@ -111,7 +133,7 @@ construye después de regenerar el respaldo.
 | Ruta | Contenido |
 |---|---|
 | `EvenTech.iss` | Guion de Inno Setup: páginas, textos y lógica del asistente (UTF-8 con BOM) |
-| `scripts/BaseDeDatos.ps1` | Diagnóstico de la instancia y de la base existente, restauración, actualización y reemplazo con respaldo previo, reversión, verificación y deshacer |
+| `scripts/BaseDeDatos.ps1` | Diagnóstico de la instancia y de la base existente, restauración, actualización y reemplazo con respaldo previo, reversión, verificación, deshacer y las cuentas que administran la instancia que se crea |
 | `scripts/Conexion.ps1` | Guarda la conexión cifrada en el perfil del usuario |
 | `recursos/` | Imágenes del asistente, con la marca del sistema, en tres escalas de pantalla |
 | `construir.ps1` | Publica la aplicación y compila el instalador |
@@ -147,6 +169,25 @@ construye después de regenerar el respaldo.
 - **.NET 8 incluido.** La aplicación se publica con su entorno de ejecución: no se
   agrega ningún paquete al código y el usuario final no instala .NET. Inno Setup es
   la herramienta con la que se arma el instalador, no una dependencia del sistema.
+- **SQL Server Express incluido.** Quien instala es el usuario final promedio, que no
+  sabe qué es SQL Server: el instalador lo lleva adentro y lo instala sin que haga falta
+  internet. Los medios se extraen recién cuando hay que instalarlo (van en su propio
+  bloque, sin comprimir, y no demoran el resto). Se instala solo el motor, con los
+  parámetros documentados de la instalación desde la línea de comandos: instancia
+  `SQLEXPRESS` (la que la aplicación espera de fábrica; si ya existe, `EVENTECH`), sin
+  conexiones de red (`/TCPENABLED=0 /NPENABLED=0`: el sistema corre en el mismo equipo),
+  inicio automático del servicio y sin buscar actualizaciones durante la instalación.
+  Administran la instancia el grupo de administradores del equipo —buscado por su
+  identificador, porque en un Windows en español se llama `BUILTIN\Administradores`— y
+  quien inició la instalación. Antes de empezar se comprueba lo que se puede ver desde el
+  asistente (.NET Framework 4.7.2 y 6 GB libres); si el instalador de SQL Server falla con
+  un reinicio pendiente de Windows, lo dice; si pide reiniciar al terminar y la instancia
+  ya responde, la instalación sigue y la página final ofrece reiniciar. Si se cancela
+  después, SQL Server Express queda instalado (se quita desde *Aplicaciones* de Windows),
+  y la desinstalación del sistema tampoco lo quita.
+- **Medios junto al instalador.** Una carpeta `SQLServerExpress` al lado del instalador
+  tiene prioridad sobre los medios incluidos (sirve para las pruebas con un doble del
+  instalador de SQL Server).
 
 ### Situaciones que informa el asistente
 
@@ -165,3 +206,16 @@ construye después de regenerar el respaldo.
 | `ERROR_NO_PREVISTO` | La comprobación de la instancia falló por una causa no prevista | Que no se pudo comprobar la instancia, con el detalle |
 | `CONEXION_NO_GUARDADA` | Al terminar, no se pudo guardar `connection.cfg` | Que al abrir el sistema elija la misma instancia en la pantalla de conexión |
 | `SIN_ACCESO_A_LA_BASE` | Al terminar, la cuenta que inició la instalación no puede abrir la base | Que el administrador de SQL Server le dé acceso a esa base |
+
+Al instalar SQL Server Express, además:
+
+| Situación | Qué ve quien instala |
+|---|---|
+| No aceptó la licencia de Microsoft | Que hay que aceptarla para instalar el motor |
+| Windows sin .NET Framework 4.7.2 | Que actualice Windows con Windows Update |
+| Menos de 6 GB libres en el disco del sistema | Cuánto espacio queda y que libere espacio |
+| El instalador de SQL Server falló con un reinicio pendiente de Windows | Que reinicie el equipo y vuelva a ejecutar el asistente, con el código y la carpeta del registro de SQL Server |
+| El instalador de SQL Server falló | El código y la carpeta del registro de SQL Server |
+| SQL Server pidió reiniciar y la instancia todavía no responde | Que reinicie el equipo y vuelva a ejecutar el asistente |
+| SQL Server terminó sin error pero la instancia no aparece | Que verifique la instalación de SQL Server |
+| Una instancia existente no sirve | El motivo, y que puede marcar la opción de instalar SQL Server Express |

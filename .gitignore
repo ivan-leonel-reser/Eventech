@@ -50,3 +50,5 @@ Docs/
 # Instalador: lo que se genera al construirlo (ver instalador/README.md)
 instalador/publicado/
 instalador/salida/
+# Medios de SQL Server Express que el instalador lleva adentro (ver instalador/README.md):
+instalador/motor/

@@ -16,12 +16,15 @@
 ;    - opcionalmente, la reemplaza por la de demostracion, tambien con respaldo previo;
 ;    - conserva la conexion guardada, la clave de cifrado y las preferencias.
 ;
-;  Si el equipo no tiene ninguna instancia de SQL Server y el paquete trae los medios
-;  de SQL Server Express (carpeta SQLServerExpress junto al instalador), ofrece
-;  instalar el motor en modo silencioso, previa aceptacion de su licencia.
+;  Motor de base de datos: el instalador lleva adentro SQL Server Express (los medios
+;  los incluye construir.ps1). Si el equipo no tiene ninguna instancia de SQL Server, lo
+;  instala en modo silencioso, previa aceptacion de su licencia, antes de crear la base;
+;  si ya tiene alguna, lo ofrece como alternativa (una instancia nueva). Unos medios en
+;  la carpeta SQLServerExpress junto al instalador tienen prioridad sobre los incluidos.
 ;
-;  Quien instala es el usuario final: no se le pide ninguna herramienta de linea de
-;  comandos ni escribir una cadena de conexion.
+;  Quien instala es el usuario final: no necesita tener nada instalado (ni .NET ni SQL
+;  Server), no se le pide ninguna herramienta de linea de comandos ni escribir una
+;  cadena de conexion.
 ;
 ;  Se compila con Inno Setup 6 por medio de construir.ps1, que antes publica la
 ;  aplicacion en la carpeta "publicado". Este archivo esta guardado como UTF-8 con
@@ -37,6 +40,15 @@
 
 #if !FileExists(Publicado_704ILR + "\" + Ejecutable_704ILR)
   #error No se encuentra la aplicacion publicada. Ejecutar construir.ps1, que la publica antes de compilar.
+#endif
+
+; Medios de SQL Server Express que el instalador lleva adentro: carpeta con SETUP.EXE (la
+; extraccion de los medios de Microsoft, sin modificar). construir.ps1 la pasa con
+; /DMediosMotor_704ILR=<carpeta>; sin ella, el instalador solo busca los medios junto a el.
+#ifdef MediosMotor_704ILR
+  #if !FileExists(MediosMotor_704ILR + "\SETUP.EXE")
+    #error La carpeta de los medios de SQL Server Express no tiene SETUP.EXE.
+  #endif
 #endif
 
 ; La version se lee del ejecutable publicado (propiedad Version de Directory.Build.props).
@@ -55,6 +67,7 @@ AppName={#Nombre_704ILR}
 AppVersion={#Version_704ILR}
 AppVerName={#Nombre_704ILR} {#Version_704ILR}
 AppPublisher={#Autor_704ILR}
+AppCopyright=© 2026 {#Autor_704ILR}
 ; Con el sistema abierto (en esta u otra sesion del equipo) no se actualiza nada.
 AppMutex={#Mutex_704ILR},Global\{#Mutex_704ILR}
 VersionInfoVersion={#Mayor_704ILR}.{#Menor_704ILR}.{#Revision_704ILR}.{#Compilacion_704ILR}
@@ -93,7 +106,7 @@ Name: "es"; MessagesFile: "compiler:Languages\Spanish.isl"
 es.WelcomeLabel2=Este asistente instalará [name/ver] en este equipo: copia la aplicación, crea o actualiza la base de datos del sistema en la instancia de SQL Server que se elija y deja configurada la conexión.%n%nSe recomienda cerrar las demás aplicaciones antes de continuar.
 es.FinishedLabel=La instalación de [name] finalizó: la aplicación quedó instalada, su base de datos creada y la conexión configurada.%n%nPara el primer ingreso se utiliza el usuario admin con la contraseña admin123.
 es.FinishedLabelNoIcons=La instalación de [name] finalizó: la aplicación quedó instalada, su base de datos creada y la conexión configurada.%n%nPara el primer ingreso se utiliza el usuario admin con la contraseña admin123.
-es.ConfirmUninstall=¿Desea quitar %1 de este equipo?%n%nLa base de datos EvenTechDB no se elimina: sus datos se conservan en SQL Server. Tampoco se eliminan la clave de cifrado ni el registro de excepciones del equipo.
+es.ConfirmUninstall=¿Desea quitar %1 de este equipo?%n%nLa base de datos EvenTechDB no se elimina: sus datos se conservan en SQL Server. Tampoco se eliminan SQL Server, la clave de cifrado ni el registro de excepciones del equipo.
 es.SetupAppRunningError=El asistente detectó que %1 está abierto en este equipo.%n%nCierre todas las ventanas del sistema y presione Aceptar para continuar, o Cancelar para salir.
 
 [CustomMessages]
@@ -103,20 +116,29 @@ es.InstanciaIntro=El asistente detectó las instancias de SQL Server instaladas 
 es.InstanciaEtiqueta=&Instancia de SQL Server:
 es.InstanciaNota=Si la instancia ya tiene la base %1, el paso siguiente permite conservar sus datos y actualizarla. La conexión utiliza la autenticación integrada de Windows: no se solicita usuario ni contraseña.
 es.InstanciaNinguna=No se detectó ninguna instancia de SQL Server en este equipo. %1 requiere SQL Server Express 2019 o superior: se lo puede instalar y volver a ejecutar este asistente, o escribir el nombre de la instancia si ya está instalada.
+es.InstanciaNingunaConMotor=No se detectó ninguna instancia de SQL Server en este equipo. %1 guarda sus datos en SQL Server Express, el motor de base de datos gratuito de Microsoft, que viene incluido en este instalador: para instalarlo basta con aceptar su licencia y presionar Siguiente.
 es.InstanciaEnlace=Descargar SQL Server Express desde el sitio de Microsoft
 es.InstanciaVacia=Debe seleccionar o escribir una instancia de SQL Server.
 es.InstanciaInvalida=El nombre de la instancia no puede contener comillas.
-es.MotorIncluido=Instalar ahora SQL Server Express (incluido en este paquete) en la instancia «%1»
+es.BienvenidaConMotor=Este asistente instalará %1 %2 en este equipo con todo lo que necesita para funcionar: si el equipo no tiene SQL Server, instala SQL Server Express (incluido en este instalador); después copia la aplicación, crea la base de datos del sistema y deja configurada la conexión.%n%nSe recomienda cerrar las demás aplicaciones antes de continuar.
+es.MotorIncluido=Instalar SQL Server Express en la instancia «%1»
+es.MotorIncluidoNueva=Instalar SQL Server Express en una instancia nueva, «%1»
+es.MotorNota=La instalación del motor demora varios minutos (habitualmente entre 5 y 15) y necesita al menos 6 GB libres en el disco del sistema. La conexión utiliza la autenticación integrada de Windows: no se solicita usuario ni contraseña.
 es.MotorLicencia=Acepto los términos de licencia de Microsoft SQL Server Express
 es.MotorLicenciaEnlace=Leer los términos de licencia de SQL Server
 es.MotorFaltaLicencia=Para instalar SQL Server Express hay que aceptar los términos de licencia de Microsoft.
-es.MotorProgresoTitulo=Instalación de SQL Server Express
-es.MotorProgresoDescripcion=El asistente está instalando el motor de base de datos.
+es.MotorExtrayendo=Preparando los archivos de SQL Server Express...
 es.MotorProgresoTexto=Instalando SQL Server Express en la instancia %1...
-es.MotorProgresoNota=Puede demorar varios minutos. No apague el equipo.
+es.MotorProgresoNota=Puede demorar varios minutos (habitualmente entre 5 y 15). No apague el equipo.
+es.MotorSinNetFramework=Para instalar SQL Server Express, Windows necesita .NET Framework 4.7.2 o posterior, que viene incluido en Windows 10 versión 1803 y posteriores.%n%nActualice Windows con Windows Update y vuelva a ejecutar este asistente.
+es.MotorSinEspacio=Para instalar SQL Server Express hacen falta al menos 6 GB libres en el disco del sistema (%1), y quedan %2 GB.%n%nLibere espacio y vuelva a intentar.
 es.MotorFallo=La instalación de SQL Server Express terminó con el código %1 y la instancia no quedó disponible.%n%nEl detalle quedó en el registro de la instalación de SQL Server (%2).
+es.MotorReinicioPrevio=No se pudo instalar SQL Server Express porque Windows tiene un reinicio pendiente (por ejemplo, de una actualización). Reinicie el equipo y vuelva a ejecutar este asistente.%n%nEl instalador de SQL Server terminó con el código %1; el detalle quedó en %2.
 es.MotorReinicio=SQL Server Express quedó instalado, pero Windows pide reiniciar el equipo antes de usarlo. Reinicie el equipo y vuelva a ejecutar este asistente.
 es.MotorNoDetectado=El instalador de SQL Server Express terminó sin error, pero el asistente no detecta la instancia «%1». Verifique la instalación de SQL Server y vuelva a ejecutar este asistente.
+es.SugerenciaMotor=Si esa instancia no sirve, se puede marcar «Instalar SQL Server Express» para que el asistente cree una instancia nueva en este equipo.
+es.MemoMotor=Motor de base de datos:
+es.MemoMotorInstalado=SQL Server Express, instalado por este asistente en la instancia %1
 es.ErrSinConexion=No se pudo establecer la conexión con la instancia «%1».%n%nVerifique que el nombre esté bien escrito y que el servicio de SQL Server esté iniciado.
 es.ErrInstanciaRemota=La instancia «%1» pertenece a otro equipo (%2).%n%nEste asistente trabaja con una instancia de SQL Server instalada en este mismo equipo.
 es.ErrVersionAnterior=La instancia «%1» es %2.%n%nEl sistema requiere SQL Server 2019 o superior.
@@ -178,6 +200,11 @@ Source: "scripts\BaseDeDatos.ps1"; Flags: dontcopy
 Source: "scripts\Conexion.ps1"; Flags: dontcopy
 Source: "..\db\schema.sql"; Flags: dontcopy
 Source: "..\db\EvenTechDB.bak"; Flags: dontcopy
+#ifdef MediosMotor_704ILR
+; SQL Server Express: solo se extrae si hay que instalarlo. Va en su propio bloque y sin
+; comprimir (sus paquetes ya vienen comprimidos), asi que no demora el resto.
+Source: "{#MediosMotor_704ILR}\*"; DestDir: "{tmp}\SQLServerExpress"; Flags: dontcopy recursesubdirs nocompression solidbreak
+#endif
 Source: "publicado\*"; DestDir: "{app}"; Excludes: "*.pdb"; Flags: ignoreversion recursesubdirs createallsubdirs solidbreak
 
 [Icons]
@@ -206,6 +233,18 @@ const
   OpCrear_704ILR = 'CREAR';
   OpActualizar_704ILR = 'ACTUALIZAR';
   OpReemplazar_704ILR = 'REEMPLAZAR';
+  // SQL Server Express adentro del instalador (ver [Files]).
+#ifdef MediosMotor_704ILR
+  MotorEmbebido_704ILR = True;
+#else
+  MotorEmbebido_704ILR = False;
+#endif
+  MediosEmbebidos_704ILR = '(incluidos en el instalador)';
+  CarpetaMotorEmbebido_704ILR = '{tmp}\SQLServerExpress';
+  // Requisitos de SQL Server 2022 Express que el asistente comprueba antes de instalarlo:
+  // espacio libre en el disco del sistema y .NET Framework 4.7.2 (version 461808).
+  EspacioDelMotorMB_704ILR = 6144;
+  NetFrameworkMinimo_704ILR = 461808;
 
 var
   PaginaInstancia_704ILR: TWizardPage;
@@ -233,8 +272,14 @@ var
   // reversion no se hace si la base cambio despues).
   OperacionDeLaBase_704ILR, HuellaDeLaBase_704ILR: String;
   InstalacionCompleta_704ILR: Boolean;
-  // Medios de SQL Server Express que trae el paquete (vacio: no trae).
+  // Medios de SQL Server Express: el SETUP.EXE junto al instalador, MediosEmbebidos_704ILR
+  // o vacio (no hay). OfrecerMotor: la pagina de la instancia ofrece instalarlo.
   MediosDelMotor_704ILR: String;
+  OfrecerMotor_704ILR: Boolean;
+  // Instancia que creo ESTA ejecucion al instalar SQL Server Express (vacia: ninguna) y
+  // si el instalador de SQL Server pidio reiniciar el equipo al terminar.
+  InstanciaCreada_704ILR: String;
+  ReinicioDelMotor_704ILR: Boolean;
 
 // ------------------------------------------------------------------- utilidades
 
@@ -301,12 +346,17 @@ end;
 procedure DetectarInstancias_704ILR(Lista_704ILR: TStrings);
 begin
   Lista_704ILR.Clear;
+#ifdef PruebaSinInstancias_704ILR
+  // Solo en la variante de prueba con que se capturan las pantallas de un equipo sin SQL
+  // Server (construir.ps1 nunca lo define): no se lee el registro.
+  Exit;
+#endif
   if IsWin64 then AgregarInstanciasDe_704ILR(HKLM64, Lista_704ILR);
   AgregarInstanciasDe_704ILR(HKLM32, Lista_704ILR);
 end;
 
-// Medios de SQL Server Express junto al instalador: la carpeta extraida (SETUP.EXE) o
-// el paquete autoextraible de Microsoft (SQLEXPR*.EXE).
+// Medios de SQL Server Express: junto al instalador, la carpeta extraida (SETUP.EXE) o
+// el paquete autoextraible de Microsoft (SQLEXPR*.EXE); si no, los incluidos.
 function BuscarMediosDelMotor_704ILR: String;
 var
   Carpeta_704ILR: String;
@@ -324,21 +374,59 @@ begin
       FindClose(Hallado_704ILR);
     end;
   end;
+  if (Result = '') and MotorEmbebido_704ILR then Result := MediosEmbebidos_704ILR;
 end;
 
 // Nombre de la instancia que se crea: SQLEXPRESS (la de fabrica de la aplicacion) o,
-// si ya existe una con ese nombre, EVENTECH.
+// si ya existe una con ese nombre, EVENTECH (EVENTECH2 a EVENTECH9 si tambien existe).
 function InstanciaNueva_704ILR: String;
 var
   Instancias_704ILR: TStringList;
+  n_704ILR: Integer;
 begin
   Instancias_704ILR := TStringList.Create;
   try
     DetectarInstancias_704ILR(Instancias_704ILR);
-    if Instancias_704ILR.IndexOf(InstanciaDeFabrica_704ILR) < 0 then Result := 'SQLEXPRESS' else Result := 'EVENTECH';
+    if Instancias_704ILR.IndexOf(InstanciaDeFabrica_704ILR) < 0 then
+      Result := 'SQLEXPRESS'
+    else
+    begin
+      Result := 'EVENTECH';
+      n_704ILR := 2;
+      while (Instancias_704ILR.IndexOf('localhost\' + Result) >= 0) and (n_704ILR <= 9) do
+      begin
+        Result := 'EVENTECH' + IntToStr(n_704ILR);
+        n_704ILR := n_704ILR + 1;
+      end;
+    end;
   finally
     Instancias_704ILR.Free;
   end;
+end;
+
+// Windows tiene un reinicio pendiente (de una actualizacion o de un programa recien
+// instalado): el instalador de SQL Server no sigue en ese estado.
+function ReinicioPendiente_704ILR: Boolean;
+var
+  Pendientes_704ILR: String;
+begin
+  Result := RegKeyExists(HKLM, 'SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending') or
+    RegKeyExists(HKLM, 'SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired') or
+    (RegQueryMultiStringValue(HKLM, 'SYSTEM\CurrentControlSet\Control\Session Manager', 'PendingFileRenameOperations', Pendientes_704ILR) and
+     (Trim(Pendientes_704ILR) <> ''));
+end;
+
+// Carpeta donde el instalador de SQL Server deja su registro: depende de la version de
+// los medios (16.x -> 160).
+function CarpetaDeRegistrosDelMotor_704ILR(Programa_704ILR: String): String;
+var
+  Version_704ILR: String;
+begin
+  Result := ExpandConstant('{commonpf}\Microsoft SQL Server\');
+  if GetVersionNumbersString(Programa_704ILR, Version_704ILR) and (Pos('.', Version_704ILR) > 1) then
+    Result := Result + Copy(Version_704ILR, 1, Pos('.', Version_704ILR) - 1) + '0\Setup Bootstrap\Log'
+  else
+    Result := Result + '...\Setup Bootstrap\Log';
 end;
 
 // --------------------------------------------------------------- ejecucion de guiones
@@ -411,6 +499,54 @@ begin
   Result := '-Accion_704ILR ' + Accion_704ILR + ' -Instancia_704ILR "' + Instancia_704ILR + '" -VersionNueva_704ILR "{#Version_704ILR}"';
 end;
 
+// Lo que corre con la cuenta de quien inicio la instalacion no puede leer la carpeta
+// temporal del asistente (solo la leen los administradores): los guiones se copian a una
+// carpeta de apoyo, que se borra despues.
+function PrepararCarpetaDeApoyo_704ILR: String;
+begin
+  Result := ExpandConstant('{commonappdata}\{#Nombre_704ILR}\instalacion');
+  ForceDirectories(Result);
+  FileCopy(ExpandConstant('{tmp}\') + GuionConexion_704ILR, AddBackslash(Result) + GuionConexion_704ILR, False);
+  FileCopy(ExpandConstant('{tmp}\') + GuionBase_704ILR, AddBackslash(Result) + GuionBase_704ILR, False);
+end;
+
+procedure QuitarCarpetaDeApoyo_704ILR(Apoyo_704ILR: String);
+begin
+  DelTree(Apoyo_704ILR, True, True, True);
+  // La carpeta superior se quita solo si quedo vacia (la aplicacion guarda ahi su
+  // clave de cifrado y el registro de excepciones).
+  RemoveDir(ExtractFileDir(Apoyo_704ILR));
+end;
+
+// Cuentas de Windows que administran la instancia que se crea, entre comillas y separadas
+// por un espacio, como las pide el instalador de SQL Server: el grupo de administradores
+// del equipo (con su nombre en el idioma de Windows) y quien inicio la instalacion, que
+// es quien va a usar el sistema (la cuenta elevada, si es otra, la agrega el parametro
+// /ADDCURRENTUSERASSQLADMIN). Vacio si no se las pudo averiguar.
+function CuentasAdministradoras_704ILR(Instancia_704ILR: String): String;
+var
+  Apoyo_704ILR, Administradores_704ILR, Usuario_704ILR: String;
+  Resultado_704ILR: TStringList;
+begin
+  Result := '';
+  Apoyo_704ILR := PrepararCarpetaDeApoyo_704ILR;
+  Resultado_704ILR := TStringList.Create;
+  try
+    if EjecutarGuion_704ILR(Apoyo_704ILR, GuionBase_704ILR,
+         '-Accion_704ILR Cuentas -Instancia_704ILR "' + Instancia_704ILR + '"', True, Resultado_704ILR) = 0 then
+    begin
+      Administradores_704ILR := Valor_704ILR(Resultado_704ILR, 'ADMINISTRADORES');
+      Usuario_704ILR := Valor_704ILR(Resultado_704ILR, 'USUARIO');
+      if Administradores_704ILR <> '' then Result := '"' + Administradores_704ILR + '"';
+      if (Usuario_704ILR <> '') and (CompareText(Usuario_704ILR, Administradores_704ILR) <> 0) then
+        Result := Trim(Result + ' "' + Usuario_704ILR + '"');
+    end;
+  finally
+    Resultado_704ILR.Free;
+    QuitarCarpetaDeApoyo_704ILR(Apoyo_704ILR);
+  end;
+end;
+
 // Mensaje para quien instala a partir de lo que informo el diagnostico de la instancia.
 function MensajeDeDiagnostico_704ILR(Instancia_704ILR: String; Resultado_704ILR: TStrings): String;
 var
@@ -473,50 +609,77 @@ begin
   end;
 end;
 
-// Instala SQL Server Express con los medios que trae el paquete, en modo silencioso y
-// con los parametros documentados por Microsoft para una instalacion desde la linea de
-// comandos. Devuelve '' si la instancia quedo disponible, o el mensaje para quien instala.
+// Instala SQL Server Express en modo silencioso, con los parametros documentados por
+// Microsoft para una instalacion desde la linea de comandos (los mismos que usa su propio
+// instalador basico: solo el motor, sin conexiones de red, sin buscar actualizaciones).
+// Antes comprueba los requisitos que se pueden ver desde aca. Devuelve '' si la
+// instancia quedo disponible, o el mensaje para quien instala.
 function InstalarMotor_704ILR(Instancia_704ILR: String): String;
 var
-  Parametros_704ILR: String;
+  Programa_704ILR, Parametros_704ILR, Cuentas_704ILR, Mensaje_704ILR: String;
   Codigo_704ILR: Integer;
+  NetFramework_704ILR: Cardinal;
+  Libre_704ILR, Total_704ILR: Int64;
   Instancias_704ILR: TStringList;
+  Registrada_704ILR: Boolean;
 begin
   Result := '';
-  Parametros_704ILR := '/Q /ACTION=Install /FEATURES=SQLEngine /INSTANCENAME=' + Instancia_704ILR +
-    ' /SQLSVCACCOUNT="NT Service\MSSQL$' + Instancia_704ILR + '"' +
-    ' /SQLSYSADMINACCOUNTS="BUILTIN\Administrators" /ADDCURRENTUSERASSQLADMIN=True' +
-    ' /TCPENABLED=0 /UPDATEENABLED=False /IACCEPTSQLSERVERLICENSETERMS /SUPPRESSPRIVACYSTATEMENTNOTICE';
+  if not RegQueryDWordValue(HKLM, 'SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full', 'Release', NetFramework_704ILR) or
+     (NetFramework_704ILR < NetFrameworkMinimo_704ILR) then
+  begin
+    Result := CustomMessage('MotorSinNetFramework');
+    Exit;
+  end;
+  if GetSpaceOnDisk64(ExpandConstant('{sd}\'), Libre_704ILR, Total_704ILR) and
+     (Libre_704ILR div 1048576 < EspacioDelMotorMB_704ILR) then
+  begin
+    Result := FmtMessage(CustomMessage('MotorSinEspacio'), [ExpandConstant('{sd}'), IntToStr(Libre_704ILR div 1073741824)]);
+    Exit;
+  end;
+
   PaginaProgreso_704ILR.SetText(FmtMessage(CustomMessage('MotorProgresoTexto'), [Instancia_704ILR]), CustomMessage('MotorProgresoNota'));
   PaginaProgreso_704ILR.SetProgress(0, 100);
   PaginaProgreso_704ILR.ProgressBar.Style := npbstMarquee;
   PaginaProgreso_704ILR.Show;
   try
-    Log('Instalacion de SQL Server Express: ' + MediosDelMotor_704ILR + ' ' + Parametros_704ILR);
-    if not Exec(MediosDelMotor_704ILR, Parametros_704ILR, ExtractFileDir(MediosDelMotor_704ILR), SW_HIDE, ewWaitUntilTerminated, Codigo_704ILR) then
+    Cuentas_704ILR := CuentasAdministradoras_704ILR('localhost\' + Instancia_704ILR);
+    Programa_704ILR := MediosDelMotor_704ILR;
+    if Programa_704ILR = MediosEmbebidos_704ILR then
+    begin
+      // Los medios incluidos se extraen recien ahora, y una sola vez por ejecucion.
+      Programa_704ILR := ExpandConstant(CarpetaMotorEmbebido_704ILR + '\SETUP.EXE');
+      if not FileExists(Programa_704ILR) then
+      begin
+        PaginaProgreso_704ILR.SetText(CustomMessage('MotorExtrayendo'), CustomMessage('MotorProgresoNota'));
+        try
+          ExtractTemporaryFiles(CarpetaMotorEmbebido_704ILR + '\*');
+        except
+          Log('No se pudieron extraer los medios de SQL Server Express: ' + GetExceptionMessage);
+        end;
+        PaginaProgreso_704ILR.SetText(FmtMessage(CustomMessage('MotorProgresoTexto'), [Instancia_704ILR]), CustomMessage('MotorProgresoNota'));
+      end;
+    end;
+
+    Parametros_704ILR := '/Q /ACTION=Install /FEATURES=SQLEngine /INSTANCENAME=' + Instancia_704ILR +
+      ' /ADDCURRENTUSERASSQLADMIN=True';
+    if Cuentas_704ILR <> '' then
+      Parametros_704ILR := Parametros_704ILR + ' /SQLSYSADMINACCOUNTS=' + Cuentas_704ILR;
+    Parametros_704ILR := Parametros_704ILR + ' /SQLSVCSTARTUPTYPE=Automatic /TCPENABLED=0 /NPENABLED=0' +
+      ' /UPDATEENABLED=False /IACCEPTSQLSERVERLICENSETERMS /SUPPRESSPRIVACYSTATEMENTNOTICE';
+    Log('Instalacion de SQL Server Express: ' + Programa_704ILR + ' ' + Parametros_704ILR);
+    if not FileExists(Programa_704ILR) or
+       not Exec(Programa_704ILR, Parametros_704ILR, ExtractFileDir(Programa_704ILR), SW_HIDE, ewWaitUntilTerminated, Codigo_704ILR) then
       Codigo_704ILR := -1;
     Log('SQL Server Express termino con el codigo ' + IntToStr(Codigo_704ILR));
   finally
     PaginaProgreso_704ILR.Hide;
   end;
-  // 3010: instalado, pide reiniciar el equipo.
-  if Codigo_704ILR = 3010 then
-  begin
-    Result := CustomMessage('MotorReinicio');
-    Exit;
-  end;
+
   Instancias_704ILR := TStringList.Create;
   try
     DetectarInstancias_704ILR(Instancias_704ILR);
-    if Instancias_704ILR.IndexOf('localhost\' + Instancia_704ILR) < 0 then
-    begin
-      if Codigo_704ILR <> 0 then
-        Result := FmtMessage(CustomMessage('MotorFallo'), [IntToStr(Codigo_704ILR),
-          ExpandConstant('{commonpf}\Microsoft SQL Server\<versión>\Setup Bootstrap\Log')])
-      else
-        Result := FmtMessage(CustomMessage('MotorNoDetectado'), ['localhost\' + Instancia_704ILR]);
-    end
-    else
+    Registrada_704ILR := Instancias_704ILR.IndexOf('localhost\' + Instancia_704ILR) >= 0;
+    if Registrada_704ILR then
     begin
       ComboInstancia_704ILR.Items.Assign(Instancias_704ILR);
       ComboInstancia_704ILR.Text := 'localhost\' + Instancia_704ILR;
@@ -524,6 +687,26 @@ begin
   finally
     Instancias_704ILR.Free;
   end;
+
+  if Codigo_704ILR = 3010 then
+  begin
+    // Instalado, pero Windows pide reiniciar: si la instancia ya responde, la instalacion
+    // sigue y el asistente ofrece reiniciar al terminar; si no, hay que reiniciar antes.
+    if Registrada_704ILR and DiagnosticarInstancia_704ILR('localhost\' + Instancia_704ILR, Mensaje_704ILR) then
+      ReinicioDelMotor_704ILR := True
+    else
+      Result := CustomMessage('MotorReinicio');
+  end
+  else if not Registrada_704ILR then
+  begin
+    if Codigo_704ILR = 0 then
+      Result := FmtMessage(CustomMessage('MotorNoDetectado'), ['localhost\' + Instancia_704ILR])
+    else if ReinicioPendiente_704ILR then
+      Result := FmtMessage(CustomMessage('MotorReinicioPrevio'), [IntToStr(Codigo_704ILR), CarpetaDeRegistrosDelMotor_704ILR(Programa_704ILR)])
+    else
+      Result := FmtMessage(CustomMessage('MotorFallo'), [IntToStr(Codigo_704ILR), CarpetaDeRegistrosDelMotor_704ILR(Programa_704ILR)]);
+  end;
+  if Result = '' then InstanciaCreada_704ILR := 'localhost\' + Instancia_704ILR;
 end;
 
 // ---------------------------------------------------------------- paginas del asistente
@@ -583,8 +766,15 @@ begin
     Intro_704ILR.WordWrap := True;
     Intro_704ILR.SetBounds(0, 0, PaginaInstancia_704ILR.SurfaceWidth, ScaleY(40));
     Intro_704ILR.Anchors := [akLeft, akTop, akRight];
+    // Motor de base de datos: con los medios a mano, se ofrece instalarlo en una
+    // instalacion inicial (marcado si el equipo no tiene ninguna instancia), y en una
+    // reinstalacion solo si se lo pide con /MOTOR=1 o si ya no queda ninguna instancia.
+    OfrecerMotor_704ILR := (MediosDelMotor_704ILR <> '') and
+      ((Instancias_704ILR.Count = 0) or not EsActualizacion_704ILR or (ExpandConstant('{param:MOTOR|0}') = '1'));
     if Instancias_704ILR.Count > 0 then
       Intro_704ILR.Caption := FmtMessage(CustomMessage('InstanciaIntro'), [BaseDeDatos_704ILR])
+    else if OfrecerMotor_704ILR then
+      Intro_704ILR.Caption := FmtMessage(CustomMessage('InstanciaNingunaConMotor'), ['{#Nombre_704ILR}'])
     else
       Intro_704ILR.Caption := FmtMessage(CustomMessage('InstanciaNinguna'), ['{#Nombre_704ILR}']);
     Intro_704ILR.AdjustHeight;
@@ -627,18 +817,22 @@ begin
     Nota_704ILR.SetBounds(0, ComboInstancia_704ILR.Top + ComboInstancia_704ILR.Height + ScaleY(14),
       PaginaInstancia_704ILR.SurfaceWidth, ScaleY(40));
     Nota_704ILR.Anchors := [akLeft, akTop, akRight];
-    Nota_704ILR.Caption := FmtMessage(CustomMessage('InstanciaNota'), [BaseDeDatos_704ILR]);
+    // Sin instancias, la nota sobre una base existente no aplica: se explica el motor.
+    if (Instancias_704ILR.Count = 0) and OfrecerMotor_704ILR then
+      Nota_704ILR.Caption := CustomMessage('MotorNota')
+    else
+      Nota_704ILR.Caption := FmtMessage(CustomMessage('InstanciaNota'), [BaseDeDatos_704ILR]);
     Nota_704ILR.AdjustHeight;
 
-    // Motor de base de datos: con los medios en el paquete, se ofrece instalarlo cuando
-    // el equipo no tiene ninguna instancia (o cuando se lo pide con /MOTOR=1).
-    MediosDelMotor_704ILR := BuscarMediosDelMotor_704ILR;
-    if (MediosDelMotor_704ILR <> '') and ((Instancias_704ILR.Count = 0) or (ExpandConstant('{param:MOTOR|0}') = '1')) then
+    if OfrecerMotor_704ILR then
     begin
       ChkMotor_704ILR := TNewCheckBox.Create(PaginaInstancia_704ILR);
       ChkMotor_704ILR.Parent := PaginaInstancia_704ILR.Surface;
       ChkMotor_704ILR.SetBounds(0, Nota_704ILR.Top + Nota_704ILR.Height + ScaleY(12), PaginaInstancia_704ILR.SurfaceWidth, ScaleY(17));
-      ChkMotor_704ILR.Caption := FmtMessage(CustomMessage('MotorIncluido'), ['localhost\' + InstanciaNueva_704ILR]);
+      if Instancias_704ILR.Count = 0 then
+        ChkMotor_704ILR.Caption := FmtMessage(CustomMessage('MotorIncluido'), ['localhost\' + InstanciaNueva_704ILR])
+      else
+        ChkMotor_704ILR.Caption := FmtMessage(CustomMessage('MotorIncluidoNueva'), ['localhost\' + InstanciaNueva_704ILR]);
       ChkMotor_704ILR.Checked := (Instancias_704ILR.Count = 0) or (ExpandConstant('{param:MOTOR|0}') = '1');
       ChkMotor_704ILR.OnClick := @MotorCambiado_704ILR;
       ChkLicencia_704ILR := TNewCheckBox.Create(PaginaInstancia_704ILR);
@@ -750,9 +944,12 @@ begin
   ExtractTemporaryFile(GuionBase_704ILR);
   ExtractTemporaryFile(GuionConexion_704ILR);
 
+  MediosDelMotor_704ILR := BuscarMediosDelMotor_704ILR;
   if EsActualizacion_704ILR then
     WizardForm.WelcomeLabel2.Caption := FmtMessage(CustomMessage('BienvenidaActualizacion'), ['{#Nombre_704ILR}',
-      VersionPrevia_704ILR, '{#Version_704ILR}']);
+      VersionPrevia_704ILR, '{#Version_704ILR}'])
+  else if MediosDelMotor_704ILR <> '' then
+    WizardForm.WelcomeLabel2.Caption := FmtMessage(CustomMessage('BienvenidaConMotor'), ['{#Nombre_704ILR}', '{#Version_704ILR}']);
 
   CrearPaginaInstancia_704ILR;
   CrearPaginaBase_704ILR;
@@ -864,6 +1061,9 @@ begin
   end
   else
   begin
+    // Con una instancia que no sirve, se recuerda que el asistente puede crear una.
+    if (ChkMotor_704ILR <> nil) and not ChkMotor_704ILR.Checked and (InstanciaCreada_704ILR = '') then
+      Mensaje_704ILR := Mensaje_704ILR + #13#10#13#10 + CustomMessage('SugerenciaMotor');
     Log('Instancia rechazada: ' + Mensaje_704ILR);
     SuppressibleMsgBox(Mensaje_704ILR, mbError, MB_OK, IDOK);
     Result := False;
@@ -878,6 +1078,9 @@ begin
     Result := Result + CustomMessage('MemoActualizacion') + NewLine + Space +
       FmtMessage(CustomMessage('MemoVersiones'), ['{#Nombre_704ILR}', VersionPrevia_704ILR, '{#Version_704ILR}']) + NewLine + NewLine;
   if MemoDirInfo <> '' then Result := Result + MemoDirInfo + NewLine + NewLine;
+  if InstanciaCreada_704ILR <> '' then
+    Result := Result + CustomMessage('MemoMotor') + NewLine + Space +
+      FmtMessage(CustomMessage('MemoMotorInstalado'), [InstanciaCreada_704ILR]) + NewLine + NewLine;
   Result := Result + CustomMessage('MemoBase') + NewLine +
     Space + FmtMessage(CustomMessage('MemoInstancia'), [InstanciaElegida_704ILR, MotorDetectado_704ILR]) + NewLine + Space;
   if Operacion_704ILR = OpActualizar_704ILR then
@@ -1009,21 +1212,16 @@ end;
 
 // Con la aplicacion ya copiada: se guarda la conexion en el perfil de quien inicio la
 // instalacion y se comprueba, con esa misma cuenta, que pueda abrir la base. Las dos
-// cosas corren sin elevacion, y la carpeta temporal del asistente solo la leen los
-// administradores: los guiones se copian a una carpeta de apoyo que se borra al terminar.
+// cosas corren sin elevacion, desde la carpeta de apoyo.
 // En una actualizacion la conexion que ya apunta a la misma instancia se conserva.
 procedure ConfigurarConexion_704ILR;
 var
   Resultado_704ILR: TStringList;
   Apoyo_704ILR, Detalle_704ILR, Aviso_704ILR, Conservar_704ILR: String;
 begin
-  Apoyo_704ILR := ExpandConstant('{commonappdata}\{#Nombre_704ILR}\instalacion');
-  ForceDirectories(Apoyo_704ILR);
+  Apoyo_704ILR := PrepararCarpetaDeApoyo_704ILR;
   Resultado_704ILR := TStringList.Create;
   try
-    FileCopy(ExpandConstant('{tmp}\') + GuionConexion_704ILR, AddBackslash(Apoyo_704ILR) + GuionConexion_704ILR, False);
-    FileCopy(ExpandConstant('{tmp}\') + GuionBase_704ILR, AddBackslash(Apoyo_704ILR) + GuionBase_704ILR, False);
-
     Conservar_704ILR := '';
     if Operacion_704ILR = OpActualizar_704ILR then Conservar_704ILR := ' -Conservar_704ILR';
     Aviso_704ILR := '';
@@ -1044,10 +1242,7 @@ begin
     end;
   finally
     Resultado_704ILR.Free;
-    DelTree(Apoyo_704ILR, True, True, True);
-    // La carpeta superior se quita solo si quedo vacia (la aplicacion guarda ahi su
-    // clave de cifrado y el registro de excepciones).
-    RemoveDir(ExtractFileDir(Apoyo_704ILR));
+    QuitarCarpetaDeApoyo_704ILR(Apoyo_704ILR);
   end;
 end;
 
@@ -1059,6 +1254,13 @@ begin
     InstalacionCompleta_704ILR := True;
     ConfigurarConexion_704ILR;
   end;
+end;
+
+// El instalador de SQL Server pidio reiniciar y la instancia ya respondia: la instalacion
+// siguio y la pagina final ofrece reiniciar el equipo.
+function NeedRestart: Boolean;
+begin
+  Result := ReinicioDelMotor_704ILR;
 end;
 
 // La instancia elegida queda registrada junto con la instalacion: es el dato con el

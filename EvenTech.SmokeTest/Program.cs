@@ -4020,6 +4020,9 @@ try
     Esperar_704ILR("version del sello = version del ensamblado",
         actual_704ILR.Version_704ILR, $"{asmV_704ILR.Major}.{asmV_704ILR.Minor}.{asmV_704ILR.Build}");
     Esperar_704ILR("el sello trae el commit", actual_704ILR.Commit_704ILR != null, true);
+    // El aviso de derechos de autor lo exige la licencia de SQL Server Express, que viaja
+    // con el instalador; "Acerca de" lo muestra.
+    Esperar_704ILR("aviso de derechos de autor del programa", actual_704ILR.Copyright_704ILR, "© 2026 Ivan Leonel Reser");
     foreach (var asm_704ILR in new[] { typeof(EvenTech.BE.BE_Reserva_704ILR).Assembly, typeof(EvenTech.DAL.DAL_Reserva_704ILR).Assembly,
                                        typeof(BLL_Reserva_704ILR).Assembly, System.Reflection.Assembly.GetEntryAssembly() })
     {

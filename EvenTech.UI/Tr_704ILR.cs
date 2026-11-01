@@ -38,7 +38,8 @@ namespace EvenTech.UI
             return texto_704ILR;
         }
 
-        // Detalle de "Acerca de": la version, el commit completo y su fecha.
+        // Detalle de "Acerca de": la version, el commit completo, su fecha y el aviso de
+        // derechos de autor del programa.
         public static string DetalleVersion_704ILR()
         {
             VersionSistema_704ILR v_704ILR = VersionSistema_704ILR.Actual_704ILR;
@@ -54,6 +55,8 @@ namespace EvenTech.UI
                     v_704ILR.FechaCommit_704ILR.Value.ToString("dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture)));
             if (v_704ILR.ConCambios_704ILR)
                 lineas_704ILR.Add(F_704ILR("APP_CON_CAMBIOS", "(compilado con cambios sin commitear)"));
+            if (!string.IsNullOrEmpty(v_704ILR.Copyright_704ILR))
+                lineas_704ILR.Add(v_704ILR.Copyright_704ILR);
             return string.Join(Environment.NewLine, lineas_704ILR);
         }
 
