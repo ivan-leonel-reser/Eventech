@@ -126,3 +126,6 @@ construye después de regenerar el respaldo.
 | `SIN_PERMISO` | El usuario no puede crear bases | Que instale con un administrador de la instancia |
 | `BASE_EXISTENTE` | Ya hay una base `EvenTechDB` | Que esta versión no modifica una base existente |
 | `RESTAURACION_FALLIDA` | El motor no pudo restaurar | El detalle que informó SQL Server y la ruta del registro |
+| `ERROR_NO_PREVISTO` | La comprobación de la instancia falló por una causa no prevista | Que no se pudo comprobar la instancia, con el detalle |
+| `CONEXION_NO_GUARDADA` | Al terminar, no se pudo guardar `connection.cfg` | Que al abrir el sistema elija la misma instancia en la pantalla de conexión |
+| `SIN_ACCESO_A_LA_BASE` | Al terminar, la cuenta que inició la instalación no puede abrir la base | Que el administrador de SQL Server le dé acceso a esa base |
