@@ -321,7 +321,7 @@ informe de gestión y su PDF, el registro serializado de excepciones (ida y vuel
 caracteres especiales, archivos dañados, lotes, retención) y los temas de la ayuda en
 línea. Son 59 casos numerados `[1]` a `[59]`, más un bloque `[limpieza]` y un
 `[cierre]` que vuelve a verificar la integridad de toda la base al terminar: 61 casos y
-1043 verificaciones en total.
+1046 verificaciones en total.
 
 ```bat
 dotnet run --project EvenTech.SmokeTest
