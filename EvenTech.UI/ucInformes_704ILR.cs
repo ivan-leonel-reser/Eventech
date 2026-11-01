@@ -104,6 +104,9 @@ namespace EvenTech.UI
 
             // Indicadores: cinco tarjetas en una fila.
             var kpis_704ILR = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 5, RowCount = 1, BackColor = Color.Transparent, Margin = new Padding(0, 0, 0, Theme_704ILR.SpaceMd_704ILR) };
+            // Una sola fila al alto de la celda: con el estilo automatico la fila tomaba el alto
+            // preferido de la tarjeta y el borde inferior quedaba recortado.
+            kpis_704ILR.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             for (int i_704ILR = 0; i_704ILR < 5; i_704ILR++)
             {
                 kpis_704ILR.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20));
@@ -195,8 +198,8 @@ namespace EvenTech.UI
             _kpiValor_704ILR[2].Text = Importe_704ILR(inf_704ILR.Contratado_704ILR);
             _kpiValor_704ILR[3].Text = Importe_704ILR(inf_704ILR.Cobrado_704ILR);
             _kpiTitulo_704ILR[3].Text = T_704ILR("INF_COBRADO", "Cobrado") + " (" + Porcentaje_704ILR(inf_704ILR.PorcentajeCobrado_704ILR) + ")";
-            foreach (var v_704ILR in _kpiValor_704ILR) _tip_704ILR.SetToolTip(v_704ILR, v_704ILR.Text);
             _kpiValor_704ILR[4].Text = Importe_704ILR(inf_704ILR.Saldo_704ILR);
+            foreach (var v_704ILR in _kpiValor_704ILR) _tip_704ILR.SetToolTip(v_704ILR, v_704ILR.Text);
 
             foreach (var e_704ILR in inf_704ILR.PorEstado_704ILR)
                 _gEstados_704ILR.Rows.Add(Tr_704ILR.Estado_704ILR(e_704ILR.Estado_704ILR), e_704ILR.Cantidad_704ILR.ToString(CultureInfo.CurrentCulture), Importe_704ILR(e_704ILR.Monto_704ILR));

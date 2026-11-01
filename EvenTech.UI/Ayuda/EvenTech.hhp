@@ -7,11 +7,11 @@ Default topic=inicio.htm
 Default Window=principal
 Display compile progress=No
 Full-text search=Yes
-Language=0x2c0a Español (Argentina)
+Language=0x409 English (United States)
 Title=EvenTech - Ayuda en línea
 
 [WINDOWS]
-principal="EvenTech - Ayuda en línea","EvenTech.hhc","EvenTech.hhk","inicio.htm","inicio.htm",,,,,0x63520,240,0x10184e,[60,40,1000,720],,,,,,,0
+principal="EvenTech - Ayuda en línea","EvenTech.hhc","EvenTech.hhk","inicio.htm","inicio.htm",,,,,0x61520,240,0x10184e,[60,40,1000,720],,,,,,,0
 
 [FILES]
 estilo.css

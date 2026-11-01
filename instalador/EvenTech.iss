@@ -147,7 +147,7 @@ es.BaseDescripcion=Lo que está instalado y lo que viene con la versión nueva.
 es.BaseInstalado=Instalado en este equipo: %1 %2, en %3.
 es.BaseSinPrevia=No hay una versión anterior del sistema registrada en este equipo.
 es.BaseExistente=Base de datos %1 en la instancia «%2»: versión %3, con %4 cuenta(s), %5 cliente(s) y %6 reserva(s).
-es.BaseNueva=Versión que se instala: %1 %2. Novedades: informe de gestión exportable a PDF, registro de excepciones, ayuda en línea con la tecla F1 y material de apoyo para el usuario.
+es.BaseNueva=Versión que se instala: %1 %2, con el informe de gestión en PDF, el registro de excepciones, la ayuda en línea (tecla F1) y el material de apoyo.
 es.OpcionConservar=&Conservar los datos y actualizar la base a la versión %1 (recomendado)
 es.OpcionConservarNota=Antes de actualizar se guarda un respaldo completo de la base en la carpeta de respaldos de SQL Server y, si algo falla, la base vuelve a ese respaldo. Se conservan las cuentas, los datos, la conexión configurada y la clave de cifrado de los contactos.
 es.OpcionReemplazar=&Reemplazar la base por la de demostración
@@ -160,8 +160,8 @@ es.MemoConservar=Base: %1, se conserva y se actualiza de la versión %2 a la %3 
 es.MemoReemplazar=Base: %1, se reemplaza por la de demostración (con respaldo previo de la actual)
 es.MemoActualizacion=Actualización:
 es.MemoVersiones=%1 %2 → %1 %3
-es.FinActualizado=La actualización de [name] a la versión %1 finalizó: la aplicación quedó reemplazada y la base de datos actualizada, con todos sus datos.%n%nRespaldo de la base anterior: %2
-es.FinReemplazado=La reinstalación de [name] %1 finalizó: la base de datos quedó con los datos de demostración.%n%nRespaldo de la base anterior: %2%n%nPara el primer ingreso se utiliza el usuario admin con la contraseña admin123.
+es.FinActualizado=La actualización de %1 a la versión %2 finalizó: la aplicación quedó reemplazada y la base de datos actualizada, con todos sus datos.%n%nRespaldo de la base anterior, en la carpeta%n%3:%n%4
+es.FinReemplazado=La reinstalación de %1 %2 finalizó: la base de datos quedó con los datos de demostración.%n%nRespaldo de la base anterior, en la carpeta%n%3:%n%4%n%nPara el primer ingreso se utiliza el usuario admin con la contraseña admin123.
 es.AvisoConexion=La aplicación quedó instalada y la base de datos lista, pero no se pudo guardar la configuración de la conexión.%n%nAl iniciar %1 se abre la pantalla de configuración de la conexión: allí se elige la instancia «%2».
 es.AvisoAcceso=La base de datos %1 está lista, pero el usuario de Windows que inició la instalación no pudo abrirla.%n%nEl administrador de SQL Server tiene que darle acceso a esa base para que pueda usar el sistema.
 
@@ -210,7 +210,7 @@ var
   ComboInstancia_704ILR: TNewComboBox;
   ChkMotor_704ILR, ChkLicencia_704ILR: TNewCheckBox;
   PaginaBase_704ILR: TWizardPage;
-  LblResumenBase_704ILR: TNewStaticText;
+  LblResumenBase_704ILR, NotaConservar_704ILR, NotaReemplazar_704ILR: TNewStaticText;
   RadioConservar_704ILR, RadioReemplazar_704ILR: TNewRadioButton;
   PaginaProgreso_704ILR: TOutputProgressWizardPage;
   InstanciaElegida_704ILR: String;
@@ -658,7 +658,6 @@ end;
 
 procedure CrearPaginaBase_704ILR;
 var
-  NotaConservar_704ILR, NotaReemplazar_704ILR: TNewStaticText;
   Ancho_704ILR: Integer;
 begin
   PaginaBase_704ILR := CreateCustomPage(PaginaInstancia_704ILR.ID,
@@ -715,6 +714,15 @@ begin
       CuentasBase_704ILR, ClientesBase_704ILR, ReservasBase_704ILR]) + #13#10#13#10 +
     FmtMessage(CustomMessage('BaseNueva'), ['{#Nombre_704ILR}', '{#Version_704ILR}']);
   LblResumenBase_704ILR.Caption := Texto_704ILR;
+  // El resumen mide lo que mide su texto (cuentas, clientes, ruta de la instalacion): las
+  // opciones se ubican debajo, para que el texto nunca quede montado sobre ellas.
+  LblResumenBase_704ILR.AdjustHeight;
+  NotaConservar_704ILR.AdjustHeight;
+  NotaReemplazar_704ILR.AdjustHeight;
+  RadioConservar_704ILR.Top := LblResumenBase_704ILR.Top + LblResumenBase_704ILR.Height + ScaleY(10);
+  NotaConservar_704ILR.Top := RadioConservar_704ILR.Top + RadioConservar_704ILR.Height + ScaleY(3);
+  RadioReemplazar_704ILR.Top := NotaConservar_704ILR.Top + NotaConservar_704ILR.Height + ScaleY(8);
+  NotaReemplazar_704ILR.Top := RadioReemplazar_704ILR.Top + RadioReemplazar_704ILR.Height + ScaleY(3);
 end;
 
 // No se instala una version anterior sobre una posterior.
@@ -759,9 +767,18 @@ begin
   else if CurPageID = wpFinished then
   begin
     if Operacion_704ILR = OpActualizar_704ILR then
-      WizardForm.FinishedLabel.Caption := FmtMessage(CustomMessage('FinActualizado'), ['{#Version_704ILR}', RespaldoPrevio_704ILR])
+      WizardForm.FinishedLabel.Caption := FmtMessage(CustomMessage('FinActualizado'), ['{#Nombre_704ILR}', '{#Version_704ILR}',
+        ExtractFileDir(RespaldoPrevio_704ILR), ExtractFileName(RespaldoPrevio_704ILR)])
     else if Operacion_704ILR = OpReemplazar_704ILR then
-      WizardForm.FinishedLabel.Caption := FmtMessage(CustomMessage('FinReemplazado'), ['{#Version_704ILR}', RespaldoPrevio_704ILR]);
+      WizardForm.FinishedLabel.Caption := FmtMessage(CustomMessage('FinReemplazado'), ['{#Nombre_704ILR}', '{#Version_704ILR}',
+        ExtractFileDir(RespaldoPrevio_704ILR), ExtractFileName(RespaldoPrevio_704ILR)]);
+    if (Operacion_704ILR = OpActualizar_704ILR) or (Operacion_704ILR = OpReemplazar_704ILR) then
+    begin
+      // El texto es mas largo que el de una instalacion: la casilla para abrir el sistema
+      // va debajo de el.
+      WizardForm.FinishedLabel.AdjustHeight;
+      WizardForm.RunList.Top := WizardForm.FinishedLabel.Top + WizardForm.FinishedLabel.Height + ScaleY(12);
+    end;
   end;
 end;
 
