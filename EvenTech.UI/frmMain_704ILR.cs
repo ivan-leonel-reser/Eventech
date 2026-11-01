@@ -220,7 +220,7 @@ namespace EvenTech.UI
             _itAgenda_704ILR      = new SideMenuItem_704ILR(Theme_704ILR.IcoAgenda_704ILR,      "MENU_AGENDA",      (s_704ILR, e_704ILR) => Navegar_704ILR(_itAgenda_704ILR));
             _itEmpleados_704ILR   = new SideMenuItem_704ILR(Theme_704ILR.IcoEmpleado_704ILR,    "MENU_EMPLEADOS",   (s_704ILR, e_704ILR) => Navegar_704ILR(_itEmpleados_704ILR));
             _itInformes_704ILR    = new SideMenuItem_704ILR(Theme_704ILR.IcoInforme_704ILR,     "MENU_INFORMES",    (s_704ILR, e_704ILR) => Navegar_704ILR(_itInformes_704ILR));
-            _itAyuda_704ILR       = new SideMenuItem_704ILR(Theme_704ILR.IcoAyuda_704ILR,       "MENU_AYUDA",       (s_704ILR, e_704ILR) => Ayuda_704ILR.Mostrar_704ILR(this, TemaAyuda_704ILR));
+            _itAyuda_704ILR       = new SideMenuItem_704ILR(Theme_704ILR.IcoAyuda_704ILR,       "MENU_AYUDA",       (s_704ILR, e_704ILR) => Ayuda_704ILR.Mostrar_704ILR(this, Ayuda_704ILR.TemaInicio_704ILR));
             _items_704ILR.AddRange(new[] { _itInicio_704ILR, _itReservas_704ILR, _itClientes_704ILR, _itServicios_704ILR,
                                            _itOperaciones_704ILR, _itAgenda_704ILR, _itEmpleados_704ILR, _itInformes_704ILR, _itPerfiles_704ILR, _itAuditoria_704ILR });
 
