@@ -10,5 +10,8 @@
     <ProjectReference Include="..\EvenTech.Services\EvenTech.Services.csproj" />
     <ProjectReference Include="..\EvenTech.DAL\EvenTech.DAL.csproj" />
     <ProjectReference Include="..\EvenTech.BLL\EvenTech.BLL.csproj" />
+    <!-- Entrega 3: la exportacion del informe a PDF (A02) y la ayuda en linea (D02) viven
+         en la capa de presentacion; la prueba las ejercita sin abrir ventanas. -->
+    <ProjectReference Include="..\EvenTech.UI\EvenTech.UI.csproj" />
   </ItemGroup>
 </Project>

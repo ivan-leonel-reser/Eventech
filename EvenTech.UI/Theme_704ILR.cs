@@ -166,5 +166,8 @@ namespace EvenTech.UI
         public static readonly string IcoAbajo_704ILR       = Glyph_704ILR(0xE70D); // ChevronDown (bajar)
         public static readonly string IcoIniciar_704ILR     = Glyph_704ILR(0xE768); // Play (iniciar ejecucion)
         public static readonly string IcoEliminar_704ILR    = Glyph_704ILR(0xE74D); // Delete (eliminar el cronograma)
+        // Entrega 3.
+        public static readonly string IcoInforme_704ILR     = Glyph_704ILR(0xE9F9); // ReportDocument (informes)
+        public static readonly string IcoAyuda_704ILR       = Glyph_704ILR(0xE897); // Help (ayuda en linea)
     }
 }

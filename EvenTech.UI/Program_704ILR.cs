@@ -7,9 +7,18 @@ namespace EvenTech.UI
 {
     internal static class Program_704ILR
     {
+        // Nombre del mutex que la aplicacion mantiene mientras esta abierta. El instalador
+        // lo busca (AppMutex de EvenTech.iss) para no actualizar los archivos ni la base
+        // con el sistema en uso: con el mismo nombre en el ambito de la sesion y en el
+        // global, lo encuentra tambien si quien lo tiene abierto es otro usuario del equipo.
+        internal const string NombreMutex_704ILR = "EvenTech_704ILR_Aplicacion";
+
         [STAThread]
         static void Main()
         {
+            using var enUso_704ILR = AbrirMutex_704ILR(NombreMutex_704ILR);
+            using var enUsoGlobal_704ILR = AbrirMutex_704ILR(@"Global\" + NombreMutex_704ILR);
+
             ApplicationConfiguration.Initialize();
 
             // Red de seguridad para lo imprevisto: una excepcion no manejada en un evento
@@ -63,6 +72,18 @@ namespace EvenTech.UI
             // frmMain modal y al volver del logout queda esperando otro login.
             // El "✕" del frmLogin termina la app.
             Application.Run(new frmLogin_704ILR());
+        }
+
+        // Solo marca que la aplicacion esta abierta: no impide abrir otra ventana del
+        // sistema. Si el sistema operativo no deja crearlo (el global ya lo creo otra
+        // sesion con otros permisos), alcanza con el de la sesion.
+        private static System.Threading.Mutex AbrirMutex_704ILR(string nombre_704ILR)
+        {
+            try { return new System.Threading.Mutex(false, nombre_704ILR); }
+            catch (Exception ex_704ILR) when (ex_704ILR is UnauthorizedAccessException || ex_704ILR is System.Threading.WaitHandleCannotBeOpenedException || ex_704ILR is System.IO.IOException)
+            {
+                return null;
+            }
         }
 
         private static void ExcepcionNoControlada_704ILR(Exception ex_704ILR)

@@ -15,6 +15,9 @@ namespace EvenTech.UI
     // baja impacta la base y se recalcula el saldo (tope = total de la reserva).
     public class frmReservaPagos_704ILR : FormBase_704ILR
     {
+        // Tema de la ayuda en linea de esta ventana (F1).
+        protected override string TemaAyuda_704ILR => Ayuda_704ILR.TemaPagos_704ILR;
+
         private readonly int _reservaId_704ILR;
         // Total de la reserva segun la ultima lectura. Llega al abrir, pero no queda fijo:
         // cada refresco lo vuelve a leer de la base (ver RefrescarPagos_704ILR), porque

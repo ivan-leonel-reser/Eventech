@@ -9,6 +9,9 @@ namespace EvenTech.UI
     // BLL_Perfil.CrearPerfil. Devuelve DialogResult.OK y el Id en NuevoId.
     public class frmNuevoPerfil_704ILR : FormBase_704ILR
     {
+        // Tema de la ayuda en linea de esta ventana (F1).
+        protected override string TemaAyuda_704ILR => Ayuda_704ILR.TemaPerfiles_704ILR;
+
         private TextBox _txtNombre_704ILR, _txtDesc_704ILR;
         private Label _lblMsg_704ILR;
         // La fila del mensaje crece con el texto (un mensaje de dos lineas se cortaba en la

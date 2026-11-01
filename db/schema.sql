@@ -3708,6 +3708,212 @@ GROUP BY i.Id, t.Clave;   -- una sola fila por idioma+clave: una clave repetida 
                           -- bloque de arriba no puede romper UQ_Traducciones.
 GO
 
+-- ===========================================================================
+-- Entrega 3 (version 3.0). Idempotente, como el resto del script: sobre una base
+-- de la version 2.0 agrega solo lo que falta y no vuelve a sembrar ni pisa datos
+-- del usuario.
+--  * INFORMES_VER (grupo propio "Informes"): informe de gestion del periodo y su
+--    exportacion a PDF (A02). Lo recibe el perfil Gerencial, que es el de la
+--    conduccion del salon, y el Administrador (acceso total).
+--  * EXCEPCIONES_VER (grupo Auditoria): registro serializado de excepciones (A03).
+--    Lo recibe el Administrador.
+--  Igual que EJECUCION_SUPERVISAR en la E2: Gerencial recibe el permiso solo la vez
+--  que el permiso se da de alta (lo que un administrador le quite despues se
+--  conserva). Todo en una transaccion: si se corta, no queda el permiso sin su
+--  asignacion (la corrida siguiente ya no lo veria como nuevo).
+-- ===========================================================================
+BEGIN TRY
+BEGIN TRANSACTION;
+
+DECLARE @raizE3 INT = (SELECT TOP 1 Id FROM dbo.Permisos WHERE Nombre = N'Administracion' AND EsGrupo = 1);
+DECLARE @gAuditE3 INT = (SELECT TOP 1 Id FROM dbo.Permisos WHERE Nombre = N'Auditoria' AND EsGrupo = 1);
+
+DECLARE @gInformes INT = (SELECT TOP 1 Id FROM dbo.Permisos WHERE Nombre = N'Informes' AND EsGrupo = 1);
+IF @gInformes IS NULL
+BEGIN
+    INSERT INTO dbo.Permisos (Nombre, Descripcion, EsGrupo, Clave, PermisoPadreId)
+        VALUES (N'Informes', N'Informes de gestion', 1, NULL, @raizE3);
+    SET @gInformes = SCOPE_IDENTITY();
+END
+
+DECLARE @informesNuevo BIT = 0;
+IF NOT EXISTS (SELECT 1 FROM dbo.Permisos WHERE Clave = N'INFORMES_VER')
+BEGIN
+    INSERT INTO dbo.Permisos (Nombre, Descripcion, EsGrupo, Clave, PermisoPadreId)
+        VALUES (N'Ver Informes', N'Generar el informe de gestion y exportarlo a PDF', 0, N'INFORMES_VER', @gInformes);
+    SET @informesNuevo = 1;
+END
+IF NOT EXISTS (SELECT 1 FROM dbo.Permisos WHERE Clave = N'EXCEPCIONES_VER')
+    INSERT INTO dbo.Permisos (Nombre, Descripcion, EsGrupo, Clave, PermisoPadreId)
+        VALUES (N'Ver Excepciones', N'Consultar y exportar el registro de excepciones', 0, N'EXCEPCIONES_VER', @gAuditE3);
+
+-- Acceso total del Administrador: se le asigna todo permiso que le falte.
+INSERT INTO dbo.PerfilPermiso (PerfilId, PermisoId)
+SELECT p.Id, pe.Id
+FROM dbo.Perfiles p
+CROSS JOIN dbo.Permisos pe
+WHERE p.Nombre = N'Administrador'
+  AND NOT EXISTS (SELECT 1 FROM dbo.PerfilPermiso pp
+                  WHERE pp.PerfilId = p.Id AND pp.PermisoId = pe.Id);
+
+IF @informesNuevo = 1
+    INSERT INTO dbo.PerfilPermiso (PerfilId, PermisoId)
+    SELECT p.Id, pe.Id
+    FROM dbo.Perfiles p
+    JOIN dbo.Permisos pe ON pe.Clave = N'INFORMES_VER'
+    WHERE p.Nombre = N'Gerencial'
+      AND NOT EXISTS (SELECT 1 FROM dbo.PerfilPermiso pp
+                      WHERE pp.PerfilId = p.Id AND pp.PermisoId = pe.Id);
+
+-- Descripcion de fabrica del perfil Gerencial: nombra tambien el informe. Se corrige
+-- solo si conserva exactamente el texto sembrado y el perfil tiene el permiso.
+UPDATE p SET Descripcion = N'Incluye al perfil Supervisor y suma la corrección administrativa de la línea base de integridad y el informe de gestión'
+FROM dbo.Perfiles p
+WHERE p.Nombre = N'Gerencial'
+  AND p.Descripcion = N'Incluye al perfil Supervisor y suma la corrección administrativa de la línea base de integridad' COLLATE Latin1_General_BIN2
+  AND DATALENGTH(p.Descripcion) = DATALENGTH(N'Incluye al perfil Supervisor y suma la corrección administrativa de la línea base de integridad')
+  AND EXISTS (SELECT 1 FROM dbo.PerfilPermiso pp JOIN dbo.Permisos pe ON pe.Id = pp.PermisoId
+              WHERE pp.PerfilId = p.Id AND pe.Clave = N'INFORMES_VER');
+
+COMMIT TRANSACTION;
+END TRY
+BEGIN CATCH
+    IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+    THROW;
+END CATCH
+GO
+
+-- ---------------------------------------------------------------------------
+-- Entrega 3: traducciones ES/EN/PT del informe de gestion (A02), del registro de
+-- excepciones (A03), de la ayuda en linea (D02: item del menu, descripciones
+-- emergentes y aviso), de los permisos nuevos y de los modulos y acciones que esas
+-- funciones asientan en la bitacora. Inserta solo lo que falte (una traduccion
+-- editada por el usuario se conserva). Va antes de la copia a los idiomas
+-- agregados por el usuario, que las recibe.
+-- ---------------------------------------------------------------------------
+;WITH Txt(Codigo, Clave, Texto) AS (
+    SELECT * FROM (VALUES
+        -- Menu lateral
+        (N'ES', N'MENU_INFORMES', N'Informes'), (N'EN', N'MENU_INFORMES', N'Reports'), (N'PT', N'MENU_INFORMES', N'Relatórios'),
+        (N'ES', N'MENU_AYUDA', N'Ayuda'), (N'EN', N'MENU_AYUDA', N'Help'), (N'PT', N'MENU_AYUDA', N'Ajuda'),
+        -- Arbol de permisos
+        (N'ES', N'PERMG_INFORMES', N'Informes'), (N'EN', N'PERMG_INFORMES', N'Reports'), (N'PT', N'PERMG_INFORMES', N'Relatórios'),
+        (N'ES', N'PERM_INFORMES_VER', N'Ver Informes'), (N'EN', N'PERM_INFORMES_VER', N'View Reports'), (N'PT', N'PERM_INFORMES_VER', N'Ver Relatórios'),
+        (N'ES', N'PERM_EXCEPCIONES_VER', N'Ver Excepciones'), (N'EN', N'PERM_EXCEPCIONES_VER', N'View Exceptions'), (N'PT', N'PERM_EXCEPCIONES_VER', N'Ver Exceções'),
+        -- Bitacora: modulos y acciones nuevos
+        (N'ES', N'MOD_INFORMES', N'Informes'), (N'EN', N'MOD_INFORMES', N'Reports'), (N'PT', N'MOD_INFORMES', N'Relatórios'),
+        (N'ES', N'MOD_EXCEPCIONES', N'Excepciones'), (N'EN', N'MOD_EXCEPCIONES', N'Exceptions'), (N'PT', N'MOD_EXCEPCIONES', N'Exceções'),
+        (N'ES', N'BACC_INFORME_GENERADO', N'Informe generado'), (N'EN', N'BACC_INFORME_GENERADO', N'Report generated'), (N'PT', N'BACC_INFORME_GENERADO', N'Relatório gerado'),
+        (N'ES', N'BACC_INFORME_EXPORTADO_A_PDF', N'Informe exportado a PDF'), (N'EN', N'BACC_INFORME_EXPORTADO_A_PDF', N'Report exported to PDF'), (N'PT', N'BACC_INFORME_EXPORTADO_A_PDF', N'Relatório exportado para PDF'),
+        (N'ES', N'BACC_LOTE_DE_EXCEPCIONES_EXPORTADO', N'Lote de excepciones exportado'), (N'EN', N'BACC_LOTE_DE_EXCEPCIONES_EXPORTADO', N'Exception batch exported'), (N'PT', N'BACC_LOTE_DE_EXCEPCIONES_EXPORTADO', N'Lote de exceções exportado'),
+        (N'ES', N'BACC_LOTE_DE_EXCEPCIONES_ABIERTO', N'Lote de excepciones abierto'), (N'EN', N'BACC_LOTE_DE_EXCEPCIONES_ABIERTO', N'Exception batch opened'), (N'PT', N'BACC_LOTE_DE_EXCEPCIONES_ABIERTO', N'Lote de exceções aberto'),
+        (N'ES', N'BACC_LOTE_DE_EXCEPCIONES_RECHAZADO', N'Lote de excepciones rechazado'), (N'EN', N'BACC_LOTE_DE_EXCEPCIONES_RECHAZADO', N'Exception batch rejected'), (N'PT', N'BACC_LOTE_DE_EXCEPCIONES_RECHAZADO', N'Lote de exceções rejeitado'),
+        -- Informe de gestion (ucInformes y el PDF)
+        (N'ES', N'INF_TITULO', N'Informe de gestión'), (N'EN', N'INF_TITULO', N'Management report'), (N'PT', N'INF_TITULO', N'Relatório de gestão'),
+        (N'ES', N'INF_PERIODO', N'Período'), (N'EN', N'INF_PERIODO', N'Period'), (N'PT', N'INF_PERIODO', N'Período'),
+        (N'ES', N'INF_DESDE', N'Desde'), (N'EN', N'INF_DESDE', N'From'), (N'PT', N'INF_DESDE', N'De'),
+        (N'ES', N'INF_HASTA', N'Hasta'), (N'EN', N'INF_HASTA', N'To'), (N'PT', N'INF_HASTA', N'Até'),
+        (N'ES', N'INF_BTN_GENERAR', N'Generar'), (N'EN', N'INF_BTN_GENERAR', N'Generate'), (N'PT', N'INF_BTN_GENERAR', N'Gerar'),
+        (N'ES', N'INF_BTN_EXPORTAR', N'Exportar PDF...'), (N'EN', N'INF_BTN_EXPORTAR', N'Export PDF...'), (N'PT', N'INF_BTN_EXPORTAR', N'Exportar PDF...'),
+        (N'ES', N'INF_ELEGIR', N'Elija el período y presione Generar.'), (N'EN', N'INF_ELEGIR', N'Choose the period and press Generate.'), (N'PT', N'INF_ELEGIR', N'Escolha o período e pressione Gerar.'),
+        (N'ES', N'INF_ESTADO', N'Período {0} – {1} ({2} días). Generado el {3}.'), (N'EN', N'INF_ESTADO', N'Period {0} – {1} ({2} days). Generated on {3}.'), (N'PT', N'INF_ESTADO', N'Período {0} – {1} ({2} dias). Gerado em {3}.'),
+        (N'ES', N'INF_RANGO_INVALIDO', N'La fecha «desde» no puede ser posterior a la fecha «hasta».'), (N'EN', N'INF_RANGO_INVALIDO', N'The "from" date cannot be later than the "to" date.'), (N'PT', N'INF_RANGO_INVALIDO', N'A data «de» não pode ser posterior à data «até».'),
+        (N'ES', N'INF_RANGO_EXCESIVO', N'El período no puede superar los {0} días.'), (N'EN', N'INF_RANGO_EXCESIVO', N'The period cannot exceed {0} days.'), (N'PT', N'INF_RANGO_EXCESIVO', N'O período não pode ultrapassar {0} dias.'),
+        (N'ES', N'INF_FILTRO_PDF', N'Documento PDF (*.pdf)'), (N'EN', N'INF_FILTRO_PDF', N'PDF document (*.pdf)'), (N'PT', N'INF_FILTRO_PDF', N'Documento PDF (*.pdf)'),
+        (N'ES', N'INF_EXPORTADO', N'Informe exportado ({0} hoja/s): {1}'), (N'EN', N'INF_EXPORTADO', N'Report exported ({0} page/s): {1}'), (N'PT', N'INF_EXPORTADO', N'Relatório exportado ({0} página/s): {1}'),
+        (N'ES', N'INF_KPI_RESERVAS', N'Reservas del período'), (N'EN', N'INF_KPI_RESERVAS', N'Reservations in the period'), (N'PT', N'INF_KPI_RESERVAS', N'Reservas do período'),
+        (N'ES', N'INF_KPI_CONFIRMADAS', N'Confirmadas'), (N'EN', N'INF_KPI_CONFIRMADAS', N'Confirmed'), (N'PT', N'INF_KPI_CONFIRMADAS', N'Confirmadas'),
+        (N'ES', N'INF_CONTRATADO', N'Contratado'), (N'EN', N'INF_CONTRATADO', N'Contracted'), (N'PT', N'INF_CONTRATADO', N'Contratado'),
+        (N'ES', N'INF_COBRADO', N'Cobrado'), (N'EN', N'INF_COBRADO', N'Collected'), (N'PT', N'INF_COBRADO', N'Recebido'),
+        (N'ES', N'INF_SALDO', N'Saldo a cobrar'), (N'EN', N'INF_SALDO', N'Balance due'), (N'PT', N'INF_SALDO', N'Saldo a receber'),
+        (N'ES', N'INF_PORC_COBRADO', N'Porcentaje cobrado'), (N'EN', N'INF_PORC_COBRADO', N'Percentage collected'), (N'PT', N'INF_PORC_COBRADO', N'Percentual recebido'),
+        (N'ES', N'INF_TAB_ESTADOS', N'Por estado'), (N'EN', N'INF_TAB_ESTADOS', N'By status'), (N'PT', N'INF_TAB_ESTADOS', N'Por estado'),
+        (N'ES', N'INF_TAB_SALONES', N'Ocupación de salones'), (N'EN', N'INF_TAB_SALONES', N'Venue occupancy'), (N'PT', N'INF_TAB_SALONES', N'Ocupação dos salões'),
+        (N'ES', N'INF_TAB_VENCER', N'Por vencer'), (N'EN', N'INF_TAB_VENCER', N'About to expire'), (N'PT', N'INF_TAB_VENCER', N'A vencer'),
+        (N'ES', N'INF_TAB_EVENTOS', N'Eventos confirmados'), (N'EN', N'INF_TAB_EVENTOS', N'Confirmed events'), (N'PT', N'INF_TAB_EVENTOS', N'Eventos confirmados'),
+        (N'ES', N'INF_SEC_RESUMEN', N'1. Resumen del período'), (N'EN', N'INF_SEC_RESUMEN', N'1. Period summary'), (N'PT', N'INF_SEC_RESUMEN', N'1. Resumo do período'),
+        (N'ES', N'INF_SEC_COBRANZA', N'2. Cobranza de las reservas confirmadas'), (N'EN', N'INF_SEC_COBRANZA', N'2. Collection of confirmed reservations'), (N'PT', N'INF_SEC_COBRANZA', N'2. Recebimento das reservas confirmadas'),
+        (N'ES', N'INF_SEC_SALONES', N'3. Ocupación de los salones'), (N'EN', N'INF_SEC_SALONES', N'3. Venue occupancy'), (N'PT', N'INF_SEC_SALONES', N'3. Ocupação dos salões'),
+        (N'ES', N'INF_SEC_VENCER', N'4. Cotizaciones y reservas pendientes por vencer'), (N'EN', N'INF_SEC_VENCER', N'4. Quotes and pending reservations about to expire'), (N'PT', N'INF_SEC_VENCER', N'4. Cotações e reservas pendentes a vencer'),
+        (N'ES', N'INF_SEC_EVENTOS', N'5. Eventos confirmados'), (N'EN', N'INF_SEC_EVENTOS', N'5. Confirmed events'), (N'PT', N'INF_SEC_EVENTOS', N'5. Eventos confirmados'),
+        (N'ES', N'INF_COL_ESTADO', N'Estado'), (N'EN', N'INF_COL_ESTADO', N'Status'), (N'PT', N'INF_COL_ESTADO', N'Estado'),
+        (N'ES', N'INF_COL_CANTIDAD', N'Cantidad'), (N'EN', N'INF_COL_CANTIDAD', N'Count'), (N'PT', N'INF_COL_CANTIDAD', N'Quantidade'),
+        (N'ES', N'INF_COL_MONTO', N'Monto'), (N'EN', N'INF_COL_MONTO', N'Amount'), (N'PT', N'INF_COL_MONTO', N'Valor'),
+        (N'ES', N'INF_TOTAL', N'Total'), (N'EN', N'INF_TOTAL', N'Total'), (N'PT', N'INF_TOTAL', N'Total'),
+        (N'ES', N'INF_COL_CONCEPTO', N'Concepto'), (N'EN', N'INF_COL_CONCEPTO', N'Item'), (N'PT', N'INF_COL_CONCEPTO', N'Conceito'),
+        (N'ES', N'INF_COL_IMPORTE', N'Importe'), (N'EN', N'INF_COL_IMPORTE', N'Amount'), (N'PT', N'INF_COL_IMPORTE', N'Valor'),
+        (N'ES', N'INF_COL_SALON', N'Salón'), (N'EN', N'INF_COL_SALON', N'Venue'), (N'PT', N'INF_COL_SALON', N'Salão'),
+        (N'ES', N'INF_COL_CAPACIDAD', N'Capacidad'), (N'EN', N'INF_COL_CAPACIDAD', N'Capacity'), (N'PT', N'INF_COL_CAPACIDAD', N'Capacidade'),
+        (N'ES', N'INF_COL_EVENTOS', N'Eventos'), (N'EN', N'INF_COL_EVENTOS', N'Events'), (N'PT', N'INF_COL_EVENTOS', N'Eventos'),
+        (N'ES', N'INF_COL_OCUPACION', N'Ocupación'), (N'EN', N'INF_COL_OCUPACION', N'Occupancy'), (N'PT', N'INF_COL_OCUPACION', N'Ocupação'),
+        (N'ES', N'INF_COL_CONTRATADO', N'Contratado'), (N'EN', N'INF_COL_CONTRATADO', N'Contracted'), (N'PT', N'INF_COL_CONTRATADO', N'Contratado'),
+        (N'ES', N'INF_COL_RESERVA', N'N.º'), (N'EN', N'INF_COL_RESERVA', N'No.'), (N'PT', N'INF_COL_RESERVA', N'N.º'),
+        (N'ES', N'INF_COL_FECHA', N'Evento'), (N'EN', N'INF_COL_FECHA', N'Event'), (N'PT', N'INF_COL_FECHA', N'Evento'),
+        (N'ES', N'INF_COL_CLIENTE', N'Cliente'), (N'EN', N'INF_COL_CLIENTE', N'Client'), (N'PT', N'INF_COL_CLIENTE', N'Cliente'),
+        (N'ES', N'INF_COL_VENCE', N'Vence'), (N'EN', N'INF_COL_VENCE', N'Expires'), (N'PT', N'INF_COL_VENCE', N'Vence'),
+        (N'ES', N'INF_COL_COORDINACION', N'Coordinación'), (N'EN', N'INF_COL_COORDINACION', N'Coordination'), (N'PT', N'INF_COL_COORDINACION', N'Coordenação'),
+        (N'ES', N'INF_COL_SALDO', N'Saldo'), (N'EN', N'INF_COL_SALDO', N'Balance'), (N'PT', N'INF_COL_SALDO', N'Saldo'),
+        (N'ES', N'INF_NOTA_OCUPACION', N'Ocupación: días con un evento confirmado sobre los {0} días del período.'), (N'EN', N'INF_NOTA_OCUPACION', N'Occupancy: days with a confirmed event out of the {0} days of the period.'), (N'PT', N'INF_NOTA_OCUPACION', N'Ocupação: dias com um evento confirmado sobre os {0} dias do período.'),
+        (N'ES', N'INF_NOTA_VENCIDAS', N'Además hay {0} operación(es) ya vencida(s): renovarlas o cancelarlas desde Reservas.'), (N'EN', N'INF_NOTA_VENCIDAS', N'There are also {0} expired operation(s): renew or cancel them from Reservations.'), (N'PT', N'INF_NOTA_VENCIDAS', N'Há também {0} operação(ões) vencida(s): renove-as ou cancele-as em Reservas.'),
+        (N'ES', N'INF_SIN_VENCER', N'No hay operaciones vigentes por vencer en el período.'), (N'EN', N'INF_SIN_VENCER', N'There are no active operations about to expire in the period.'), (N'PT', N'INF_SIN_VENCER', N'Não há operações vigentes a vencer no período.'),
+        (N'ES', N'INF_SIN_EVENTOS', N'No hay eventos confirmados en el período.'), (N'EN', N'INF_SIN_EVENTOS', N'There are no confirmed events in the period.'), (N'PT', N'INF_SIN_EVENTOS', N'Não há eventos confirmados no período.'),
+        (N'ES', N'INF_DIAS', N'{0} días'), (N'EN', N'INF_DIAS', N'{0} days'), (N'PT', N'INF_DIAS', N'{0} dias'),
+        (N'ES', N'INF_GENERADO', N'Generado el {0} por {1}'), (N'EN', N'INF_GENERADO', N'Generated on {0} by {1}'), (N'PT', N'INF_GENERADO', N'Gerado em {0} por {1}'),
+        (N'ES', N'INF_HOJA', N'Hoja {0} de {1}'), (N'EN', N'INF_HOJA', N'Page {0} of {1}'), (N'PT', N'INF_HOJA', N'Página {0} de {1}'),
+        -- Registro de excepciones (ucExcepciones)
+        (N'ES', N'AUD_TAB_EXCEPCIONES', N'Registro de excepciones'), (N'EN', N'AUD_TAB_EXCEPCIONES', N'Exception log'), (N'PT', N'AUD_TAB_EXCEPCIONES', N'Registro de exceções'),
+        (N'ES', N'EXC_TITULO', N'Registro de excepciones'), (N'EN', N'EXC_TITULO', N'Exception log'), (N'PT', N'EXC_TITULO', N'Registro de exceções'),
+        (N'ES', N'EXC_BTN_ACTUALIZAR', N'Actualizar'), (N'EN', N'EXC_BTN_ACTUALIZAR', N'Refresh'), (N'PT', N'EXC_BTN_ACTUALIZAR', N'Atualizar'),
+        (N'ES', N'EXC_BTN_EXPORTAR', N'Exportar lote...'), (N'EN', N'EXC_BTN_EXPORTAR', N'Export batch...'), (N'PT', N'EXC_BTN_EXPORTAR', N'Exportar lote...'),
+        (N'ES', N'EXC_BTN_ABRIR', N'Abrir lote...'), (N'EN', N'EXC_BTN_ABRIR', N'Open batch...'), (N'PT', N'EXC_BTN_ABRIR', N'Abrir lote...'),
+        (N'ES', N'EXC_BTN_LOCAL', N'Volver al registro del equipo'), (N'EN', N'EXC_BTN_LOCAL', N'Back to this computer''s log'), (N'PT', N'EXC_BTN_LOCAL', N'Voltar ao registro deste computador'),
+        (N'ES', N'EXC_ORIGEN_LOCAL', N'Registro de este equipo ({0})'), (N'EN', N'EXC_ORIGEN_LOCAL', N'Log of this computer ({0})'), (N'PT', N'EXC_ORIGEN_LOCAL', N'Registro deste computador ({0})'),
+        (N'ES', N'EXC_ORIGEN_LOTE', N'Lote abierto: {0} (generado el {1} en el equipo {2}, versión {3})'), (N'EN', N'EXC_ORIGEN_LOTE', N'Opened batch: {0} (generated on {1} on computer {2}, version {3})'), (N'PT', N'EXC_ORIGEN_LOTE', N'Lote aberto: {0} (gerado em {1} no computador {2}, versão {3})'),
+        (N'ES', N'EXC_SIN_REGISTROS', N'No hay excepciones registradas.'), (N'EN', N'EXC_SIN_REGISTROS', N'There are no recorded exceptions.'), (N'PT', N'EXC_SIN_REGISTROS', N'Não há exceções registradas.'),
+        (N'ES', N'EXC_CONTEO', N'{0} registro(s), {1} ilegible(s).'), (N'EN', N'EXC_CONTEO', N'{0} record(s), {1} unreadable.'), (N'PT', N'EXC_CONTEO', N'{0} registro(s), {1} ilegível(is).'),
+        (N'ES', N'EXC_EQUIPO', N'Equipo'), (N'EN', N'EXC_EQUIPO', N'Computer'), (N'PT', N'EXC_EQUIPO', N'Computador'),
+        (N'ES', N'EXC_VERSION', N'Versión'), (N'EN', N'EXC_VERSION', N'Version'), (N'PT', N'EXC_VERSION', N'Versão'),
+        (N'ES', N'EXC_CONTEXTO', N'Contexto'), (N'EN', N'EXC_CONTEXTO', N'Context'), (N'PT', N'EXC_CONTEXTO', N'Contexto'),
+        (N'ES', N'EXC_TIPO', N'Tipo'), (N'EN', N'EXC_TIPO', N'Type'), (N'PT', N'EXC_TIPO', N'Tipo'),
+        (N'ES', N'EXC_MENSAJE', N'Mensaje'), (N'EN', N'EXC_MENSAJE', N'Message'), (N'PT', N'EXC_MENSAJE', N'Mensagem'),
+        (N'ES', N'EXC_ORIGEN', N'Origen'), (N'EN', N'EXC_ORIGEN', N'Source'), (N'PT', N'EXC_ORIGEN', N'Origem'),
+        (N'ES', N'EXC_INTERNA', N'Excepción interna'), (N'EN', N'EXC_INTERNA', N'Inner exception'), (N'PT', N'EXC_INTERNA', N'Exceção interna'),
+        (N'ES', N'EXC_ARCHIVO', N'Archivo'), (N'EN', N'EXC_ARCHIVO', N'File'), (N'PT', N'EXC_ARCHIVO', N'Arquivo'),
+        (N'ES', N'EXC_PILA', N'Pila de llamadas'), (N'EN', N'EXC_PILA', N'Call stack'), (N'PT', N'EXC_PILA', N'Pilha de chamadas'),
+        (N'ES', N'EXC_ILEGIBLE', N'(archivo ilegible)'), (N'EN', N'EXC_ILEGIBLE', N'(unreadable file)'), (N'PT', N'EXC_ILEGIBLE', N'(arquivo ilegível)'),
+        (N'ES', N'EXC_ILEGIBLE_DETALLE', N'El archivo {0} no se pudo leer: está dañado o no es un registro de excepción.'), (N'EN', N'EXC_ILEGIBLE_DETALLE', N'The file {0} could not be read: it is damaged or it is not an exception record.'), (N'PT', N'EXC_ILEGIBLE_DETALLE', N'O arquivo {0} não pôde ser lido: está danificado ou não é um registro de exceção.'),
+        (N'ES', N'EXC_FILTRO', N'Lote de excepciones (*.xml)'), (N'EN', N'EXC_FILTRO', N'Exception batch (*.xml)'), (N'PT', N'EXC_FILTRO', N'Lote de exceções (*.xml)'),
+        (N'ES', N'EXC_EXPORTADO', N'Se exportaron {0} registro(s) a {1}.'), (N'EN', N'EXC_EXPORTADO', N'{0} record(s) exported to {1}.'), (N'PT', N'EXC_EXPORTADO', N'{0} registro(s) exportado(s) para {1}.'),
+        (N'ES', N'EXC_LOTE_INVALIDO', N'El archivo elegido no es un lote de excepciones válido.'), (N'EN', N'EXC_LOTE_INVALIDO', N'The chosen file is not a valid exception batch.'), (N'PT', N'EXC_LOTE_INVALIDO', N'O arquivo escolhido não é um lote de exceções válido.'),
+        -- Ayuda en linea (D02)
+        (N'ES', N'AYU_NO_DISPONIBLE', N'La ayuda en línea no está disponible: falta el archivo {0}.'), (N'EN', N'AYU_NO_DISPONIBLE', N'Online help is not available: the file {0} is missing.'), (N'PT', N'AYU_NO_DISPONIBLE', N'A ajuda online não está disponível: falta o arquivo {0}.'),
+        (N'ES', N'AYU_TT_MENU_INICIO', N'Portada de la sesión.'), (N'EN', N'AYU_TT_MENU_INICIO', N'Session home page.'), (N'PT', N'AYU_TT_MENU_INICIO', N'Página inicial da sessão.'),
+        (N'ES', N'AYU_TT_MENU_RESERVAS', N'Cotizaciones y reservas: disponibilidad, servicios, pagos, comprobante, historial y versiones.'), (N'EN', N'AYU_TT_MENU_RESERVAS', N'Quotes and reservations: availability, services, payments, receipt, history and versions.'), (N'PT', N'AYU_TT_MENU_RESERVAS', N'Cotações e reservas: disponibilidade, serviços, pagamentos, comprovante, histórico e versões.'),
+        (N'ES', N'AYU_TT_MENU_CLIENTES', N'Alta y modificación de los clientes.'), (N'EN', N'AYU_TT_MENU_CLIENTES', N'Create and edit clients.'), (N'PT', N'AYU_TT_MENU_CLIENTES', N'Cadastro e alteração dos clientes.'),
+        (N'ES', N'AYU_TT_MENU_SERVICIOS', N'Catálogo de servicios y productos con su precio.'), (N'EN', N'AYU_TT_MENU_SERVICIOS', N'Catalog of services and products with their price.'), (N'PT', N'AYU_TT_MENU_SERVICIOS', N'Catálogo de serviços e produtos com seu preço.'),
+        (N'ES', N'AYU_TT_MENU_OPERACIONES', N'Coordinación de los eventos confirmados: personal, cronograma, tareas y ejecución.'), (N'EN', N'AYU_TT_MENU_OPERACIONES', N'Coordination of confirmed events: staff, schedule, tasks and execution.'), (N'PT', N'AYU_TT_MENU_OPERACIONES', N'Coordenação dos eventos confirmados: equipe, cronograma, tarefas e execução.'),
+        (N'ES', N'AYU_TT_MENU_AGENDA', N'Turnos y tareas propios: confirmar o rechazar cada turno.'), (N'EN', N'AYU_TT_MENU_AGENDA', N'Your own shifts and tasks: confirm or decline each shift.'), (N'PT', N'AYU_TT_MENU_AGENDA', N'Turnos e tarefas próprios: confirmar ou recusar cada turno.'),
+        (N'ES', N'AYU_TT_MENU_EMPLEADOS', N'Alta y modificación del personal.'), (N'EN', N'AYU_TT_MENU_EMPLEADOS', N'Create and edit staff.'), (N'PT', N'AYU_TT_MENU_EMPLEADOS', N'Cadastro e alteração da equipe.'),
+        (N'ES', N'AYU_TT_MENU_INFORMES', N'Informe de gestión del período, con exportación a PDF.'), (N'EN', N'AYU_TT_MENU_INFORMES', N'Management report for a period, with PDF export.'), (N'PT', N'AYU_TT_MENU_INFORMES', N'Relatório de gestão do período, com exportação para PDF.'),
+        (N'ES', N'AYU_TT_MENU_PERFILES', N'Perfiles, permisos y cuentas de usuario.'), (N'EN', N'AYU_TT_MENU_PERFILES', N'Profiles, permissions and user accounts.'), (N'PT', N'AYU_TT_MENU_PERFILES', N'Perfis, permissões e contas de usuário.'),
+        (N'ES', N'AYU_TT_MENU_AUDITORIA', N'Bitácora, auditoría de ingresos, registro de excepciones e integridad.'), (N'EN', N'AYU_TT_MENU_AUDITORIA', N'Audit log, login audit, exception log and integrity.'), (N'PT', N'AYU_TT_MENU_AUDITORIA', N'Registro do sistema, auditoria de acessos, registro de exceções e integridade.'),
+        (N'ES', N'AYU_TT_MENU_AYUDA', N'Manual de usuario. F1 abre la ayuda de la pantalla en uso.'), (N'EN', N'AYU_TT_MENU_AYUDA', N'User manual. F1 opens the help for the current screen.'), (N'PT', N'AYU_TT_MENU_AYUDA', N'Manual do usuário. F1 abre a ajuda da tela em uso.'),
+        (N'ES', N'AYU_TT_VERSION', N'Versión del sistema y commit del que se compiló. Clic: Acerca de.'), (N'EN', N'AYU_TT_VERSION', N'System version and the commit it was built from. Click: About.'), (N'PT', N'AYU_TT_VERSION', N'Versão do sistema e commit do qual foi compilado. Clique: Sobre.'),
+        (N'ES', N'AYU_TT_INF_GENERAR', N'Calcula el informe del período elegido.'), (N'EN', N'AYU_TT_INF_GENERAR', N'Calculates the report for the chosen period.'), (N'PT', N'AYU_TT_INF_GENERAR', N'Calcula o relatório do período escolhido.'),
+        (N'ES', N'AYU_TT_INF_EXPORTAR', N'Guarda el informe generado como documento PDF.'), (N'EN', N'AYU_TT_INF_EXPORTAR', N'Saves the generated report as a PDF document.'), (N'PT', N'AYU_TT_INF_EXPORTAR', N'Salva o relatório gerado como documento PDF.')
+    ) AS v(Codigo, Clave, Texto)
+)
+INSERT INTO dbo.Traducciones (IdiomaId, Clave, Texto)
+SELECT i.Id, t.Clave, MIN(t.Texto)
+FROM Txt t
+JOIN dbo.Idiomas i ON i.Codigo = t.Codigo
+WHERE NOT EXISTS (
+    SELECT 1 FROM dbo.Traducciones x WHERE x.IdiomaId = i.Id AND x.Clave = t.Clave
+)
+GROUP BY i.Id, t.Clave;   -- una sola fila por idioma+clave: una clave repetida en el
+                          -- bloque de arriba no puede romper UQ_Traducciones.
+GO
+
 -- ---------------------------------------------------------------------------
 -- Idiomas agregados desde Gestion de Idiomas. Al crearlos, la aplicacion les
 -- copia todas las claves del espanol; las claves que el script suma despues solo

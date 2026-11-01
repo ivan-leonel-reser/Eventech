@@ -11,8 +11,11 @@ namespace EvenTech.UI
     // Gestion de clientes (Proceso 1): grilla + ficha de alta/edicion.
     // Mismo patron visual que ucReservas. Observa el cambio de idioma y, como Reservas,
     // informa a frmMain si la ficha tiene cambios sin guardar (IVistaConCambios).
-    public class ucClientes_704ILR : UserControl, IObservadorIdioma_704ILR, IVistaConCambios_704ILR
+    public class ucClientes_704ILR : UserControl, IObservadorIdioma_704ILR, IVistaConCambios_704ILR, IAyudaContextual_704ILR
     {
+        // Tema de la ayuda en linea de esta seccion (F1).
+        public string TemaAyuda_704ILR => Ayuda_704ILR.TemaClientes_704ILR;
+
         private DataGridView _grid_704ILR;
         private Label _lblCount_704ILR, _lblError_704ILR, _lblOk_704ILR, _lblFormTitle_704ILR;
         private TextBox _txtNombre_704ILR, _txtApellido_704ILR, _txtDni_704ILR, _txtEmail_704ILR, _txtTelefono_704ILR;

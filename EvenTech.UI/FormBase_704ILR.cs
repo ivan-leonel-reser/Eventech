@@ -33,6 +33,20 @@ namespace EvenTech.UI
             DoubleBuffered = true;
         }
 
+        // Ayuda en linea (D02): F1 abre el tema de esta ventana. Cada dialogo declara el
+        // suyo; la ventana principal devuelve el de la seccion abierta. Sin tema, el indice.
+        protected virtual string TemaAyuda_704ILR => Ayuda_704ILR.TemaInicio_704ILR;
+
+        protected override bool ProcessCmdKey(ref Message msg_704ILR, Keys keyData_704ILR)
+        {
+            if (keyData_704ILR == Keys.F1)
+            {
+                Ayuda_704ILR.Mostrar_704ILR(this, TemaAyuda_704ILR);
+                return true;
+            }
+            return base.ProcessCmdKey(ref msg_704ILR, keyData_704ILR);
+        }
+
         // Una ventana sin borde no trae el redimensionado del sistema. Activandolo,
         // el formulario responde el codigo de zona que corresponde a cada borde y
         // Windows la redimensiona como a cualquier otra. Lo usa frmMain, para que en

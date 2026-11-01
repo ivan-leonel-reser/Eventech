@@ -1,7 +1,29 @@
 using EvenTech.BLL;
 using EvenTech.Services;
 
-Console.WriteLine("== EvenTech smoke test v2 ==");
+Console.WriteLine("== EvenTech smoke test v3 ==");
+
+// ---------------------------------------------------------------------------
+// Base contra la que corre. Sin argumentos, la conexion vigente del puesto (la que
+// guardo la aplicacion o el instalador, o la de fabrica). Con --base (y
+// opcionalmente --servidor) corre contra esa base para esta ejecucion, sin escribir
+// la configuracion del puesto: asi la prueba se repite sobre una copia exclusiva y
+// el residuo que deja (reservas canceladas, asientos) no cae en la base de trabajo.
+//   EvenTech.SmokeTest --servidor localhost\SQLEXPRESS --base EvenTechPrueba
+// ---------------------------------------------------------------------------
+{
+    string servidorArg_704ILR = null, baseArg_704ILR = null;
+    for (int i_704ILR = 0; i_704ILR < args.Length - 1; i_704ILR++)
+    {
+        if (args[i_704ILR] == "--servidor") servidorArg_704ILR = args[i_704ILR + 1];
+        else if (args[i_704ILR] == "--base") baseArg_704ILR = args[i_704ILR + 1];
+    }
+    if (baseArg_704ILR != null || servidorArg_704ILR != null)
+        ConfiguracionConexion_704ILR.UsarEnEstaEjecucion_704ILR(ConfiguracionConexion_704ILR.Construir_704ILR(
+            servidorArg_704ILR ?? ConfiguracionConexion_704ILR.ServidorPorDefecto_704ILR,
+            baseArg_704ILR ?? ConfiguracionConexion_704ILR.BaseDatosPorDefecto_704ILR));
+    Console.WriteLine($"Base: {ConfiguracionConexion_704ILR.ServidorActual_704ILR} / {ConfiguracionConexion_704ILR.BaseDatosActual_704ILR}");
+}
 
 // ---------------------------------------------------------------------------
 // Contador de fallos: la prueba tiene que poder FALLAR SOLA.
@@ -864,7 +886,7 @@ catch (Exception ex21_704ILR) { Excepcion_704ILR("[21]", ex21_704ILR); }
 // [22] Todas las claves que la UI exige tienen que existir en el arbol COMO HOJAS
 // (EsGrupo = 0): si una falta, la seccion queda invisible para todos y el problema
 // pasa inadvertido. Son exactamente las claves que la ventana principal y las
-// pantallas exigen; las siete del Proceso 2 son las mas recientes.
+// pantallas exigen; las dos de la Entrega 3 son las mas recientes.
 Caso_704ILR("[22] Claves de permiso usadas por la UI presentes en el arbol:");
 try
 {
@@ -874,7 +896,9 @@ try
                         "BITACORA_VER", "AUDIT_LOGIN_VER", "INTEGRIDAD_RECALC", "IDIOMAS_GESTION",
                         // Proceso 2: operaciones de los eventos, agenda del empleado y personal.
                         "EMPLEADOS_GESTION", "PERSONAL_ASIGNAR", "CRONOGRAMA_GESTION", "TAREAS_ASIGNAR",
-                        "DISPONIBILIDAD_CONFIRMAR", "AGENDA_CONSULTAR", "EJECUCION_SUPERVISAR" };
+                        "DISPONIBILIDAD_CONFIRMAR", "AGENDA_CONSULTAR", "EJECUCION_SUPERVISAR",
+                        // Entrega 3: informe de gestion (A02) y registro de excepciones (A03).
+                        "INFORMES_VER", "EXCEPCIONES_VER" };
     // Solo se recogen las claves de las HOJAS (BE_Permiso): un grupo con el mismo
     // nombre no cuenta, porque no habilita nada por si mismo.
     var enArbol_704ILR = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -892,7 +916,7 @@ try
     // Y al reves: una hoja que ninguna pantalla exige es un permiso que se asigna
     // y no habilita nada.
     var sobran_704ILR = enArbol_704ILR.Where(c_704ILR => !usadas_704ILR.Contains(c_704ILR, StringComparer.OrdinalIgnoreCase)).ToList();
-    Esperar_704ILR("hojas del arbol de permisos", enArbol_704ILR.Count, 21);
+    Esperar_704ILR("hojas del arbol de permisos", enArbol_704ILR.Count, 23);
     Esperar_704ILR("claves de la UI que faltan como hoja del arbol",
         faltan_704ILR.Count == 0 ? "ninguna" : string.Join(", ", faltan_704ILR), "ninguna");
     Esperar_704ILR("hojas del arbol que ninguna pantalla exige",
@@ -4225,6 +4249,366 @@ try
     }
 }
 catch (Exception ex55_704ILR) { Excepcion_704ILR("[55]", ex55_704ILR); CerrarSesion_704ILR(); }
+
+// ---------------------------------------------------------------------------
+// [56] T06.B (Entrega 3): programacion y pruebas del control de cambios, reunidas en
+// un solo recorrido. Una reserva con dos lineas de servicio se modifica en cabecera y
+// lineas; se comprueba lo que promete cada caso de uso de servicio:
+//   CUS001 (consultar el historial): un asiento por campo cambiado, con valor anterior,
+//          valor nuevo y usuario; la consulta no escribe.
+//   CUS002 (restaurar una version): la version guarda cabecera Y lineas; una sesion
+//          sin RESERVA_RESTAURAR no restaura por la capa de negocio (y queda asentado);
+//          la restauracion repone cabecera y lineas en una transaccion, versiona lo que
+//          piso, deja el historial de lo que cambio y el digito verificador al dia;
+//          una reserva cancelada no se restaura.
+// ---------------------------------------------------------------------------
+Caso_704ILR("[56] T06.B control de cambios: historial, versiones, restauracion, permisos e integridad:");
+try
+{
+    CerrarSesion_704ILR();
+    var sal56_704ILR = BLL_Salon_704ILR.GetAll_704ILR().Where(s_704ILR => s_704ILR.Capacidad_704ILR >= 80).ToList();
+    var cli56_704ILR = BLL_Cliente_704ILR.GetAll_704ILR();
+    var srv56_704ILR = BLL_Servicio_704ILR.GetActivos_704ILR();
+    if (sal56_704ILR.Count == 0 || cli56_704ILR.Count == 0 || srv56_704ILR.Count < 2)
+    {
+        Omitir_704ILR("[56]", "faltan salones con capacidad, clientes o dos servicios sembrados");
+    }
+    else
+    {
+        int sal_704ILR = sal56_704ILR[0].Id_704ILR;
+        var r56_704ILR = NuevaReserva_704ILR(cli56_704ILR[0].Id_704ILR, sal_704ILR, 0, EvenTech.BE.EstadoReserva_704ILR.PENDIENTE, 0m, 60);
+        r56_704ILR.FechaEvento_704ILR = FechaLibre_704ILR(sal_704ILR, DateTime.Today.AddDays(7400 + desfasaje_704ILR));
+        var lineasV1_704ILR = new List<EvenTech.BE.BE_ReservaServicio_704ILR>
+        {
+            new EvenTech.BE.BE_ReservaServicio_704ILR { ServicioId_704ILR = srv56_704ILR[0].Id_704ILR, Cantidad_704ILR = 2, PrecioUnitario_704ILR = 100m },
+            new EvenTech.BE.BE_ReservaServicio_704ILR { ServicioId_704ILR = srv56_704ILR[1].Id_704ILR, Cantidad_704ILR = 1, PrecioUnitario_704ILR = 50m }
+        };
+        Esperar_704ILR("alta con dos lineas", BLL_Reserva_704ILR.Crear_704ILR(r56_704ILR, lineasV1_704ILR, out int id56_704ILR), ReservaResult_704ILR.Success_704ILR);
+        Anotar_704ILR(id56_704ILR);
+        Esperar_704ILR("monto = suma de las lineas (250)", BLL_Reserva_704ILR.GetById_704ILR(id56_704ILR).Monto_704ILR, 250m);
+
+        // Modificacion: invitados y lineas (una cantidad cambia, otra linea se quita).
+        int historialAntes_704ILR = RegistradorDeCambios_704ILR.GetHistorial_704ILR("Reserva", id56_704ILR).Count;
+        var v1_704ILR = BLL_Reserva_704ILR.GetById_704ILR(id56_704ILR);
+        v1_704ILR.CantidadInvitados_704ILR = 75;
+        var lineasV2_704ILR = new List<EvenTech.BE.BE_ReservaServicio_704ILR>
+        {
+            new EvenTech.BE.BE_ReservaServicio_704ILR { ServicioId_704ILR = srv56_704ILR[0].Id_704ILR, Cantidad_704ILR = 3, PrecioUnitario_704ILR = 100m }
+        };
+        Esperar_704ILR("modificar cabecera y lineas", BLL_Reserva_704ILR.Actualizar_704ILR(v1_704ILR, lineasV2_704ILR), ReservaResult_704ILR.Success_704ILR);
+
+        // CUS001: el historial registra cada campo que cambio, con anterior, nuevo y usuario.
+        var hist56_704ILR = RegistradorDeCambios_704ILR.GetHistorial_704ILR("Reserva", id56_704ILR);
+        var nuevos56_704ILR = hist56_704ILR.Count - historialAntes_704ILR;
+        Esperar_704ILR("historial: hay asientos nuevos", nuevos56_704ILR > 0, true);
+        var cambioInv_704ILR = hist56_704ILR.FirstOrDefault(h_704ILR => h_704ILR.NombreCampo_704ILR == "CantidadInvitados");
+        Esperar_704ILR("historial: invitados 60 -> 75", cambioInv_704ILR == null ? "sin asiento" : cambioInv_704ILR.ValorAnterior_704ILR + " -> " + cambioInv_704ILR.ValorNuevo_704ILR, "60 -> 75");
+        Esperar_704ILR("historial: el monto cambio a 300", hist56_704ILR.Any(h_704ILR => h_704ILR.NombreCampo_704ILR == "Monto" && h_704ILR.ValorNuevo_704ILR.StartsWith("300")), true);
+        Esperar_704ILR("historial: cada asiento con usuario", hist56_704ILR.All(h_704ILR => !string.IsNullOrWhiteSpace(h_704ILR.Usuario_704ILR)), true);
+        // La consulta no escribe: leerla otra vez da lo mismo.
+        Esperar_704ILR("historial: la consulta no escribe", RegistradorDeCambios_704ILR.GetHistorial_704ILR("Reserva", id56_704ILR).Count, hist56_704ILR.Count);
+
+        // CUS002: la version previa guarda la cabecera y las DOS lineas originales.
+        var versiones56_704ILR = CaretakerReserva_704ILR.GetVersiones_704ILR(id56_704ILR);
+        Esperar_704ILR("una version guardada", versiones56_704ILR.Count, 1);
+        var version56_704ILR = versiones56_704ILR.Count > 0 ? CaretakerReserva_704ILR.GetVersion_704ILR(versiones56_704ILR[0].Id_704ILR) : null;
+        Esperar_704ILR("la version conserva 60 invitados", version56_704ILR?.CantidadInvitados_704ILR, 60);
+        Esperar_704ILR("la version conserva las dos lineas", version56_704ILR?.Servicios_704ILR.Count, 2);
+
+        if (version56_704ILR != null)
+        {
+            // Sin RESERVA_RESTAURAR (sesion del empleado), la capa de negocio no restaura.
+            int denegados56_704ILR = Asientos_704ILR("Seguridad", "Acceso denegado");
+            Esperar_704ILR("sesion del empleado (perfil Empleado)", SesionDelEmpleado_704ILR(), true);
+            string denegado56_704ILR = "sin excepcion";
+            try { BLL_Reserva_704ILR.RestaurarVersion_704ILR(id56_704ILR, version56_704ILR.Id_704ILR); }
+            catch (PermisoDenegadoException_704ILR exP_704ILR) { denegado56_704ILR = exP_704ILR.Clave_704ILR; }
+            CerrarSesion_704ILR();
+            Esperar_704ILR("restaurar sin el permiso", denegado56_704ILR, "RESERVA_RESTAURAR");
+            Esperar_704ILR("asiento 'Acceso denegado'", Asientos_704ILR("Seguridad", "Acceso denegado") - denegados56_704ILR, 1);
+            Esperar_704ILR("la reserva no cambio (75 invitados)", BLL_Reserva_704ILR.GetById_704ILR(id56_704ILR).CantidadInvitados_704ILR, 75);
+            Esperar_704ILR("sigue una sola version", CaretakerReserva_704ILR.GetVersiones_704ILR(id56_704ILR).Count, 1);
+
+            // Con el permiso (sesion de admin): repone cabecera y lineas.
+            Esperar_704ILR("sesion de admin", BLL_Login_704ILR.Authenticate_704ILR("admin", Encrypt_704ILR.HashValue_704ILR("admin123")).Result_704ILR, LoginResult_704ILR.Success_704ILR);
+            int histPrevio_704ILR = RegistradorDeCambios_704ILR.GetHistorial_704ILR("Reserva", id56_704ILR).Count;
+            Esperar_704ILR("restaurar la version", BLL_Reserva_704ILR.RestaurarVersion_704ILR(id56_704ILR, version56_704ILR.Id_704ILR), ReservaResult_704ILR.Success_704ILR);
+            CerrarSesion_704ILR();
+            var restaurada56_704ILR = BLL_Reserva_704ILR.GetById_704ILR(id56_704ILR);
+            var lineasR_704ILR = BLL_ReservaServicio_704ILR.GetByReserva_704ILR(id56_704ILR);
+            Esperar_704ILR("invitados repuestos (60)", restaurada56_704ILR.CantidadInvitados_704ILR, 60);
+            Esperar_704ILR("lineas repuestas (2)", lineasR_704ILR.Count, 2);
+            Esperar_704ILR("monto repuesto (250)", restaurada56_704ILR.Monto_704ILR, 250m);
+            Esperar_704ILR("la restauracion versiona lo que piso (2 versiones)", CaretakerReserva_704ILR.GetVersiones_704ILR(id56_704ILR).Count, 2);
+            Esperar_704ILR("el historial registra la restauracion", RegistradorDeCambios_704ILR.GetHistorial_704ILR("Reserva", id56_704ILR).Count > histPrevio_704ILR, true);
+            Esperar_704ILR("el DV horizontal coincide tras restaurar",
+                EvenTech.Services.ValidadorDeIntegridad_704ILR.CalcularDVH_704ILR(restaurada56_704ILR) == restaurada56_704ILR.Dvh_704ILR, true);
+            Esperar_704ILR("integridad general tras restaurar", BLL_Integridad_704ILR.Verificar_704ILR().Ok_704ILR, true);
+
+            // Una reserva cancelada no se restaura ni genera version.
+            Esperar_704ILR("cancelar la reserva", BLL_Reserva_704ILR.Cancelar_704ILR(id56_704ILR, out _, out _), ReservaResult_704ILR.Success_704ILR);
+            int versionesCanc_704ILR = CaretakerReserva_704ILR.GetVersiones_704ILR(id56_704ILR).Count;
+            var rCanc_704ILR = BLL_Reserva_704ILR.RestaurarVersion_704ILR(id56_704ILR, version56_704ILR.Id_704ILR);
+            Esperar_704ILR("restaurar una cancelada se rechaza", rCanc_704ILR != ReservaResult_704ILR.Success_704ILR, true);
+            Esperar_704ILR("sigue cancelada", BLL_Reserva_704ILR.GetById_704ILR(id56_704ILR).Estado_704ILR, EvenTech.BE.EstadoReserva_704ILR.CANCELADA);
+            Esperar_704ILR("sin version nueva", CaretakerReserva_704ILR.GetVersiones_704ILR(id56_704ILR).Count, versionesCanc_704ILR);
+        }
+    }
+}
+catch (Exception ex56_704ILR) { Excepcion_704ILR("[56]", ex56_704ILR); CerrarSesion_704ILR(); }
+
+// ---------------------------------------------------------------------------
+// [57] A02 Informe de gestion y su exportacion a PDF. El calculo se prueba con filas
+// armadas a mano (resultado conocido) y contra la base (los totales del informe son
+// los de una consulta independiente); despues, rangos invalidos, el permiso en la
+// capa de negocio, el asiento de la bitacora y el PDF que escribe la biblioteca.
+// ---------------------------------------------------------------------------
+Caso_704ILR("[57] A02 Informe de gestion y exportacion a PDF:");
+try
+{
+    CerrarSesion_704ILR();
+    DateTime d57_704ILR = new DateTime(2030, 1, 1), h57_704ILR = new DateTime(2030, 1, 10);
+    DateTime ahora57_704ILR = new DateTime(2029, 12, 20, 12, 0, 0);
+    var salones57_704ILR = new List<EvenTech.BE.BE_Salon_704ILR>
+    {
+        new EvenTech.BE.BE_Salon_704ILR { Id_704ILR = 1, Nombre_704ILR = "Salon A", Capacidad_704ILR = 100 },
+        new EvenTech.BE.BE_Salon_704ILR { Id_704ILR = 2, Nombre_704ILR = "Salon B", Capacidad_704ILR = 200 }
+    };
+    EvenTech.BE.BE_InformeFila_704ILR Fila57_704ILR(int id_704ILR, int dia_704ILR, EvenTech.BE.EstadoReserva_704ILR e_704ILR, decimal monto_704ILR, decimal cobrado_704ILR, int salon_704ILR, DateTime? vence_704ILR = null) =>
+        new EvenTech.BE.BE_InformeFila_704ILR
+        {
+            ReservaId_704ILR = id_704ILR, FechaEvento_704ILR = d57_704ILR.AddDays(dia_704ILR), Estado_704ILR = e_704ILR, Monto_704ILR = monto_704ILR,
+            Cobrado_704ILR = cobrado_704ILR, SalonId_704ILR = salon_704ILR, SalonNombre_704ILR = salon_704ILR == 1 ? "Salon A" : "Salon B",
+            ClienteNombre_704ILR = "Cliente " + id_704ILR, VenceEl_704ILR = vence_704ILR
+        };
+    var filas57_704ILR = new List<EvenTech.BE.BE_InformeFila_704ILR>
+    {
+        Fila57_704ILR(1, 0, EvenTech.BE.EstadoReserva_704ILR.CONFIRMADA, 1000m, 400m, 1),
+        Fila57_704ILR(2, 0, EvenTech.BE.EstadoReserva_704ILR.CONFIRMADA, 2000m, 2000m, 2),
+        Fila57_704ILR(3, 4, EvenTech.BE.EstadoReserva_704ILR.CONFIRMADA, 300m, 0m, 1),
+        Fila57_704ILR(4, 2, EvenTech.BE.EstadoReserva_704ILR.COTIZACION, 500m, 0m, 1, ahora57_704ILR.AddDays(5)),
+        Fila57_704ILR(5, 3, EvenTech.BE.EstadoReserva_704ILR.PENDIENTE, 700m, 100m, 2, ahora57_704ILR.AddHours(10)),
+        Fila57_704ILR(6, 3, EvenTech.BE.EstadoReserva_704ILR.COTIZACION, 900m, 0m, 2, ahora57_704ILR.AddDays(-1)),
+        Fila57_704ILR(7, 5, EvenTech.BE.EstadoReserva_704ILR.CANCELADA, 400m, 0m, 1)
+    };
+    var inf57_704ILR = BLL_Informe_704ILR.Calcular_704ILR(d57_704ILR, h57_704ILR, filas57_704ILR, salones57_704ILR, ahora57_704ILR, "smoke");
+    Esperar_704ILR("dias del periodo", inf57_704ILR.DiasPeriodo_704ILR, 10);
+    Esperar_704ILR("total de reservas", inf57_704ILR.TotalReservas_704ILR, 7);
+    Esperar_704ILR("los cuatro estados en el resumen", inf57_704ILR.PorEstado_704ILR.Count, 4);
+    Esperar_704ILR("confirmadas: cantidad", inf57_704ILR.PorEstado_704ILR.Single(e_704ILR => e_704ILR.Estado_704ILR == EvenTech.BE.EstadoReserva_704ILR.CONFIRMADA).Cantidad_704ILR, 3);
+    Esperar_704ILR("cotizaciones: monto", inf57_704ILR.PorEstado_704ILR.Single(e_704ILR => e_704ILR.Estado_704ILR == EvenTech.BE.EstadoReserva_704ILR.COTIZACION).Monto_704ILR, 1400m);
+    Esperar_704ILR("contratado (solo confirmadas)", inf57_704ILR.Contratado_704ILR, 3300m);
+    Esperar_704ILR("cobrado (solo confirmadas)", inf57_704ILR.Cobrado_704ILR, 2400m);
+    Esperar_704ILR("saldo", inf57_704ILR.Saldo_704ILR, 900m);
+    Esperar_704ILR("porcentaje cobrado (72,7)", inf57_704ILR.PorcentajeCobrado_704ILR, 72.7m);
+    Esperar_704ILR("salones en el informe", inf57_704ILR.Salones_704ILR.Count, 2);
+    Esperar_704ILR("ocupacion del Salon A (2 dias de 10)", inf57_704ILR.Salones_704ILR.Single(s_704ILR => s_704ILR.SalonNombre_704ILR == "Salon A").PorcentajeOcupacion_704ILR, 20.0m);
+    Esperar_704ILR("eventos del Salon B", inf57_704ILR.Salones_704ILR.Single(s_704ILR => s_704ILR.SalonNombre_704ILR == "Salon B").Eventos_704ILR, 1);
+    Esperar_704ILR("por vencer: solo las vigentes", inf57_704ILR.PorVencer_704ILR.Count, 2);
+    Esperar_704ILR("por vencer: primero la que vence antes", inf57_704ILR.PorVencer_704ILR.Count > 0 ? inf57_704ILR.PorVencer_704ILR[0].ReservaId_704ILR : 0, 5);
+    Esperar_704ILR("vencidas", inf57_704ILR.Vencidas_704ILR, 1);
+    Esperar_704ILR("eventos confirmados ordenados por fecha", string.Join(",", inf57_704ILR.Eventos_704ILR.Select(f_704ILR => f_704ILR.ReservaId_704ILR)), "1,2,3");
+    var vacio57_704ILR = BLL_Informe_704ILR.Calcular_704ILR(d57_704ILR, d57_704ILR, null, salones57_704ILR, ahora57_704ILR, "smoke");
+    Esperar_704ILR("sin reservas: porcentaje 0 (sin dividir por cero)", vacio57_704ILR.PorcentajeCobrado_704ILR, 0m);
+    Esperar_704ILR("sin reservas: un dia de periodo", vacio57_704ILR.DiasPeriodo_704ILR, 1);
+
+    // Rangos.
+    Esperar_704ILR("desde posterior a hasta", BLL_Informe_704ILR.Generar_704ILR(h57_704ILR, d57_704ILR, out _), EvenTech.BE.InformeResult_704ILR.RangoInvalido_704ILR);
+    Esperar_704ILR("367 dias", BLL_Informe_704ILR.Generar_704ILR(d57_704ILR, d57_704ILR.AddDays(366), out _), EvenTech.BE.InformeResult_704ILR.RangoExcesivo_704ILR);
+
+    // Contra la base: un periodo propio con reservas de la corrida.
+    var sal57_704ILR = BLL_Salon_704ILR.GetAll_704ILR();
+    var cli57_704ILR = BLL_Cliente_704ILR.GetAll_704ILR();
+    if (sal57_704ILR.Count > 0 && cli57_704ILR.Count > 0)
+    {
+        DateTime dia57_704ILR = FechaLibre_704ILR(sal57_704ILR[0].Id_704ILR, DateTime.Today.AddDays(7800 + desfasaje_704ILR));
+        var c57_704ILR = NuevaReserva_704ILR(cli57_704ILR[0].Id_704ILR, sal57_704ILR[0].Id_704ILR, 0, EvenTech.BE.EstadoReserva_704ILR.COTIZACION, 1234.5m, 10);
+        c57_704ILR.FechaEvento_704ILR = dia57_704ILR;
+        Esperar_704ILR("cotizacion del periodo", BLL_Reserva_704ILR.Crear_704ILR(c57_704ILR, out int idC57_704ILR), ReservaResult_704ILR.Success_704ILR);
+        Anotar_704ILR(idC57_704ILR);
+        int asientos57_704ILR = Asientos_704ILR("Informes", "Informe generado");
+        Esperar_704ILR("generar contra la base", BLL_Informe_704ILR.Generar_704ILR(dia57_704ILR.AddDays(-3), dia57_704ILR.AddDays(3), out var infBase_704ILR), EvenTech.BE.InformeResult_704ILR.Success_704ILR);
+        int enBase_704ILR = Escalar_704ILR("SELECT COUNT(*) FROM dbo.Reservas WHERE FechaEvento >= @d AND FechaEvento < @h",
+            ("@d", dia57_704ILR.AddDays(-3)), ("@h", dia57_704ILR.AddDays(4)));
+        Esperar_704ILR("total = consulta independiente", infBase_704ILR?.TotalReservas_704ILR, enBase_704ILR);
+        Esperar_704ILR("la cotizacion figura con su monto", infBase_704ILR?.PorEstado_704ILR.Single(e_704ILR => e_704ILR.Estado_704ILR == EvenTech.BE.EstadoReserva_704ILR.COTIZACION).Monto_704ILR >= 1234.5m, true);
+        Esperar_704ILR("asiento 'Informe generado'", Asientos_704ILR("Informes", "Informe generado") - asientos57_704ILR, 1);
+
+        // PDF con la biblioteca de terceros: el informe real y uno de muchas filas.
+        string pdf57_704ILR = Path.Combine(Path.GetTempPath(), "eventech_smoke_informe_" + suf_704ILR + ".pdf");
+        string pdfLargo57_704ILR = Path.Combine(Path.GetTempPath(), "eventech_smoke_informe_largo_" + suf_704ILR + ".pdf");
+        try
+        {
+            int hojas57_704ILR = new EvenTech.UI.ExportadorPdfInforme_704ILR().Exportar_704ILR(infBase_704ILR, pdf57_704ILR);
+            byte[] cab57_704ILR = File.ReadAllBytes(pdf57_704ILR).Take(5).ToArray();
+            Esperar_704ILR("el PDF empieza con %PDF-", System.Text.Encoding.ASCII.GetString(cab57_704ILR), "%PDF-");
+            Esperar_704ILR("hojas del PDF = hojas que informa", PdfSharp.Pdf.IO.PdfReader.Open(pdf57_704ILR, PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import).PageCount, hojas57_704ILR);
+            var largo57_704ILR = BLL_Informe_704ILR.Calcular_704ILR(d57_704ILR, d57_704ILR.AddDays(200),
+                Enumerable.Range(1, 150).Select(i_704ILR => Fila57_704ILR(i_704ILR, i_704ILR % 200, EvenTech.BE.EstadoReserva_704ILR.CONFIRMADA, 100m, 10m, 1 + i_704ILR % 2))
+                    .Select(f_704ILR => { f_704ILR.ClienteNombre_704ILR = new string('W', 120) + " ✓ ñ"; return f_704ILR; }).ToList(),
+                salones57_704ILR, ahora57_704ILR, "smoke");
+            int hojasLargo57_704ILR = new EvenTech.UI.ExportadorPdfInforme_704ILR().Exportar_704ILR(largo57_704ILR, pdfLargo57_704ILR);
+            Esperar_704ILR("150 eventos con nombres largos: varias hojas", hojasLargo57_704ILR >= 3, true);
+            Esperar_704ILR("el PDF largo se puede abrir", PdfSharp.Pdf.IO.PdfReader.Open(pdfLargo57_704ILR, PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import).PageCount, hojasLargo57_704ILR);
+        }
+        finally
+        {
+            try { File.Delete(pdf57_704ILR); } catch { }
+            try { File.Delete(pdfLargo57_704ILR); } catch { }
+        }
+        Esperar_704ILR("cancelar la cotizacion de [57]", BLL_Reserva_704ILR.Cancelar_704ILR(idC57_704ILR, out _, out _), ReservaResult_704ILR.Success_704ILR);
+    }
+    else Omitir_704ILR("[57]", "faltan salones o clientes sembrados para la parte contra la base");
+
+    // Tercera capa: una sesion sin INFORMES_VER no genera el informe.
+    Esperar_704ILR("sesion del empleado (perfil Empleado)", SesionDelEmpleado_704ILR(), true);
+    string denegado57_704ILR = "sin excepcion";
+    try { BLL_Informe_704ILR.Generar_704ILR(d57_704ILR, h57_704ILR, out _); }
+    catch (PermisoDenegadoException_704ILR exP_704ILR) { denegado57_704ILR = exP_704ILR.Clave_704ILR; }
+    CerrarSesion_704ILR();
+    Esperar_704ILR("generar sin el permiso", denegado57_704ILR, "INFORMES_VER");
+    // El perfil Gerencial de fabrica tiene el permiso; el Vendedor no.
+    Esperar_704ILR("Gerencial tiene INFORMES_VER", Escalar_704ILR(
+        "SELECT COUNT(*) FROM dbo.PerfilPermiso pp JOIN dbo.Perfiles p ON p.Id = pp.PerfilId JOIN dbo.Permisos pe ON pe.Id = pp.PermisoId WHERE p.Nombre = N'Gerencial' AND pe.Clave = N'INFORMES_VER'"), 1);
+    Esperar_704ILR("Vendedor no tiene INFORMES_VER", Escalar_704ILR(
+        "SELECT COUNT(*) FROM dbo.PerfilPermiso pp JOIN dbo.Perfiles p ON p.Id = pp.PerfilId JOIN dbo.Permisos pe ON pe.Id = pp.PermisoId WHERE p.Nombre = N'Vendedor' AND pe.Clave = N'INFORMES_VER'"), 0);
+}
+catch (Exception ex57_704ILR) { Excepcion_704ILR("[57]", ex57_704ILR); CerrarSesion_704ILR(); }
+
+// ---------------------------------------------------------------------------
+// [58] A03 Serializacion: registro de excepciones en XML. Corre en una carpeta propia
+// de la corrida (no la del equipo). Ida y vuelta con caracteres especiales, mensaje
+// vacio y excepcion nula; credenciales ocultas; un archivo danado no rompe la lista;
+// retencion; lote exportado y vuelto a abrir; archivos que no son un lote (otro XML,
+// uno con DTD, uno demasiado grande) rechazados; permiso en la capa de negocio; y el
+// registro que deja la bitacora al asentar una excepcion.
+// ---------------------------------------------------------------------------
+Caso_704ILR("[58] A03 Serializacion: registro de excepciones en XML:");
+string carpeta58_704ILR = Path.Combine(Path.GetTempPath(), "eventech_smoke_excepciones_" + suf_704ILR);
+try
+{
+    CerrarSesion_704ILR();
+    EvenTech.Services.RegistroDeExcepciones_704ILR.UsarCarpetaEnEstaEjecucion_704ILR(carpeta58_704ILR);
+    Exception conInternas_704ILR;
+    try { throw new InvalidOperationException("Falla <externa> & \"citada\" \u0001ñ 😀 Password=secreta;", new ArgumentException("interna 1", new FormatException("interna 2"))); }
+    catch (Exception ex_704ILR) { conInternas_704ILR = ex_704ILR; }
+    string ruta58_704ILR = EvenTech.Services.RegistroDeExcepciones_704ILR.Guardar_704ILR(
+        EvenTech.Services.RegistroDeExcepciones_704ILR.Crear_704ILR(conInternas_704ILR, "Smoke", "Prueba [58]", "smoke"));
+    Esperar_704ILR("se escribio el archivo", ruta58_704ILR != null && File.Exists(ruta58_704ILR), true);
+    var leidos58_704ILR = EvenTech.Services.RegistroDeExcepciones_704ILR.Listar_704ILR();
+    Esperar_704ILR("se lee un registro", leidos58_704ILR.Count, 1);
+    var leido58_704ILR = leidos58_704ILR.FirstOrDefault();
+    Esperar_704ILR("tipo", leido58_704ILR?.Tipo_704ILR, "System.InvalidOperationException");
+    Esperar_704ILR("caracteres especiales conservados (<, &, comillas, ñ, emoji)", leido58_704ILR?.Mensaje_704ILR.Contains("<externa> & \"citada\"") == true && leido58_704ILR.Mensaje_704ILR.Contains("ñ 😀"), true);
+    Esperar_704ILR("caracter de control quitado", leido58_704ILR?.Mensaje_704ILR.Contains("\u0001"), false);
+    Esperar_704ILR("credencial oculta", leido58_704ILR?.Mensaje_704ILR.Contains("secreta"), false);
+    Esperar_704ILR("dos excepciones internas", leido58_704ILR?.Internas_704ILR.Count, 2);
+    Esperar_704ILR("pila de llamadas", string.IsNullOrEmpty(leido58_704ILR?.Pila_704ILR), false);
+    Esperar_704ILR("version del sistema", leido58_704ILR?.Version_704ILR.StartsWith(VersionSistema_704ILR.Actual_704ILR.Version_704ILR), true);
+    string xml58_704ILR = File.ReadAllText(ruta58_704ILR);
+    Esperar_704ILR("el archivo no lleva la cadena de conexion", xml58_704ILR.Contains("Integrated Security") || xml58_704ILR.Contains("Initial Catalog"), false);
+
+    EvenTech.Services.RegistroDeExcepciones_704ILR.Guardar_704ILR(EvenTech.Services.RegistroDeExcepciones_704ILR.Crear_704ILR(new Exception(""), "", null, null));
+    EvenTech.Services.RegistroDeExcepciones_704ILR.Guardar_704ILR(EvenTech.Services.RegistroDeExcepciones_704ILR.Crear_704ILR(null, "Smoke", "nula", "smoke"));
+    File.WriteAllText(Path.Combine(carpeta58_704ILR, "excepcion_00000000_000000_000_danado.xml"), "<RegistroExcepcion><Fecha>no es una fecha");
+    var conDanado_704ILR = EvenTech.Services.RegistroDeExcepciones_704ILR.Listar_704ILR();
+    Esperar_704ILR("cuatro archivos listados", conDanado_704ILR.Count, 4);
+    Esperar_704ILR("el danado figura como ilegible", conDanado_704ILR.Count(r_704ILR => r_704ILR.Ilegible_704ILR), 1);
+    Esperar_704ILR("mensaje vacio leido como vacio", conDanado_704ILR.Any(r_704ILR => !r_704ILR.Ilegible_704ILR && r_704ILR.Mensaje_704ILR == "" && r_704ILR.Tipo_704ILR == "System.Exception"), true);
+    Esperar_704ILR("excepcion nula registrada", conDanado_704ILR.Any(r_704ILR => r_704ILR.Tipo_704ILR == "(sin excepcion)"), true);
+
+    // Lote: exportar (sesion de admin), volver a abrir y comparar.
+    Esperar_704ILR("sesion de admin", BLL_Login_704ILR.Authenticate_704ILR("admin", Encrypt_704ILR.HashValue_704ILR("admin123")).Result_704ILR, LoginResult_704ILR.Success_704ILR);
+    string lote58_704ILR = Path.Combine(carpeta58_704ILR, "lote.xml");
+    int asientosExp_704ILR = Asientos_704ILR("Excepciones", "Lote de excepciones exportado");
+    Esperar_704ILR("exportar el lote (los ilegibles no viajan)", BLL_Excepciones_704ILR.Exportar_704ILR(conDanado_704ILR, lote58_704ILR), 3);
+    var abierto58_704ILR = BLL_Excepciones_704ILR.AbrirLote_704ILR(lote58_704ILR);
+    Esperar_704ILR("el lote vuelve con tres registros", abierto58_704ILR.Registros_704ILR.Count, 3);
+    Esperar_704ILR("ida y vuelta: mismo mensaje", abierto58_704ILR.Registros_704ILR.Any(r_704ILR => r_704ILR.Mensaje_704ILR == leido58_704ILR?.Mensaje_704ILR), true);
+    Esperar_704ILR("ida y vuelta: mismas internas", abierto58_704ILR.Registros_704ILR.Max(r_704ILR => r_704ILR.Internas_704ILR.Count), 2);
+    Esperar_704ILR("asiento de la exportacion", Asientos_704ILR("Excepciones", "Lote de excepciones exportado") - asientosExp_704ILR, 1);
+    string Rechazo58_704ILR(string ruta_704ILR)
+    {
+        try { BLL_Excepciones_704ILR.AbrirLote_704ILR(ruta_704ILR); return "aceptado"; }
+        catch (InvalidDataException) { return "rechazado"; }
+    }
+    Esperar_704ILR("un registro suelto no es un lote", Rechazo58_704ILR(ruta58_704ILR), "rechazado");
+    string dtd58_704ILR = Path.Combine(carpeta58_704ILR, "dtd.xml");
+    File.WriteAllText(dtd58_704ILR, "<?xml version=\"1.0\"?><!DOCTYPE LoteExcepciones [<!ENTITY x SYSTEM \"file:///c:/windows/win.ini\">]><LoteExcepciones formato=\"1\"><Equipo>&x;</Equipo></LoteExcepciones>");
+    Esperar_704ILR("un lote con DTD se rechaza", Rechazo58_704ILR(dtd58_704ILR), "rechazado");
+    string grande58_704ILR = Path.Combine(carpeta58_704ILR, "grande.xml");
+    using (var f_704ILR = new FileStream(grande58_704ILR, FileMode.Create)) f_704ILR.SetLength(EvenTech.Services.RegistroDeExcepciones_704ILR.MaxBytesLote_704ILR + 1);
+    Esperar_704ILR("un archivo de mas de 20 MB se rechaza", Rechazo58_704ILR(grande58_704ILR), "rechazado");
+    CerrarSesion_704ILR();
+
+    // Retencion: con 505 registros quedan los 500 mas recientes.
+    foreach (var f_704ILR in Directory.GetFiles(carpeta58_704ILR)) File.Delete(f_704ILR);
+    var basef58_704ILR = new DateTime(2031, 1, 1);
+    for (int k_704ILR = 0; k_704ILR < 505; k_704ILR++)
+    {
+        var r_704ILR = EvenTech.Services.RegistroDeExcepciones_704ILR.Crear_704ILR(new Exception("n" + k_704ILR), "Smoke", "retencion", "smoke");
+        r_704ILR.Fecha_704ILR = basef58_704ILR.AddSeconds(k_704ILR);
+        EvenTech.Services.RegistroDeExcepciones_704ILR.Guardar_704ILR(r_704ILR);
+    }
+    Esperar_704ILR("retencion: 500 archivos", Directory.GetFiles(carpeta58_704ILR, "excepcion_*.xml").Length, 500);
+    Esperar_704ILR("retencion: se fue el mas viejo", EvenTech.Services.RegistroDeExcepciones_704ILR.Listar_704ILR().Any(r_704ILR => r_704ILR.Mensaje_704ILR == "n0"), false);
+
+    // Tercera capa: sin EXCEPCIONES_VER no se exporta.
+    Esperar_704ILR("sesion del empleado (perfil Empleado)", SesionDelEmpleado_704ILR(), true);
+    string denegado58_704ILR = "sin excepcion";
+    try { BLL_Excepciones_704ILR.Exportar_704ILR(new List<EvenTech.BE.BE_RegistroExcepcion_704ILR>(), Path.Combine(carpeta58_704ILR, "no.xml")); }
+    catch (PermisoDenegadoException_704ILR exP_704ILR) { denegado58_704ILR = exP_704ILR.Clave_704ILR; }
+    CerrarSesion_704ILR();
+    Esperar_704ILR("exportar sin el permiso", denegado58_704ILR, "EXCEPCIONES_VER");
+    Esperar_704ILR("no se escribio el archivo", File.Exists(Path.Combine(carpeta58_704ILR, "no.xml")), false);
+
+    // La bitacora deja el registro serializado al asentar una excepcion.
+    foreach (var f_704ILR in Directory.GetFiles(carpeta58_704ILR)) File.Delete(f_704ILR);
+    int errores58_704ILR = Asientos_704ILR("Smoke");
+    BLL_Bitacora_704ILR.RegistrarExcepcion_704ILR(new TimeoutException("prueba de la bitacora"), "Smoke", "Caso [58]");
+    Esperar_704ILR("asiento 'Error' en la bitacora", Asientos_704ILR("Smoke") - errores58_704ILR, 1);
+    Esperar_704ILR("y el registro en archivo", EvenTech.Services.RegistroDeExcepciones_704ILR.Listar_704ILR().Count(r_704ILR => r_704ILR.Tipo_704ILR == "System.TimeoutException"), 1);
+}
+catch (Exception ex58_704ILR) { Excepcion_704ILR("[58]", ex58_704ILR); CerrarSesion_704ILR(); }
+finally
+{
+    EvenTech.Services.RegistroDeExcepciones_704ILR.UsarCarpetaEnEstaEjecucion_704ILR(null);
+    try { if (Directory.Exists(carpeta58_704ILR)) Directory.Delete(carpeta58_704ILR, true); } catch { }
+}
+
+// ---------------------------------------------------------------------------
+// [59] D02 Ayuda en linea: el manual compilado viaja junto al ejecutable y tiene una
+// pagina para cada tema que la aplicacion puede pedir con F1 o desde el menu. Se
+// descompila el .chm con el visor de ayuda de Windows y se busca cada pagina.
+// ---------------------------------------------------------------------------
+Caso_704ILR("[59] D02 Ayuda en linea: el manual compilado y sus temas:");
+string tmp59_704ILR = Path.Combine(Path.GetTempPath(), "eventech_smoke_ayuda_" + suf_704ILR);
+try
+{
+    Esperar_704ILR("EvenTech.chm junto al ejecutable", EvenTech.UI.Ayuda_704ILR.Disponible_704ILR, true);
+    var constantes59_704ILR = typeof(EvenTech.UI.Ayuda_704ILR).GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)
+        .Where(f_704ILR => f_704ILR.IsLiteral && f_704ILR.Name.StartsWith("Tema")).Select(f_704ILR => (string)f_704ILR.GetRawConstantValue()).ToList();
+    Esperar_704ILR("cada constante de tema esta en la lista de temas",
+        constantes59_704ILR.Where(t_704ILR => !EvenTech.UI.Ayuda_704ILR.Temas_704ILR.Contains(t_704ILR)).Count(), 0);
+    Esperar_704ILR("temas declarados", EvenTech.UI.Ayuda_704ILR.Temas_704ILR.Length, 22);
+    if (EvenTech.UI.Ayuda_704ILR.Disponible_704ILR)
+    {
+        Directory.CreateDirectory(tmp59_704ILR);
+        // hh.exe no admite comillas en -decompile: el .chm se copia a la carpeta temporal
+        // (sin espacios) y se descompila desde ahi.
+        string copiaChm59_704ILR = Path.Combine(tmp59_704ILR, "ayuda.chm");
+        File.Copy(EvenTech.UI.Ayuda_704ILR.Ruta_704ILR, copiaChm59_704ILR, true);
+        using (var hh_704ILR = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "hh.exe"),
+            "-decompile " + tmp59_704ILR + " " + copiaChm59_704ILR) { UseShellExecute = false }))
+            hh_704ILR.WaitForExit(30000);
+        var faltan59_704ILR = EvenTech.UI.Ayuda_704ILR.Temas_704ILR.Where(t_704ILR => !File.Exists(Path.Combine(tmp59_704ILR, EvenTech.UI.Ayuda_704ILR.Pagina_704ILR(t_704ILR)))).ToList();
+        Esperar_704ILR("paginas del .chm que faltan", faltan59_704ILR.Count == 0 ? "ninguna" : string.Join(", ", faltan59_704ILR), "ninguna");
+        Esperar_704ILR("tema vacio = indice", EvenTech.UI.Ayuda_704ILR.Pagina_704ILR(null), "inicio.htm");
+    }
+}
+catch (Exception ex59_704ILR) { Excepcion_704ILR("[59]", ex59_704ILR); }
+finally { try { if (Directory.Exists(tmp59_704ILR)) Directory.Delete(tmp59_704ILR, true); } catch { } }
 
 // ---------------------------------------------------------------------------
 // Limpieza final: lo que cada caso no alcanzo a limpiar (por una excepcion en el

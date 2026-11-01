@@ -1,7 +1,7 @@
 <Project>
   <!--
     Sello del commit. Cada ensamblado lleva como version de producto la version de la
-    entrega mas el commit del que salio el codigo: "2.0.0+<hash de 40 caracteres>". La
+    entrega mas el commit del que salio el codigo: "3.0.0+<hash de 40 caracteres>". La
     pantalla de acceso y el pie de la ventana principal lo muestran, y asi se comprueba
     que el programa compilado desde el zip entregado es el mismo commit que esta en el
     repositorio.

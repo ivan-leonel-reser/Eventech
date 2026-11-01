@@ -1,0 +1,39 @@
+[OPTIONS]
+Compatibility=1.1 or later
+Compiled file=EvenTech.chm
+Contents file=EvenTech.hhc
+Index file=EvenTech.hhk
+Default topic=inicio.htm
+Default Window=principal
+Display compile progress=No
+Full-text search=Yes
+Language=0x2c0a Español (Argentina)
+Title=EvenTech - Ayuda en línea
+
+[WINDOWS]
+principal="EvenTech - Ayuda en línea","EvenTech.hhc","EvenTech.hhk","inicio.htm","inicio.htm",,,,,0x63520,240,0x10184e,[60,40,1000,720],,,,,,,0
+
+[FILES]
+estilo.css
+agenda.htm
+asignar_personal.htm
+auditoria.htm
+clientes.htm
+conexion.htm
+cronograma.htm
+disponibilidad.htm
+empleados.htm
+historial.htm
+idiomas.htm
+informes.htm
+inicio.htm
+operaciones.htm
+pagos.htm
+perfiles.htm
+primeros_pasos.htm
+problemas.htm
+reservas.htm
+servicios.htm
+servicios_reserva.htm
+supervision.htm
+tareas.htm

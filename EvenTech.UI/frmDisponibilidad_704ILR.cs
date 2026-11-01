@@ -16,6 +16,9 @@ namespace EvenTech.UI
     // reserva" devuelve salon + fecha para precargar la ficha.
     public class frmDisponibilidad_704ILR : FormBase_704ILR
     {
+        // Tema de la ayuda en linea de esta ventana (F1).
+        protected override string TemaAyuda_704ILR => Ayuda_704ILR.TemaDisponibilidad_704ILR;
+
         private DateTimePicker _dtFecha_704ILR;
         private NumericUpDown _numCapacidad_704ILR;
         private DataGridView _grid_704ILR;

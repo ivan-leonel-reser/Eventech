@@ -12,6 +12,9 @@ namespace EvenTech.UI
     // Borderless heredando de FormBase, con identidad de marca (azul oscuro + dorado).
     public class frmAlertaIntegridad_704ILR : FormBase_704ILR
     {
+        // Tema de la ayuda en linea de esta ventana (F1).
+        protected override string TemaAyuda_704ILR => Ayuda_704ILR.TemaProblemas_704ILR;
+
         // La verificacion devuelve cada inconsistencia como texto en castellano (es
         // tambien el detalle que queda asentado en bitacora). La pantalla reconoce
         // las formas que produce, de las reservas y de los pagos, y las muestra con

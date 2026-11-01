@@ -13,6 +13,9 @@ namespace EvenTech.UI
     // turno. Las tareas persisten en el acto, como las asignaciones de personal.
     public class frmTareas_704ILR : frmEventoBase_704ILR
     {
+        // Tema de la ayuda en linea de esta ventana (F1).
+        protected override string TemaAyuda_704ILR => Ayuda_704ILR.TemaTareas_704ILR;
+
         private ComboBox _cboEmpleado_704ILR, _cboPrioridad_704ILR;
         private TextBox _txtDescripcion_704ILR, _txtRecursos_704ILR;
         private DateTimePicker _dtDesde_704ILR, _dtHasta_704ILR;

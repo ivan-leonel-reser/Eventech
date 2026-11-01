@@ -12,8 +12,11 @@ namespace EvenTech.UI
     // Layout por TableLayoutPanel/Dock (DPI-aware, sin coordenadas magicas):
     // fila 0 = barra de titulo, fila 1 = cuerpo en dos columnas (grilla / ficha).
     // Observa el cambio de idioma (patron Observer) para traducir sus textos.
-    public class ucReservas_704ILR : UserControl, IObservadorIdioma_704ILR, IVistaConCambios_704ILR
+    public class ucReservas_704ILR : UserControl, IObservadorIdioma_704ILR, IVistaConCambios_704ILR, IAyudaContextual_704ILR
     {
+        // Tema de la ayuda en linea de esta seccion (F1).
+        public string TemaAyuda_704ILR => Ayuda_704ILR.TemaReservas_704ILR;
+
         private DataGridView _grid_704ILR;
         private Label _lblCount_704ILR, _lblError_704ILR, _lblFormTitle_704ILR;
         private TextBox _txtMonto_704ILR;   // solo lectura: total = suma de los servicios contratados

@@ -14,6 +14,9 @@ namespace EvenTech.UI
     // cierra el evento. Cada operacion persiste en el acto.
     public class frmSupervision_704ILR : frmEventoBase_704ILR
     {
+        // Tema de la ayuda en linea de esta ventana (F1).
+        protected override string TemaAyuda_704ILR => Ayuda_704ILR.TemaSupervision_704ILR;
+
         private DataGridView _gridCronograma_704ILR, _gridTareas_704ILR, _gridIncidencias_704ILR;
         private ComboBox _cboTipo_704ILR, _cboReporta_704ILR;
         private TextBox _txtDescripcion_704ILR;

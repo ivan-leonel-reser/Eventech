@@ -33,4 +33,18 @@
     <ProjectReference Include="..\EvenTech.BLL\EvenTech.BLL.csproj" />
     <ProjectReference Include="..\EvenTech.Services\EvenTech.Services.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- Ayuda en linea (D02): el manual compilado viaja junto al ejecutable, en la
+         carpeta Ayuda. Sus fuentes (HTML) estan en la misma carpeta; el compilado se
+         versiona para que la solucion se arme igual donde no esta HTML Help Workshop. -->
+    <None Include="Ayuda\EvenTech.chm" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Biblioteca de presentacion para exportar el informe de gestion a PDF (A02):
+         PDFsharp, compilacion GDI para Windows, de empira, licencia MIT. Solo la usa
+         ExportadorPdfInforme_704ILR, que recibe el informe ya calculado por la capa de
+         negocio. Version fija: desde la 6.5 la biblioteca cambio a licencia AGPL, asi
+         que no se actualiza. Su aceptacion esta pendiente de confirmacion docente. -->
+    <PackageReference Include="PDFsharp-GDI" Version="[6.2.4]" />
+  </ItemGroup>
 </Project>

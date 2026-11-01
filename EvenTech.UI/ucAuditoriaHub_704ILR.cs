@@ -12,11 +12,15 @@ namespace EvenTech.UI
     // Incluye la accion administrativa "Recalcular linea base" (T08): reestablece
     // los digitos verificadores tras una correccion de datos, solo para quien
     // tenga el permiso INTEGRIDAD_RECALC (el perfil Administrador lo trae).
-    public class ucAuditoriaHub_704ILR : UserControl, IObservadorIdioma_704ILR
+    public class ucAuditoriaHub_704ILR : UserControl, IObservadorIdioma_704ILR, IAyudaContextual_704ILR
     {
+        // Tema de la ayuda en linea de esta seccion (F1).
+        public string TemaAyuda_704ILR => Ayuda_704ILR.TemaAuditoria_704ILR;
+
         private readonly TabControl _tabs_704ILR;
         private readonly TabPage _tabBitacora_704ILR;   // null si el usuario no tiene BITACORA_VER
         private readonly TabPage _tabLogin_704ILR;      // null si el usuario no tiene AUDIT_LOGIN_VER
+        private readonly TabPage _tabExcepciones_704ILR; // null si el usuario no tiene EXCEPCIONES_VER (A03)
         private readonly AppButton_704ILR _btnRecalc_704ILR;   // null si el usuario no tiene permiso
         private readonly Label _lblSinConsulta_704ILR;   // solo cuando no hay ninguna pestana
 
@@ -41,6 +45,12 @@ namespace EvenTech.UI
                 _tabLogin_704ILR = new TabPage { BackColor = Theme_704ILR.BgContent_704ILR, Padding = new Padding(0, Theme_704ILR.SpaceSm_704ILR, 0, 0), UseVisualStyleBackColor = true };
                 _tabLogin_704ILR.Controls.Add(new ucAuditoria_704ILR { Dock = DockStyle.Fill });
                 _tabs_704ILR.TabPages.Add(_tabLogin_704ILR);
+            }
+            if (Permisos_704ILR.Tiene_704ILR("EXCEPCIONES_VER"))
+            {
+                _tabExcepciones_704ILR = new TabPage { BackColor = Theme_704ILR.BgContent_704ILR, Padding = new Padding(0, Theme_704ILR.SpaceSm_704ILR, 0, 0), UseVisualStyleBackColor = true };
+                _tabExcepciones_704ILR.Controls.Add(new ucExcepciones_704ILR { Dock = DockStyle.Fill });
+                _tabs_704ILR.TabPages.Add(_tabExcepciones_704ILR);
             }
             Controls.Add(_tabs_704ILR);
             // La seccion tambien se abre con solo INTEGRIDAD_RECALC (el recalculo de
@@ -121,6 +131,7 @@ namespace EvenTech.UI
         {
             if (_tabBitacora_704ILR != null) _tabBitacora_704ILR.Text = T_704ILR("AUD_TAB_BITACORA", "Bitácora general");
             if (_tabLogin_704ILR != null) _tabLogin_704ILR.Text = T_704ILR("AUD_TAB_LOGIN", "Auditoría de login");
+            if (_tabExcepciones_704ILR != null) _tabExcepciones_704ILR.Text = T_704ILR("AUD_TAB_EXCEPCIONES", "Registro de excepciones");
             if (_btnRecalc_704ILR != null) _btnRecalc_704ILR.Text = T_704ILR("AUD_RECALC_BTN", "Recalcular línea base");
             if (_lblSinConsulta_704ILR != null)
                 _lblSinConsulta_704ILR.Text = T_704ILR("AUD_SIN_CONSULTA", "El perfil no tiene permisos de consulta de auditoría.");

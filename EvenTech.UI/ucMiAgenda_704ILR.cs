@@ -13,8 +13,11 @@ namespace EvenTech.UI
     // elegido, sus tareas y el cronograma de la jornada (CUN010). La identidad sale de
     // la cuenta de la sesion: la ficha del empleado tiene que estar vinculada a ella.
     // Observa el cambio de idioma.
-    public class ucMiAgenda_704ILR : UserControl, IObservadorIdioma_704ILR
+    public class ucMiAgenda_704ILR : UserControl, IObservadorIdioma_704ILR, IAyudaContextual_704ILR
     {
+        // Tema de la ayuda en linea de esta seccion (F1).
+        public string TemaAyuda_704ILR => Ayuda_704ILR.TemaAgenda_704ILR;
+
         private DataGridView _gridAsignaciones_704ILR, _gridTareas_704ILR, _gridCronograma_704ILR;
         private Label _lblEmpleado_704ILR, _lblError_704ILR, _lblEvento_704ILR;
         private AppButton_704ILR _btnConfirmar_704ILR, _btnRechazar_704ILR;

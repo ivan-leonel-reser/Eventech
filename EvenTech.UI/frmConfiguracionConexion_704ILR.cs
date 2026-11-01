@@ -22,6 +22,9 @@ namespace EvenTech.UI
     // muestran sus campos.
     public class frmConfiguracionConexion_704ILR : FormBase_704ILR
     {
+        // Tema de la ayuda en linea de esta ventana (F1).
+        protected override string TemaAyuda_704ILR => Ayuda_704ILR.TemaConexion_704ILR;
+
         private ComboBox _cboServidor_704ILR;
         private TextBox _txtBase_704ILR;
         private Label _lblEstado_704ILR;

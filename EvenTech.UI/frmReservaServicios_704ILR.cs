@@ -12,6 +12,9 @@ namespace EvenTech.UI
     // la ficha de reserva la persista junto con el monto (suma de subtotales).
     public class frmReservaServicios_704ILR : FormBase_704ILR
     {
+        // Tema de la ayuda en linea de esta ventana (F1).
+        protected override string TemaAyuda_704ILR => Ayuda_704ILR.TemaServiciosReserva_704ILR;
+
         private readonly List<BE_Servicio_704ILR> _disponibles_704ILR;
         private DataGridView _grid_704ILR;
         private ComboBox _cboServicio_704ILR;

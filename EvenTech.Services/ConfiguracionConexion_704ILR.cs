@@ -32,17 +32,33 @@ namespace EvenTech.Services
         private static readonly object _lock_704ILR = new object();
         private static string _cache_704ILR;
 
+        // Cadena fijada para esta ejecucion por una herramienta de prueba (la prueba
+        // automatizada, la captura de pantallas, la carga de los datos de demostracion):
+        // vale solo dentro del proceso, no se escribe en ningun archivo y no la pisa
+        // Borrar. Asi las pruebas corren contra una base exclusiva sin tocar la
+        // configuracion del puesto. La aplicacion nunca la usa.
+        private static string _deEstaEjecucion_704ILR;
+
+        public static void UsarEnEstaEjecucion_704ILR(string connectionString_704ILR)
+        {
+            if (string.IsNullOrWhiteSpace(connectionString_704ILR))
+                throw new ArgumentException("La cadena de conexion no puede estar vacia.", nameof(connectionString_704ILR));
+            lock (_lock_704ILR) { _deEstaEjecucion_704ILR = connectionString_704ILR; }
+        }
+
         private static string Dir_704ILR =>
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "EvenTech");
         private static string Archivo_704ILR => Path.Combine(Dir_704ILR, "connection.cfg");
 
         public static bool EstaConfigurada_704ILR => File.Exists(Archivo_704ILR);
 
-        // Cadena vigente: la guardada si existe, la de fabrica si no.
+        // Cadena vigente: la de esta ejecucion si una herramienta de prueba la fijo; si no,
+        // la guardada si existe y la de fabrica si no.
         public static string Actual_704ILR
         {
             get
             {
+                if (_deEstaEjecucion_704ILR != null) return _deEstaEjecucion_704ILR;
                 if (_cache_704ILR != null) return _cache_704ILR;
                 lock (_lock_704ILR)
                 {

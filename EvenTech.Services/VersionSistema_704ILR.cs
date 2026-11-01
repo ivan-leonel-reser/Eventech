@@ -8,7 +8,7 @@ namespace EvenTech.Services
 {
     // Version del sistema y commit del que salio el codigo. Los dos viajan en el propio
     // ensamblado: Directory.Build.targets escribe la version de producto
-    // "2.0.0+<hash>[.modificado]" y el atributo de metadatos "FechaCommit". La pantalla de
+    // "3.0.0+<hash>[.modificado]" y el atributo de metadatos "FechaCommit". La pantalla de
     // acceso y la ventana principal los muestran para comprobar que el programa compilado
     // desde el zip entregado es el mismo commit que esta en el repositorio.
     public sealed class VersionSistema_704ILR
@@ -20,7 +20,7 @@ namespace EvenTech.Services
         private static readonly Lazy<VersionSistema_704ILR> _actual_704ILR =
             new Lazy<VersionSistema_704ILR>(() => DeEnsamblado_704ILR(typeof(VersionSistema_704ILR).Assembly));
 
-        // "2.0.0". Nunca vacia: sin datos, "?".
+        // "3.0.0". Nunca vacia: sin datos, "?".
         public string Version_704ILR { get; private set; }
         // Hash completo del commit (40 caracteres), o null si el ejecutable no lo trae.
         public string Commit_704ILR { get; private set; }

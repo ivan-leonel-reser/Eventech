@@ -14,6 +14,9 @@ namespace EvenTech.UI
     // Los responsables se eligen entre el personal confirmado del evento.
     public class frmCronograma_704ILR : frmEventoBase_704ILR
     {
+        // Tema de la ayuda en linea de esta ventana (F1).
+        protected override string TemaAyuda_704ILR => Ayuda_704ILR.TemaCronograma_704ILR;
+
         private DateTimePicker _dtHora_704ILR;
         private TextBox _txtDescripcion_704ILR;
         private ComboBox _cboResponsable_704ILR;

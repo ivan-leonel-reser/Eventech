@@ -15,8 +15,11 @@ namespace EvenTech.UI
     // paso de la coordinacion (personal, cronograma, tareas) y a la supervision de la
     // ejecucion. Cada accion se habilita segun el permiso del perfil. Observa el
     // cambio de idioma.
-    public class ucOperaciones_704ILR : UserControl, IObservadorIdioma_704ILR
+    public class ucOperaciones_704ILR : UserControl, IObservadorIdioma_704ILR, IAyudaContextual_704ILR
     {
+        // Tema de la ayuda en linea de esta seccion (F1).
+        public string TemaAyuda_704ILR => Ayuda_704ILR.TemaOperaciones_704ILR;
+
         private DataGridView _grid_704ILR;
         private Label _lblCount_704ILR, _lblError_704ILR, _lblDetalleTitulo_704ILR, _lblDatos_704ILR, _lblServicios_704ILR, _lblAvance_704ILR;
         // La ultima lectura de los eventos fallo: la grilla vacia no significa "no hay eventos".

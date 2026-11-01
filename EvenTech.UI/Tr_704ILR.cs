@@ -23,7 +23,7 @@ namespace EvenTech.UI
             => GestorDeIdioma_704ILR.GetInstance_704ILR.Formatear_704ILR(clave_704ILR, defecto_704ILR, args_704ILR);
 
         // Version y commit en una linea, para el pie de la pantalla de acceso y de la ventana
-        // principal: "Versión 2.0.0 · commit 480f5c4". El commit es el que el repositorio
+        // principal: "Versión 3.0.0 · commit 480f5c4". El commit es el que el repositorio
         // muestra en su historial; con el se comprueba que el programa compilado desde el
         // zip entregado es el del repositorio (ver VersionSistema_704ILR).
         public static string TextoVersion_704ILR()

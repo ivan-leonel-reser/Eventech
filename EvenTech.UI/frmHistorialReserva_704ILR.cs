@@ -16,6 +16,9 @@ namespace EvenTech.UI
     // para re-traducir titulo, encabezados y estado vacio sin recrear la vista.
     public class frmHistorialReserva_704ILR : FormBase_704ILR, IObservadorIdioma_704ILR
     {
+        // Tema de la ayuda en linea de esta ventana (F1).
+        protected override string TemaAyuda_704ILR => Ayuda_704ILR.TemaHistorial_704ILR;
+
         private readonly int _reservaId_704ILR;
 
         private Label _lblTitle_704ILR;

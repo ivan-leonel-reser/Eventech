@@ -13,8 +13,11 @@ namespace EvenTech.UI
     // Look de panel de administracion (titulo + tarjetas), layout 100% por
     // TableLayoutPanel/FlowLayoutPanel + Dock (sin coordenadas magicas).
     // Observa el cambio de idioma (patron Observer) para re-traducir sus textos.
-    public class ucIdiomas_704ILR : UserControl, IObservadorIdioma_704ILR
+    public class ucIdiomas_704ILR : UserControl, IObservadorIdioma_704ILR, IAyudaContextual_704ILR
     {
+        // Tema de la ayuda en linea de esta seccion (F1).
+        public string TemaAyuda_704ILR => Ayuda_704ILR.TemaIdiomas_704ILR;
+
         private ComboBox _cboIdioma_704ILR;
         private TextBox _txtCodigo_704ILR, _txtNombre_704ILR;
         private DataGridView _grid_704ILR;

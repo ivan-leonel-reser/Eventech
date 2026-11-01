@@ -38,12 +38,18 @@ namespace EvenTech.BLL
             }
         }
 
-        // Registro estandar de excepciones tecnicas en la bitacora.
+        // Registro estandar de excepciones tecnicas: el asiento "Error" de la bitacora y,
+        // ademas, el registro serializado en archivo (A03), con el tipo, la pila y las
+        // excepciones internas. El archivo se escribe primero: si la falla es justamente
+        // que la base no responde, el asiento se pierde pero el archivo queda.
         public static void RegistrarExcepcion_704ILR(Exception ex_704ILR, string modulo_704ILR, string contexto_704ILR)
         {
+            try { RegistroDeExcepciones_704ILR.Guardar_704ILR(RegistroDeExcepciones_704ILR.Crear_704ILR(ex_704ILR, modulo_704ILR, contexto_704ILR, UsuarioActual_704ILR())); }
+            catch { /* el registro en archivo tampoco propaga errores */ }
+
             var sb_704ILR = new StringBuilder();
-            sb_704ILR.Append("ERROR en ").Append(contexto_704ILR).Append(": ").Append(ex_704ILR.Message);
-            if (ex_704ILR.InnerException != null)
+            sb_704ILR.Append("ERROR en ").Append(contexto_704ILR).Append(": ").Append(ex_704ILR?.Message);
+            if (ex_704ILR?.InnerException != null)
                 sb_704ILR.Append(" | Inner: ").Append(ex_704ILR.InnerException.Message);
 
             Registrar_704ILR(modulo_704ILR, "Error", CriticidadBitacora_704ILR.Error, sb_704ILR.ToString());

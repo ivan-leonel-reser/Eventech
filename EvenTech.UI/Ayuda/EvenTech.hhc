@@ -1,0 +1,139 @@
+<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
+<HTML><HEAD><meta http-equiv="Content-Type" content="text/html; charset=windows-1252"></HEAD><BODY>
+<OBJECT type="text/site properties"><param name="Window Styles" value="0x800025"></OBJECT>
+<UL>
+<LI> <OBJECT type="text/sitemap">
+	<param name="Name" value="Ayuda en línea de EvenTech">
+	<param name="Local" value="inicio.htm">
+	</OBJECT>
+
+<LI> <OBJECT type="text/sitemap">
+	<param name="Name" value="Primeros pasos">
+	<param name="Local" value="primeros_pasos.htm">
+	</OBJECT>
+
+<LI> <OBJECT type="text/sitemap">
+	<param name="Name" value="Reservas">
+	</OBJECT>
+
+<UL>
+<LI> <OBJECT type="text/sitemap">
+	<param name="Name" value="Reservas y cotizaciones">
+	<param name="Local" value="reservas.htm">
+	</OBJECT>
+
+<LI> <OBJECT type="text/sitemap">
+	<param name="Name" value="Consulta de disponibilidad">
+	<param name="Local" value="disponibilidad.htm">
+	</OBJECT>
+
+<LI> <OBJECT type="text/sitemap">
+	<param name="Name" value="Servicios de una reserva">
+	<param name="Local" value="servicios_reserva.htm">
+	</OBJECT>
+
+<LI> <OBJECT type="text/sitemap">
+	<param name="Name" value="Cobros y comprobante">
+	<param name="Local" value="pagos.htm">
+	</OBJECT>
+
+<LI> <OBJECT type="text/sitemap">
+	<param name="Name" value="Historial de cambios y versiones">
+	<param name="Local" value="historial.htm">
+	</OBJECT>
+
+</UL>
+<LI> <OBJECT type="text/sitemap">
+	<param name="Name" value="Catálogos">
+	</OBJECT>
+
+<UL>
+<LI> <OBJECT type="text/sitemap">
+	<param name="Name" value="Clientes">
+	<param name="Local" value="clientes.htm">
+	</OBJECT>
+
+<LI> <OBJECT type="text/sitemap">
+	<param name="Name" value="Catálogo de servicios">
+	<param name="Local" value="servicios.htm">
+	</OBJECT>
+
+<LI> <OBJECT type="text/sitemap">
+	<param name="Name" value="Empleados">
+	<param name="Local" value="empleados.htm">
+	</OBJECT>
+
+</UL>
+<LI> <OBJECT type="text/sitemap">
+	<param name="Name" value="Operaciones">
+	</OBJECT>
+
+<UL>
+<LI> <OBJECT type="text/sitemap">
+	<param name="Name" value="Operaciones">
+	<param name="Local" value="operaciones.htm">
+	</OBJECT>
+
+<LI> <OBJECT type="text/sitemap">
+	<param name="Name" value="Personal del evento">
+	<param name="Local" value="asignar_personal.htm">
+	</OBJECT>
+
+<LI> <OBJECT type="text/sitemap">
+	<param name="Name" value="Cronograma del evento">
+	<param name="Local" value="cronograma.htm">
+	</OBJECT>
+
+<LI> <OBJECT type="text/sitemap">
+	<param name="Name" value="Tareas del evento">
+	<param name="Local" value="tareas.htm">
+	</OBJECT>
+
+<LI> <OBJECT type="text/sitemap">
+	<param name="Name" value="Supervisión del evento">
+	<param name="Local" value="supervision.htm">
+	</OBJECT>
+
+<LI> <OBJECT type="text/sitemap">
+	<param name="Name" value="Mi agenda">
+	<param name="Local" value="agenda.htm">
+	</OBJECT>
+
+</UL>
+<LI> <OBJECT type="text/sitemap">
+	<param name="Name" value="Administración">
+	</OBJECT>
+
+<UL>
+<LI> <OBJECT type="text/sitemap">
+	<param name="Name" value="Informe de gestión">
+	<param name="Local" value="informes.htm">
+	</OBJECT>
+
+<LI> <OBJECT type="text/sitemap">
+	<param name="Name" value="Perfiles, permisos y cuentas">
+	<param name="Local" value="perfiles.htm">
+	</OBJECT>
+
+<LI> <OBJECT type="text/sitemap">
+	<param name="Name" value="Auditoría">
+	<param name="Local" value="auditoria.htm">
+	</OBJECT>
+
+<LI> <OBJECT type="text/sitemap">
+	<param name="Name" value="Idiomas">
+	<param name="Local" value="idiomas.htm">
+	</OBJECT>
+
+<LI> <OBJECT type="text/sitemap">
+	<param name="Name" value="Configuración de la conexión">
+	<param name="Local" value="conexion.htm">
+	</OBJECT>
+
+</UL>
+<LI> <OBJECT type="text/sitemap">
+	<param name="Name" value="Resolución de problemas">
+	<param name="Local" value="problemas.htm">
+	</OBJECT>
+
+</UL></BODY></HTML>

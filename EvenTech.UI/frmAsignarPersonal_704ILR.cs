@@ -14,6 +14,9 @@ namespace EvenTech.UI
     // cada alta o baja impacta la base y recalcula el estado de coordinacion.
     public class frmAsignarPersonal_704ILR : frmEventoBase_704ILR
     {
+        // Tema de la ayuda en linea de esta ventana (F1).
+        protected override string TemaAyuda_704ILR => Ayuda_704ILR.TemaAsignarPersonal_704ILR;
+
         private ComboBox _cboEspecialidad_704ILR, _cboEmpleado_704ILR;
         private TextBox _txtRol_704ILR;
         private DateTimePicker _dtDesde_704ILR, _dtHasta_704ILR;

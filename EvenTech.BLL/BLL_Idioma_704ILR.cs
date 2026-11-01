@@ -302,7 +302,7 @@ namespace EvenTech.BLL
             { "ALERT_PAGO_DVH_FALTANTE",    "{0} {1}" },        // numero de pago sin DV horizontal, numero de su reserva
             { "ALERT_PAGO_DVH_NO_COINCIDE", "{0} {1}" },        // numero de pago con el DV horizontal alterado, numero de su reserva
             { "APP_COMMIT",                 "{0}" },            // los siete primeros caracteres del commit
-            { "APP_VERSION",                "{0}" },            // version del sistema ("2.0.0")
+            { "APP_VERSION",                "{0}" },            // version del sistema ("3.0.0")
             { "ASG_QUITAR_CONF",            "{0}" },            // empleado que se quita del equipo
             { "ASG_RESUMEN",                "{0} {1} {2} {3}" },// asignados, confirmados, pendientes, rechazados
             { "ASG_SIN_CUENTA_CONF",        "{0}" },            // empleado sin cuenta vinculada
@@ -340,6 +340,21 @@ namespace EvenTech.BLL
             { "SUP_RESUMEN",                "{0} {1}" },        // incidencias, abiertas
             { "TAR_QUITAR_CONF",            "{0}" },            // empleado de la tarea que se quita
             { "TAR_RESUMEN",                "{0}" },            // tareas asignadas
+            // Entrega 3: informe de gestion (A02), registro de excepciones (A03) y ayuda (D02).
+            { "AYU_NO_DISPONIBLE",          "{0}" },            // ruta del archivo de ayuda que falta
+            { "EXC_CONTEO",                 "{0} {1}" },        // registros, ilegibles
+            { "EXC_EXPORTADO",              "{0} {1}" },        // registros exportados, archivo
+            { "EXC_ILEGIBLE_DETALLE",       "{0}" },            // archivo que no se pudo leer
+            { "EXC_ORIGEN_LOCAL",           "{0}" },            // carpeta del registro del equipo
+            { "EXC_ORIGEN_LOTE",            "{0} {1} {2} {3}" },// archivo, fecha de generacion, equipo, version
+            { "INF_DIAS",                   "{0}" },            // dias del periodo
+            { "INF_ESTADO",                 "{0} {1} {2} {3}" },// desde, hasta, dias, fecha de generacion
+            { "INF_EXPORTADO",              "{0} {1}" },        // hojas, archivo
+            { "INF_GENERADO",               "{0} {1}" },        // fecha de generacion, usuario
+            { "INF_HOJA",                   "{0} {1}" },        // hoja, total de hojas
+            { "INF_NOTA_OCUPACION",         "{0}" },            // dias del periodo
+            { "INF_NOTA_VENCIDAS",          "{0}" },            // operaciones vencidas
+            { "INF_RANGO_EXCESIVO",         "{0}" },            // maximo de dias del periodo
         };
 
         // Marcadores de una plantilla, sin las llaves escapadas ("{{" y "}}"), o null

@@ -10,6 +10,9 @@ namespace EvenTech.UI
     // reservas ("Nuevo cliente") y desde la seccion Clientes. Devuelve OK + NuevoId.
     public class frmNuevoCliente_704ILR : FormBase_704ILR
     {
+        // Tema de la ayuda en linea de esta ventana (F1).
+        protected override string TemaAyuda_704ILR => Ayuda_704ILR.TemaClientes_704ILR;
+
         private TextBox _txtNombre_704ILR, _txtApellido_704ILR, _txtDni_704ILR, _txtEmail_704ILR, _txtTelefono_704ILR;
         private Label _lblMsg_704ILR;
         // La fila del mensaje crece con el texto (un mensaje de dos lineas se cortaba en la

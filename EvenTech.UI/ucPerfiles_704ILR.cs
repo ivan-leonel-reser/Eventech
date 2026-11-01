@@ -17,8 +17,11 @@ namespace EvenTech.UI
     //  - Derecha: asignacion de perfiles a usuarios (grilla con combo por fila).
     // Observa el idioma para traducir sus textos y le informa a la ventana principal si
     // hay permisos tildados o asignaciones sin guardar (IVistaConCambios).
-    public class ucPerfiles_704ILR : UserControl, IObservadorIdioma_704ILR, IVistaConCambios_704ILR
+    public class ucPerfiles_704ILR : UserControl, IObservadorIdioma_704ILR, IVistaConCambios_704ILR, IAyudaContextual_704ILR
     {
+        // Tema de la ayuda en linea de esta seccion (F1).
+        public string TemaAyuda_704ILR => Ayuda_704ILR.TemaPerfiles_704ILR;
+
         // Marca del nodo raiz de la rama "Perfiles incluidos" (Composite de
         // perfiles): es un titulo, no un componente seleccionable.
         private const string TagRamaPerfiles_704ILR = "PERFILES_INCLUIDOS";

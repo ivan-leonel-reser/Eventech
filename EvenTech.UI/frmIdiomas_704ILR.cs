@@ -8,6 +8,9 @@ namespace EvenTech.UI
     // principal, ya que la seccion salio del menu lateral.
     public class frmIdiomas_704ILR : FormBase_704ILR
     {
+        // Tema de la ayuda en linea de esta ventana (F1).
+        protected override string TemaAyuda_704ILR => Ayuda_704ILR.TemaIdiomas_704ILR;
+
         private readonly ucIdiomas_704ILR _uc_704ILR;
 
         public frmIdiomas_704ILR()
