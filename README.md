@@ -22,11 +22,17 @@ organizada en cinco capas y sin frameworks de persistencia de terceros.
 
 ## Instalación
 
-El sistema se instala con el asistente `EvenTech_Instalador_v2.0.exe`, pensado para
+El sistema se instala con el asistente `EvenTech_Instalador_v3.0.exe`, pensado para
 el usuario final: copia la aplicación —con .NET 8 incluido—, crea la base de datos
 con los datos de demostración en la instancia de SQL Server que se elija y deja
 configurada la conexión. El equipo solo necesita Windows 10 u 11 de 64 bits y SQL
 Server Express 2019 o superior; no hacen falta `sqlcmd` ni el SDK de .NET.
+
+Sobre una instalación anterior (o una instancia que ya tiene la base) el mismo
+asistente **reinstala**: muestra la versión instalada y la nueva, respalda la base y la
+actualiza conservando los datos (o, si se elige, la reemplaza por la de demostración),
+y si algo falla la devuelve al respaldo. Con los medios de SQL Server Express junto al
+instalador, también puede instalar el motor en un equipo que no tiene ninguno.
 
 El instalador se genera con `instalador\construir.ps1`. Su alcance, sus pasos y sus
 decisiones de diseño están en **[instalador/README.md](instalador/README.md)**; el
@@ -38,7 +44,7 @@ Las secciones siguientes describen la puesta en marcha **desde el código fuente
 
 El sistema muestra su versión y el commit del que salió el código: al pie de la
 pantalla de acceso y a la izquierda del pie de la ventana principal
-(`Versión 2.0.0 · commit 480f5c4`). Un clic sobre ese texto abre **Acerca de**, con
+(`Versión 3.0.0 · commit c4a22f3`). Un clic sobre ese texto abre **Acerca de**, con
 el hash completo y la fecha del commit. Así se comprueba que el programa compilado
 desde el zip de una entrega es el mismo commit que está en el repositorio, en la
 rama de esa entrega.
@@ -46,7 +52,7 @@ rama de esa entrega.
 - La versión se escribe a mano en un solo lugar: `<Version>` de
   `Directory.Build.props`. La llevan todos los ensamblados y el instalador.
 - El commit lo agrega `Directory.Build.targets` al compilar, como versión de
-  producto de cada ensamblado (`2.0.0+<hash>`; también se ve en Propiedades →
+  producto de cada ensamblado (`3.0.0+<hash>`; también se ve en Propiedades →
   Detalles del ejecutable). Lo toma de `commit.txt`, que en el repositorio dice
   `$Format:%H %cs$`: por `.gitattributes` (`export-subst`), `git archive` y la
   descarga en zip del repositorio lo reemplazan por el hash y la fecha del commit
@@ -198,9 +204,17 @@ Dependencias entre capas, tal como las declaran los `ProjectReference`:
 `UI -> BLL, BE, Services` · `BLL -> DAL, BE, Services` · `DAL -> BE, Services` ·
 `Services -> BE` · `BE` no referencia a ninguna otra.
 
-Único paquete NuGet: `Microsoft.Data.SqlClient`, el proveedor de SQL Server que usa la
-DAL (.NET 8 no trae ninguno en el framework). No contiene lógica del sistema: todo el SQL
-está escrito a mano. DPAPI (`ProtectedData`) se toma del runtime de escritorio de .NET 8.
+Paquetes NuGet:
+
+- `Microsoft.Data.SqlClient` (solo en la DAL): el proveedor de SQL Server (.NET 8 no trae
+  ninguno en el framework). No contiene lógica del sistema: todo el SQL está escrito a mano.
+- `PDFsharp-GDI` 6.2.4 (solo en la interfaz): la biblioteca con la que se exporta el
+  informe de gestión a PDF. Licencia MIT; la versión queda fija porque desde la 6.5 la
+  biblioteca pasó a una licencia AGPL. Recibe el informe ya calculado por la capa de
+  negocio y no decide nada. Su uso está pendiente de confirmación docente.
+
+DPAPI (`ProtectedData`) se toma del runtime de escritorio de .NET 8. La serialización
+del registro de excepciones usa `XmlSerializer`, del framework.
 
 **Patrones aplicados:** Singleton (gestión de sesión: instancia única con
 constructor privado y acceso sincronizado), Composite (árbol de perfiles y
@@ -223,15 +237,17 @@ viven en ella, y cada acción vuelve a exigir el suyo al ejecutarse.
 | Operaciones | Eventos confirmados: personal, cronograma, tareas y supervisión de la ejecución (un diálogo por cada uno) | `PERSONAL_ASIGNAR`, `CRONOGRAMA_GESTION`, `TAREAS_ASIGNAR`, `EJECUCION_SUPERVISAR` |
 | Mi agenda | Turnos del empleado de la sesión: confirmar o rechazar, y consultar sus tareas y el cronograma | `DISPONIBILIDAD_CONFIRMAR`, `AGENDA_CONSULTAR` |
 | Empleados | Ficha del personal, su especialidad y la cuenta con la que responde | `EMPLEADOS_GESTION` |
+| Informes | Informe de gestión del período (reservas por estado, cobranza, ocupación de los salones, operaciones por vencer, eventos) y su exportación a PDF | `INFORMES_VER` |
 | Perfiles | Perfiles, permisos y asignación a usuarios | `PERFILES_GESTION` |
-| Auditoría | Bitácora, auditoría de acceso y línea base de integridad | `BITACORA_VER`, `AUDIT_LOGIN_VER`, `INTEGRIDAD_RECALC` |
+| Auditoría | Bitácora, auditoría de acceso, registro de excepciones y línea base de integridad | `BITACORA_VER`, `AUDIT_LOGIN_VER`, `EXCEPCIONES_VER`, `INTEGRIDAD_RECALC` |
+| Ayuda | Manual de usuario (también con **F1** desde cualquier pantalla) | (sin restricción) |
 
 La gestión de idiomas (`IDIOMAS_GESTION`) se abre desde el selector de idioma del
 pie de la ventana. Perfiles de fábrica: **Administrador** (todos los permisos),
 **Vendedor** (disponibilidad, clientes, alta y edición de reservas, historial y
 cobros), **Supervisor** (incluye a Vendedor y suma la bitácora, la auditoría de
 acceso, la anulación de pagos y la supervisión de la ejecución), **Gerencial**
-(incluye a Supervisor y suma el recálculo de la línea base), **Coordinador**
+(incluye a Supervisor y suma el recálculo de la línea base y el informe de gestión), **Coordinador**
 (empleados, personal, cronograma y tareas) y **Empleado** (confirmar
 disponibilidad y consultar la agenda).
 
@@ -299,13 +315,21 @@ duplicado o quitado por fuera se detecta), restauración de versiones y el sello
 versión y commit de los ensamblados, y las validaciones que la capa de negocio
 hace aunque la pantalla nunca le mande el dato (fecha del evento por día, importes
 a centavos, referencias inexistentes, textos que no entran en su columna, permisos
-de la sesión). Son 55 casos numerados `[1]` a `[55]`, más un bloque `[limpieza]` y
-un `[cierre]` que vuelve a verificar la integridad de toda la base al terminar: 57
-casos y 945 verificaciones en total.
+de la sesión). La tercera versión suma el control de cambios reunido en un solo
+recorrido (historial, versiones, restauración con y sin permiso, integridad), el
+informe de gestión y su PDF, el registro serializado de excepciones (ida y vuelta,
+caracteres especiales, archivos dañados, lotes, retención) y los temas de la ayuda en
+línea. Son 59 casos numerados `[1]` a `[59]`, más un bloque `[limpieza]` y un
+`[cierre]` que vuelve a verificar la integridad de toda la base al terminar: 61 casos y
+1043 verificaciones en total.
 
 ```bat
 dotnet run --project EvenTech.SmokeTest
+dotnet run --project EvenTech.SmokeTest -- --servidor localhost\SQLEXPRESS --base EvenTechPrueba
 ```
+
+Sin argumentos corre contra la conexión vigente del puesto; con `--base` (y `--servidor`)
+corre contra esa base solo durante la ejecución, sin cambiar la configuración guardada.
 
 Cada verificación compara el valor obtenido con el esperado y marca la diferencia
 con `<-- DIFIERE`; un caso que no puede correr por faltar un dato (catálogo vacío,
@@ -342,6 +366,7 @@ la fecha del día, sobre un salón que esté libre hoy.
 | `instalador/scripts/` | Guiones del asistente: instancia, base de datos y conexión |
 | `instalador/construir.ps1` | Publica la aplicación y compila el instalador |
 | `instalador/README.md` | Alcance, pasos y construcción del instalador |
+| `EvenTech.UI/Ayuda/` | Ayuda en línea: páginas HTML, proyecto de HTML Help y el manual compilado `EvenTech.chm` |
 | `Directory.Build.props` | Versión de la entrega, común a todos los proyectos |
 | `Directory.Build.targets` | Agrega a cada ensamblado el commit del que salió el código |
 | `commit.txt` | Hash y fecha del commit, que completa `git archive` (ver "Versión y commit") |

@@ -1,12 +1,21 @@
 <#
 BaseDeDatos.ps1 - operaciones del instalador sobre la instancia de SQL Server elegida.
 
-    Diagnosticar   comprueba que la instancia sirva para una primera instalacion:
-                   que responda, que este en este equipo, que sea SQL Server 2019 o
-                   superior, que el usuario pueda crear bases y que la base del
-                   sistema todavia no exista.
-    Restaurar      crea la base restaurando el respaldo de demostracion.
-    Verificar      abre la base creada y cuenta sus tablas y sus cuentas.
+    Diagnosticar   comprueba que la instancia sirva: que responda, que este en este
+                   equipo, que sea SQL Server 2019 o superior y que el usuario pueda
+                   crear y restaurar bases. Si la base del sistema ya existe, informa
+                   su version, sus cuentas, clientes y reservas, y las sesiones abiertas
+                   (lo usa la reinstalacion para mostrar lo que esta y lo que viene).
+    Restaurar      crea la base restaurando el respaldo de demostracion (instalacion
+                   inicial). Solo si la base no existe.
+    Actualizar     reinstalacion conservando los datos: respalda la base, le aplica
+                   db\schema.sql (idempotente: agrega lo que falta y no pisa datos) y,
+                   si algo falla, la devuelve al respaldo.
+    Reemplazar     reinstalacion con la base de demostracion: respalda la base actual y
+                   la reemplaza por el respaldo de demostracion.
+    Revertir       devuelve la base al respaldo que tomo Actualizar o Reemplazar (la
+                   instalacion se cancelo despues de modificar la base).
+    Verificar      abre la base y cuenta sus tablas y sus cuentas.
     Quitar         deshace la restauracion de ESTA ejecucion (instalacion cancelada).
 
 El resultado se escribe en el archivo -Salida_704ILR como lineas CLAVE=valor (UTF-8
@@ -16,10 +25,14 @@ salida: 0 correcto, 1 condicion prevista que impide continuar, 2 error no previs
 Usa el proveedor de SQL Server de .NET Framework, que viene con Windows: el equipo
 no necesita sqlcmd ni ninguna otra herramienta. La conexion es siempre con la
 autenticacion integrada de Windows, como la de la aplicacion.
+
+La version de la base que dejo el asistente queda en la propiedad extendida
+EvenTech_Version de la propia base. Una base sin esa marca se reconoce por su
+esquema (2.0 si tiene las tablas del personal, 1.0 si solo las de reservas).
 #>
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet('Diagnosticar', 'Restaurar', 'Verificar', 'Quitar')]
+    [ValidateSet('Diagnosticar', 'Restaurar', 'Actualizar', 'Reemplazar', 'Revertir', 'Verificar', 'Quitar')]
     [string]$Accion_704ILR,
 
     [Parameter(Mandatory = $true)]
@@ -28,8 +41,15 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$Salida_704ILR,
 
-    # Restaurar: el respaldo, en una carpeta que el servicio de SQL Server pueda leer.
+    # Restaurar / Reemplazar: el respaldo de demostracion. Revertir: el respaldo previo.
     [string]$Respaldo_704ILR = '',
+
+    # Actualizar (y, si se indica, Restaurar y Reemplazar): el script del esquema
+    # (db\schema.sql), que lleva la base a esta version.
+    [string]$Esquema_704ILR = '',
+
+    # Version que instala este asistente ("3.0"): se graba en la base y se compara.
+    [string]$VersionNueva_704ILR = '',
 
     # Quitar: fecha de creacion que informo Restaurar. Solo se quita la base que la tenga.
     [string]$Marca_704ILR = ''
@@ -41,6 +61,7 @@ $Base_704ILR = 'EvenTechDB'
 # El respaldo se genera con SQL Server 2019 y un motor anterior no puede restaurarlo.
 $VersionMinima_704ILR = 15
 $CodigoBaseExistente_704ILR = 'BASE_EXISTENTE'
+$PropiedadVersion_704ILR = 'EvenTech_Version'
 $Resultado_704ILR = New-Object System.Collections.Generic.List[string]
 
 function Anotar_704ILR([string]$clave_704ILR, [string]$valor_704ILR) {
@@ -117,6 +138,13 @@ function NombreDelMotor_704ILR([int]$mayor_704ILR) {
     }
 }
 
+# "3.0" -> [version]3.0; lo que no se puede leer, 0.0.
+function ComoVersion_704ILR([string]$texto_704ILR) {
+    $v_704ILR = $null
+    if ([System.Version]::TryParse(([string]$texto_704ILR).Trim(), [ref]$v_704ILR)) { return $v_704ILR }
+    return [System.Version]'0.0'
+}
+
 function ExisteEnElServidor_704ILR($conexion_704ILR, [string]$ruta_704ILR) {
     try {
         $fila_704ILR = (Filas_704ILR $conexion_704ILR 'EXEC master.dbo.xp_fileexist @ruta' @{ ruta = $ruta_704ILR }).Rows[0]
@@ -125,11 +153,136 @@ function ExisteEnElServidor_704ILR($conexion_704ILR, [string]$ruta_704ILR) {
     catch { return $false }     # sin permiso para consultarlo: RESTORE informa si el archivo existe
 }
 
+# Version de una base existente: la marca que dejo el asistente o, sin marca, la que
+# se deduce del esquema. Vacio: la base no es del sistema.
+function VersionDeLaBase_704ILR($conexionBase_704ILR) {
+    $marca_704ILR = Escalar_704ILR $conexionBase_704ILR "SELECT CAST(value AS NVARCHAR(40)) FROM sys.extended_properties WHERE class = 0 AND name = @n" @{ n = $PropiedadVersion_704ILR }
+    if ($marca_704ILR) { return [string]$marca_704ILR }
+    $tieneReservas_704ILR = [int](Escalar_704ILR $conexionBase_704ILR "SELECT CASE WHEN OBJECT_ID(N'dbo.Reservas', N'U') IS NOT NULL AND OBJECT_ID(N'dbo.Users', N'U') IS NOT NULL THEN 1 ELSE 0 END" $null)
+    if ($tieneReservas_704ILR -ne 1) { return '' }
+    $tienePermisos_704ILR = [int](Escalar_704ILR $conexionBase_704ILR "SELECT CASE WHEN OBJECT_ID(N'dbo.Permisos', N'U') IS NOT NULL THEN 1 ELSE 0 END" $null)
+    if ($tienePermisos_704ILR -eq 1) {
+        $e3_704ILR = [int](Escalar_704ILR $conexionBase_704ILR "SELECT COUNT(*) FROM dbo.Permisos WHERE Clave = N'INFORMES_VER'" $null)
+        if ($e3_704ILR -gt 0) { return '3.0' }
+    }
+    $e2_704ILR = [int](Escalar_704ILR $conexionBase_704ILR "SELECT CASE WHEN OBJECT_ID(N'dbo.Especialidades', N'U') IS NOT NULL THEN 1 ELSE 0 END" $null)
+    if ($e2_704ILR -eq 1) { return '2.0' }
+    return '1.0'
+}
+
+function GrabarVersion_704ILR([string]$version_704ILR) {
+    if (-not $version_704ILR) { return }
+    $conexion_704ILR = Conectar_704ILR $Base_704ILR
+    try {
+        (Comando_704ILR $conexion_704ILR @"
+IF EXISTS (SELECT 1 FROM sys.extended_properties WHERE class = 0 AND name = @n)
+    EXEC sys.sp_updateextendedproperty @name = @n, @value = @v;
+ELSE
+    EXEC sys.sp_addextendedproperty @name = @n, @value = @v;
+"@ @{ n = $PropiedadVersion_704ILR; v = $version_704ILR }).ExecuteNonQuery() | Out-Null
+    }
+    finally { $conexion_704ILR.Dispose() }
+}
+
+# Otras sesiones abiertas sobre la base (el sistema abierto en otro puesto, una
+# consulta de SQL Server Management Studio): con ellas no se respalda ni se migra.
+function SesionesAbiertas_704ILR($conexionMaster_704ILR) {
+    return [int](Escalar_704ILR $conexionMaster_704ILR "SELECT COUNT(*) FROM sys.dm_exec_sessions WHERE database_id = DB_ID(@b) AND session_id <> @@SPID AND is_user_process = 1" @{ b = $Base_704ILR })
+}
+
+function CarpetaDeRespaldos_704ILR($conexionMaster_704ILR) {
+    $carpeta_704ILR = [string](Escalar_704ILR $conexionMaster_704ILR "SELECT CAST(SERVERPROPERTY('InstanceDefaultBackupPath') AS NVARCHAR(400))" $null)
+    if (-not $carpeta_704ILR) { $carpeta_704ILR = [string](Escalar_704ILR $conexionMaster_704ILR "SELECT CAST(SERVERPROPERTY('InstanceDefaultDataPath') AS NVARCHAR(400))" $null) }
+    if (-not $carpeta_704ILR) { Rechazar_704ILR 'SIN_CARPETA_DE_RESPALDO' $Instancia_704ILR }
+    return $carpeta_704ILR.TrimEnd('\')
+}
+
+# Respaldo completo de la base actual, verificado. Devuelve la ruta (en el servidor).
+function RespaldarActual_704ILR($conexionMaster_704ILR, [string]$motivo_704ILR) {
+    $etiqueta_704ILR = if ($VersionNueva_704ILR) { $VersionNueva_704ILR } else { 'nueva' }
+    $ruta_704ILR = (CarpetaDeRespaldos_704ILR $conexionMaster_704ILR) + '\' + $Base_704ILR + '_antes_de_' + $etiqueta_704ILR + '_' + (Get-Date -Format 'yyyyMMdd_HHmmss') + '.bak'
+    (Comando_704ILR $conexionMaster_704ILR "BACKUP DATABASE [$Base_704ILR] TO DISK = @ruta WITH COPY_ONLY, CHECKSUM, INIT, NAME = @nombre" @{ ruta = $ruta_704ILR; nombre = $motivo_704ILR }).ExecuteNonQuery() | Out-Null
+    (Comando_704ILR $conexionMaster_704ILR 'RESTORE VERIFYONLY FROM DISK = @ruta WITH CHECKSUM' @{ ruta = $ruta_704ILR }).ExecuteNonQuery() | Out-Null
+    Anotar_704ILR 'RESPALDO' $ruta_704ILR
+    return $ruta_704ILR
+}
+
+# Restaura sobre la base existente (con sus mismos archivos). La deja en uso exclusivo
+# mientras tanto y la devuelve al uso normal aunque la restauracion falle.
+function RestaurarSobreLaBase_704ILR($conexionMaster_704ILR, [string]$respaldo_704ILR) {
+    $archivos_704ILR = Filas_704ILR $conexionMaster_704ILR 'RESTORE FILELISTONLY FROM DISK = @r' @{ r = $respaldo_704ILR }
+    $actuales_704ILR = Filas_704ILR $conexionMaster_704ILR "SELECT type_desc, physical_name FROM sys.master_files WHERE database_id = DB_ID(@b) ORDER BY file_id" @{ b = $Base_704ILR }
+    $datos_704ILR = ($actuales_704ILR.Rows | Where-Object { $_['type_desc'] -eq 'ROWS' } | Select-Object -First 1)['physical_name']
+    $registro_704ILR = ($actuales_704ILR.Rows | Where-Object { $_['type_desc'] -eq 'LOG' } | Select-Object -First 1)['physical_name']
+    $logicoDatos_704ILR = ($archivos_704ILR.Rows | Where-Object { $_['Type'] -eq 'D' } | Select-Object -First 1)['LogicalName']
+    $logicoRegistro_704ILR = ($archivos_704ILR.Rows | Where-Object { $_['Type'] -eq 'L' } | Select-Object -First 1)['LogicalName']
+    if (-not $datos_704ILR -or -not $registro_704ILR -or -not $logicoDatos_704ILR -or -not $logicoRegistro_704ILR) {
+        throw 'No se pudieron leer los archivos de la base o del respaldo.'
+    }
+    (Comando_704ILR $conexionMaster_704ILR "ALTER DATABASE [$Base_704ILR] SET SINGLE_USER WITH ROLLBACK IMMEDIATE" $null).ExecuteNonQuery() | Out-Null
+    try {
+        (Comando_704ILR $conexionMaster_704ILR @"
+RESTORE DATABASE [$Base_704ILR] FROM DISK = @r
+WITH REPLACE, RECOVERY, MOVE @ld TO @d, MOVE @ll TO @l;
+"@ @{ r = $respaldo_704ILR; ld = $logicoDatos_704ILR; d = $datos_704ILR; ll = $logicoRegistro_704ILR; l = $registro_704ILR }).ExecuteNonQuery() | Out-Null
+    }
+    finally {
+        try { (Comando_704ILR $conexionMaster_704ILR "IF DB_ID(@b) IS NOT NULL ALTER DATABASE [$Base_704ILR] SET MULTI_USER" @{ b = $Base_704ILR }).ExecuteNonQuery() | Out-Null } catch { }
+    }
+}
+
+# Copia un respaldo a la carpeta de respaldos de la instancia (la cuenta del servicio de
+# SQL Server no lee la carpeta temporal del asistente). Devuelve la copia o el original.
+function CopiaLegible_704ILR($conexionMaster_704ILR, [string]$respaldo_704ILR) {
+    try {
+        $destino_704ILR = (CarpetaDeRespaldos_704ILR $conexionMaster_704ILR) + '\EvenTech_instalacion_' + (Get-Date -Format 'yyyyMMdd_HHmmss') + '.bak'
+        Copy-Item -LiteralPath $respaldo_704ILR -Destination $destino_704ILR -Force
+        return $destino_704ILR
+    }
+    catch { return $respaldo_704ILR }
+}
+
+# Lotes de un script con separadores GO (una linea que solo dice GO).
+function LotesDe_704ILR([string]$ruta_704ILR) {
+    $texto_704ILR = [System.IO.File]::ReadAllText($ruta_704ILR, [System.Text.Encoding]::UTF8)
+    $lotes_704ILR = New-Object System.Collections.Generic.List[string]
+    $actual_704ILR = New-Object System.Text.StringBuilder
+    foreach ($linea_704ILR in ($texto_704ILR -split "`r?`n")) {
+        if ($linea_704ILR -match '^\s*GO\s*$') {
+            if ($actual_704ILR.ToString().Trim()) { $lotes_704ILR.Add($actual_704ILR.ToString()) }
+            [void]$actual_704ILR.Clear()
+        }
+        else { [void]$actual_704ILR.AppendLine($linea_704ILR) }
+    }
+    if ($actual_704ILR.ToString().Trim()) { $lotes_704ILR.Add($actual_704ILR.ToString()) }
+    return , $lotes_704ILR
+}
+
+# Aplica db\schema.sql sobre la base, en UNA sesion (las opciones SET valen para todos
+# los lotes), lote por lote; el primero que falla corta. Devuelve $null si termino bien o
+# el texto de la falla.
+function AplicarEsquema_704ILR {
+    $lote_704ILR = 0
+    $lotes_704ILR = LotesDe_704ILR $Esquema_704ILR
+    $conexionBase_704ILR = Conectar_704ILR $Base_704ILR
+    try {
+        foreach ($sql_704ILR in $lotes_704ILR) {
+            $lote_704ILR++
+            (Comando_704ILR $conexionBase_704ILR $sql_704ILR $null).ExecuteNonQuery() | Out-Null
+        }
+    }
+    catch { return ('Lote ' + $lote_704ILR + ' de ' + $lotes_704ILR.Count + ': ' + $_.Exception.GetBaseException().Message) }
+    finally { $conexionBase_704ILR.Dispose() }
+    Anotar_704ILR 'LOTES' $lotes_704ILR.Count
+    return $null
+}
+
 # ----------------------------------------------------------------- Diagnosticar
 function Diagnosticar_704ILR {
     try { $conexion_704ILR = Conectar_704ILR 'master' }
     catch { Rechazar_704ILR 'SIN_CONEXION' $_.Exception.GetBaseException().Message }
 
+    $baseExiste_704ILR = $false
     try {
         $fila_704ILR = (Filas_704ILR $conexion_704ILR @"
 SELECT CAST(SERVERPROPERTY('ProductVersion') AS NVARCHAR(40))             AS Version,
@@ -156,11 +309,29 @@ SELECT CAST(SERVERPROPERTY('ProductVersion') AS NVARCHAR(40))             AS Ver
         if (([int]$fila_704ILR['EsAdministrador'] -ne 1) -and ([int]$fila_704ILR['CreaBases'] -ne 1)) {
             Rechazar_704ILR 'SIN_PERMISO' ([System.Security.Principal.WindowsIdentity]::GetCurrent().Name)
         }
-        if ([int]$fila_704ILR['BaseExiste'] -eq 1) {
-            Rechazar_704ILR 'BASE_EXISTENTE' $Base_704ILR
-        }
+        $baseExiste_704ILR = ([int]$fila_704ILR['BaseExiste'] -eq 1)
+        Anotar_704ILR 'BASE_EXISTE' ([int]$baseExiste_704ILR)
+        if ($baseExiste_704ILR) { Anotar_704ILR 'SESIONES' (SesionesAbiertas_704ILR $conexion_704ILR) }
     }
     finally { $conexion_704ILR.Dispose() }
+
+    if ($baseExiste_704ILR) {
+        # Lo que esta: version y contenido de la base existente.
+        try { $conexionBase_704ILR = Conectar_704ILR $Base_704ILR }
+        catch { Rechazar_704ILR 'SIN_ACCESO_A_LA_BASE' $_.Exception.GetBaseException().Message }
+        try {
+            $versionBase_704ILR = VersionDeLaBase_704ILR $conexionBase_704ILR
+            if (-not $versionBase_704ILR) { Rechazar_704ILR 'BASE_AJENA' $Base_704ILR }
+            Anotar_704ILR 'VERSION_BASE' $versionBase_704ILR
+            if ($VersionNueva_704ILR -and ((ComoVersion_704ILR $versionBase_704ILR) -gt (ComoVersion_704ILR $VersionNueva_704ILR))) {
+                Rechazar_704ILR 'BASE_MAS_NUEVA' $versionBase_704ILR
+            }
+            Anotar_704ILR 'CUENTAS' (Escalar_704ILR $conexionBase_704ILR 'SELECT COUNT(*) FROM dbo.Users' $null)
+            Anotar_704ILR 'CLIENTES' (Escalar_704ILR $conexionBase_704ILR "SELECT CASE WHEN OBJECT_ID(N'dbo.Clientes', N'U') IS NULL THEN 0 ELSE (SELECT COUNT(*) FROM dbo.Clientes) END" $null)
+            Anotar_704ILR 'RESERVAS' (Escalar_704ILR $conexionBase_704ILR 'SELECT COUNT(*) FROM dbo.Reservas' $null)
+        }
+        finally { $conexionBase_704ILR.Dispose() }
+    }
 
     Anotar_704ILR 'ESTADO' 'CORRECTO'
     Terminar_704ILR 0
@@ -199,9 +370,10 @@ function RestaurarDesde_704ILR($conexion_704ILR, [string]$respaldo_704ILR) {
     }
 
     # La comprobacion de que la base no existe va en el MISMO lote que la restauracion.
-    # RESTORE no la reemplaza por si solo una base distinta, pero si la existente es la
+    # RESTORE no reemplaza por si solo una base distinta, pero si la existente es la
     # misma base del respaldo y esta en modo de recuperacion simple, la pisaria sin
-    # avisar: esta version del asistente nunca modifica una base existente.
+    # avisar: la instalacion inicial nunca modifica una base existente (para eso estan
+    # Actualizar y Reemplazar, que la respaldan antes).
     (Comando_704ILR $conexion_704ILR @"
 IF DB_ID(@base) IS NOT NULL
     RAISERROR(N'$CodigoBaseExistente_704ILR', 16, 1);
@@ -235,25 +407,14 @@ function Restaurar_704ILR {
         # lo copia a la carpeta de respaldos de la propia instancia, que el motor
         # siempre puede leer, y se borra esa copia al terminar. Si la instancia no
         # informa esa carpeta, o no se puede copiar ahi, se restaura desde donde esta.
-        $origen_704ILR = $Respaldo_704ILR
-        $copia_704ILR = $null
-        $carpeta_704ILR = [string](Escalar_704ILR $conexion_704ILR "SELECT CAST(SERVERPROPERTY('InstanceDefaultBackupPath') AS NVARCHAR(400))" $null)
-        if ($carpeta_704ILR) {
-            $destino_704ILR = $carpeta_704ILR.TrimEnd('\') + '\EvenTech_instalacion_' + (Get-Date -Format 'yyyyMMdd_HHmmss') + '.bak'
-            try {
-                Copy-Item -LiteralPath $Respaldo_704ILR -Destination $destino_704ILR -Force
-                $copia_704ILR = $destino_704ILR
-                $origen_704ILR = $destino_704ILR
-            }
-            catch { }
-        }
+        $origen_704ILR = CopiaLegible_704ILR $conexion_704ILR $Respaldo_704ILR
 
         $falla_704ILR = $null
         try { RestaurarDesde_704ILR $conexion_704ILR $origen_704ILR }
         catch { $falla_704ILR = $_.Exception.GetBaseException() }
 
-        if ($copia_704ILR -and (Test-Path -LiteralPath $copia_704ILR)) {
-            Remove-Item -LiteralPath $copia_704ILR -Force -ErrorAction SilentlyContinue
+        if ($origen_704ILR -ne $Respaldo_704ILR -and (Test-Path -LiteralPath $origen_704ILR)) {
+            Remove-Item -LiteralPath $origen_704ILR -Force -ErrorAction SilentlyContinue
         }
         if ($falla_704ILR -and ($falla_704ILR.Message -eq $CodigoBaseExistente_704ILR)) {
             # Otra sesion creo la base entre la comprobacion y la restauracion: no se toca.
@@ -274,9 +435,103 @@ function Restaurar_704ILR {
         # que Quitar acepta eliminar.
         $marca_704ILR = [string](Escalar_704ILR $conexion_704ILR 'SELECT CONVERT(NVARCHAR(30), create_date, 126) FROM sys.databases WHERE name = @base' @{ base = $Base_704ILR })
         Anotar_704ILR 'MARCA' $marca_704ILR
+
+        # El respaldo de demostracion se lleva al esquema de esta version (si es el de
+        # la misma version, no cambia nada). Si falla, la base recien creada se quita.
+        if ($Esquema_704ILR) {
+            $fallaEsquema_704ILR = AplicarEsquema_704ILR
+            if ($fallaEsquema_704ILR) {
+                try { (Comando_704ILR $conexion_704ILR "ALTER DATABASE [$Base_704ILR] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [$Base_704ILR];" $null).ExecuteNonQuery() | Out-Null } catch { }
+                Rechazar_704ILR 'RESTAURACION_FALLIDA' $fallaEsquema_704ILR
+            }
+        }
     }
     finally { $conexion_704ILR.Dispose() }
 
+    GrabarVersion_704ILR $VersionNueva_704ILR
+    Anotar_704ILR 'ESTADO' 'CORRECTO'
+    Terminar_704ILR 0
+}
+
+# ------------------------------------------------------------------- Actualizar
+function Actualizar_704ILR {
+    if (-not $Esquema_704ILR -or -not (Test-Path -LiteralPath $Esquema_704ILR)) {
+        Rechazar_704ILR 'ESQUEMA_AUSENTE' $Esquema_704ILR
+    }
+    try { $master_704ILR = Conectar_704ILR 'master' }
+    catch { Rechazar_704ILR 'SIN_CONEXION' $_.Exception.GetBaseException().Message }
+    try {
+        if ($null -eq (Escalar_704ILR $master_704ILR 'SELECT DB_ID(@b)' @{ b = $Base_704ILR })) { Rechazar_704ILR 'BASE_INEXISTENTE' $Base_704ILR }
+        $sesiones_704ILR = SesionesAbiertas_704ILR $master_704ILR
+        if ($sesiones_704ILR -gt 0) { Rechazar_704ILR 'BASE_EN_USO' $sesiones_704ILR }
+
+        $conexionBase_704ILR = Conectar_704ILR $Base_704ILR
+        try { $anterior_704ILR = VersionDeLaBase_704ILR $conexionBase_704ILR } finally { $conexionBase_704ILR.Dispose() }
+        if (-not $anterior_704ILR) { Rechazar_704ILR 'BASE_AJENA' $Base_704ILR }
+        Anotar_704ILR 'VERSION_ANTERIOR' $anterior_704ILR
+
+        $respaldo_704ILR = RespaldarActual_704ILR $master_704ILR ('EvenTech ' + $anterior_704ILR + ' antes de actualizar')
+
+        $falla_704ILR = AplicarEsquema_704ILR
+
+        if ($falla_704ILR) {
+            # La base vuelve a quedar exactamente como estaba antes de actualizar.
+            $restaurada_704ILR = 0
+            try { RestaurarSobreLaBase_704ILR $master_704ILR $respaldo_704ILR; $restaurada_704ILR = 1 }
+            catch { $falla_704ILR += ' | No se pudo volver al respaldo: ' + $_.Exception.GetBaseException().Message }
+            Anotar_704ILR 'RESTAURADA' $restaurada_704ILR
+            Rechazar_704ILR 'ACTUALIZACION_FALLIDA' $falla_704ILR
+        }
+    }
+    finally { $master_704ILR.Dispose() }
+
+    GrabarVersion_704ILR $VersionNueva_704ILR
+    Anotar_704ILR 'ESTADO' 'CORRECTO'
+    Terminar_704ILR 0
+}
+
+# ------------------------------------------------------------------- Reemplazar
+function Reemplazar_704ILR {
+    if (-not $Respaldo_704ILR -or -not (Test-Path -LiteralPath $Respaldo_704ILR)) {
+        Rechazar_704ILR 'RESPALDO_AUSENTE' $Respaldo_704ILR
+    }
+    try { $master_704ILR = Conectar_704ILR 'master' }
+    catch { Rechazar_704ILR 'SIN_CONEXION' $_.Exception.GetBaseException().Message }
+    try {
+        if ($null -eq (Escalar_704ILR $master_704ILR 'SELECT DB_ID(@b)' @{ b = $Base_704ILR })) { Rechazar_704ILR 'BASE_INEXISTENTE' $Base_704ILR }
+        $sesiones_704ILR = SesionesAbiertas_704ILR $master_704ILR
+        if ($sesiones_704ILR -gt 0) { Rechazar_704ILR 'BASE_EN_USO' $sesiones_704ILR }
+
+        $previo_704ILR = RespaldarActual_704ILR $master_704ILR 'EvenTech antes de reemplazar por la demostracion'
+        $origen_704ILR = CopiaLegible_704ILR $master_704ILR $Respaldo_704ILR
+        $falla_704ILR = $null
+        try { RestaurarSobreLaBase_704ILR $master_704ILR $origen_704ILR }
+        catch { $falla_704ILR = $_.Exception.GetBaseException().Message }
+        if ($origen_704ILR -ne $Respaldo_704ILR -and (Test-Path -LiteralPath $origen_704ILR)) {
+            Remove-Item -LiteralPath $origen_704ILR -Force -ErrorAction SilentlyContinue
+        }
+        if (-not $falla_704ILR -and $Esquema_704ILR) { $falla_704ILR = AplicarEsquema_704ILR }
+        if ($falla_704ILR) {
+            $restaurada_704ILR = 0
+            try { RestaurarSobreLaBase_704ILR $master_704ILR $previo_704ILR; $restaurada_704ILR = 1 }
+            catch { $falla_704ILR += ' | No se pudo volver al respaldo: ' + $_.Exception.GetBaseException().Message }
+            Anotar_704ILR 'RESTAURADA' $restaurada_704ILR
+            Rechazar_704ILR 'RESTAURACION_FALLIDA' $falla_704ILR
+        }
+    }
+    finally { $master_704ILR.Dispose() }
+
+    GrabarVersion_704ILR $VersionNueva_704ILR
+    Anotar_704ILR 'ESTADO' 'CORRECTO'
+    Terminar_704ILR 0
+}
+
+# --------------------------------------------------------------------- Revertir
+function Revertir_704ILR {
+    if (-not $Respaldo_704ILR) { Rechazar_704ILR 'RESPALDO_AUSENTE' '' }
+    $master_704ILR = Conectar_704ILR 'master'
+    try { RestaurarSobreLaBase_704ILR $master_704ILR $Respaldo_704ILR }
+    finally { $master_704ILR.Dispose() }
     Anotar_704ILR 'ESTADO' 'CORRECTO'
     Terminar_704ILR 0
 }
@@ -318,6 +573,9 @@ try {
     switch ($Accion_704ILR) {
         'Diagnosticar' { Diagnosticar_704ILR }
         'Restaurar' { Restaurar_704ILR }
+        'Actualizar' { Actualizar_704ILR }
+        'Reemplazar' { Reemplazar_704ILR }
+        'Revertir' { Revertir_704ILR }
         'Verificar' { Verificar_704ILR }
         'Quitar' { Quitar_704ILR }
     }
