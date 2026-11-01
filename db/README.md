@@ -76,10 +76,19 @@ Usuario inicial: **admin / admin123** (perfil Administrador, acceso total). Es l
 única cuenta que siembra el script. Los perfiles sí los siembra: son **seis**
 —Administrador, Vendedor, Supervisor (incluye a Vendedor), Gerencial (incluye a
 Supervisor), Coordinador y Empleado—, con sus permisos y las dos inclusiones del
-Composite. El script crea **27 tablas**: las veinte de seguridad, reservas,
+Composite; el árbol tiene **30 permisos** (7 grupos y 23 asignables, entre ellos los
+de la versión 3.0: `INFORMES_VER`, para el informe de gestión, y `EXCEPCIONES_VER`,
+para el registro de excepciones de Auditoría) y cada idioma, **746 claves de
+traducción**. El script crea **27 tablas**: las veinte de seguridad, reservas,
 auditoría e idiomas, y las siete de la coordinación de eventos (`Especialidades`,
 `Empleados`, `AsignacionesPersonal`, `Cronogramas`, `CronogramaActividades`,
 `Tareas` e `Incidencias`), más la columna `Reservas.EstadoCoordinacion`.
+
+**Versión de la base.** El asistente de instalación graba en la propia base la versión
+que la creó o la actualizó (propiedad extendida `EvenTech_Version`, sin tabla) y con ella
+reconoce, en una reinstalación, una base de una versión anterior (la actualiza conservando
+los datos), una posterior (no la toca) o una ajena (tampoco). Una base creada con este
+script o restaurada a mano no la tiene: el asistente la deduce del esquema.
 
 **Base de una revisión anterior.** La aplicación rechaza al conectar una base que
 tenga `Users` pero no todas las tablas o columnas de la versión actual, e indica
@@ -117,7 +126,9 @@ email mal escrito), de modo que la ficha del cliente nunca queda trabada.
 
 ## Opción B — Restaurar el snapshot completo (con datos)
 
-`EvenTechDB.bak` es un backup full, **generado el 31/10/2026 a las 22:16**, con los
+`EvenTechDB.bak` es un backup full de la versión 3.0, **generado el 01/11/2026 a las
+12:42** (en una base exclusiva de pruebas, con `refrescar_demo.ps1 -Base EvenTechDemoE3`),
+con los
 datos de demostración: 12 clientes (contactos en texto plano), 24 reservas
 repartidas en los tres salones y los cuatro estados (11 CONFIRMADA, 6 COTIZACIÓN,
 5 PENDIENTE y 2 CANCELADA), 95 líneas de servicios contratados, 11 pagos (toda
