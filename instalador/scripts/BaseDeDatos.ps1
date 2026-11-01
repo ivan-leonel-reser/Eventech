@@ -52,7 +52,11 @@ param(
     [string]$VersionNueva_704ILR = '',
 
     # Quitar: fecha de creacion que informo Restaurar. Solo se quita la base que la tenga.
-    [string]$Marca_704ILR = ''
+    [string]$Marca_704ILR = '',
+
+    # Revertir: huella de uso que informo Actualizar o Reemplazar al terminar. Si la base
+    # cambio desde entonces (alguien la uso), no se la devuelve al respaldo.
+    [string]$Huella_704ILR = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -172,7 +176,10 @@ function VersionDeLaBase_704ILR($conexionBase_704ILR) {
 
 function GrabarVersion_704ILR([string]$version_704ILR) {
     if (-not $version_704ILR) { return }
-    $conexion_704ILR = Conectar_704ILR $Base_704ILR
+    # La marca es un dato de apoyo (sin ella la version se deduce del esquema): si no se
+    # puede grabar, se informa y la operacion, que ya termino bien, sigue valida.
+    try { $conexion_704ILR = Conectar_704ILR $Base_704ILR }
+    catch { Anotar_704ILR 'VERSION_GRABADA' 0; return }
     try {
         (Comando_704ILR $conexion_704ILR @"
 IF EXISTS (SELECT 1 FROM sys.extended_properties WHERE class = 0 AND name = @n)
@@ -180,6 +187,18 @@ IF EXISTS (SELECT 1 FROM sys.extended_properties WHERE class = 0 AND name = @n)
 ELSE
     EXEC sys.sp_addextendedproperty @name = @n, @value = @v;
 "@ @{ n = $PropiedadVersion_704ILR; v = $version_704ILR }).ExecuteNonQuery() | Out-Null
+        Anotar_704ILR 'VERSION_GRABADA' 1
+    }
+    catch { Anotar_704ILR 'VERSION_GRABADA' 0 }
+    finally { $conexion_704ILR.Dispose() }
+}
+
+# Huella de uso de la base: el ultimo asiento de la bitacora y el ultimo de la auditoria de
+# accesos. Toda operacion del sistema (y todo ingreso) agrega una fila a alguna de las dos.
+function HuellaDeUso_704ILR {
+    $conexion_704ILR = Conectar_704ILR $Base_704ILR
+    try {
+        return [string](Escalar_704ILR $conexion_704ILR "SELECT CONCAT((SELECT ISNULL(MAX(Id), 0) FROM dbo.Bitacora), '-', (SELECT ISNULL(MAX(Id), 0) FROM dbo.LoginAuditLog))" $null)
     }
     finally { $conexion_704ILR.Dispose() }
 }
@@ -219,9 +238,9 @@ function RestaurarSobreLaBase_704ILR($conexionMaster_704ILR, [string]$respaldo_7
     if (-not $datos_704ILR -or -not $registro_704ILR -or -not $logicoDatos_704ILR -or -not $logicoRegistro_704ILR) {
         throw 'No se pudieron leer los archivos de la base o del respaldo.'
     }
-    (Comando_704ILR $conexionMaster_704ILR "ALTER DATABASE [$Base_704ILR] SET SINGLE_USER WITH ROLLBACK IMMEDIATE" $null).ExecuteNonQuery() | Out-Null
     try {
         (Comando_704ILR $conexionMaster_704ILR @"
+ALTER DATABASE [$Base_704ILR] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
 RESTORE DATABASE [$Base_704ILR] FROM DISK = @r
 WITH REPLACE, RECOVERY, MOVE @ld TO @d, MOVE @ll TO @l;
 "@ @{ r = $respaldo_704ILR; ld = $logicoDatos_704ILR; d = $datos_704ILR; ll = $logicoRegistro_704ILR; l = $registro_704ILR }).ExecuteNonQuery() | Out-Null
@@ -486,6 +505,7 @@ function Actualizar_704ILR {
     finally { $master_704ILR.Dispose() }
 
     GrabarVersion_704ILR $VersionNueva_704ILR
+    try { Anotar_704ILR 'HUELLA' (HuellaDeUso_704ILR) } catch { }
     Anotar_704ILR 'ESTADO' 'CORRECTO'
     Terminar_704ILR 0
 }
@@ -522,6 +542,7 @@ function Reemplazar_704ILR {
     finally { $master_704ILR.Dispose() }
 
     GrabarVersion_704ILR $VersionNueva_704ILR
+    try { Anotar_704ILR 'HUELLA' (HuellaDeUso_704ILR) } catch { }
     Anotar_704ILR 'ESTADO' 'CORRECTO'
     Terminar_704ILR 0
 }
@@ -530,7 +551,21 @@ function Reemplazar_704ILR {
 function Revertir_704ILR {
     if (-not $Respaldo_704ILR) { Rechazar_704ILR 'RESPALDO_AUSENTE' '' }
     $master_704ILR = Conectar_704ILR 'master'
-    try { RestaurarSobreLaBase_704ILR $master_704ILR $Respaldo_704ILR }
+    try {
+        # Una cancelacion tardia no puede borrar trabajo nuevo: si la base tiene otras
+        # conexiones o cambio desde que el asistente la dejo lista (un ingreso, una
+        # operacion), se la deja como esta y se informa el respaldo.
+        $sesiones_704ILR = SesionesAbiertas_704ILR $master_704ILR
+        $actual_704ILR = ''
+        try { $actual_704ILR = HuellaDeUso_704ILR } catch { }
+        if ($sesiones_704ILR -gt 0 -or ($Huella_704ILR -and $actual_704ILR -ne $Huella_704ILR)) {
+            Anotar_704ILR 'REVERTIDA' 0
+            Anotar_704ILR 'RESPALDO' $Respaldo_704ILR
+            Rechazar_704ILR 'BASE_USADA' ("sesiones=$sesiones_704ILR huella=$Huella_704ILR actual=$actual_704ILR")
+        }
+        RestaurarSobreLaBase_704ILR $master_704ILR $Respaldo_704ILR
+        Anotar_704ILR 'REVERTIDA' 1
+    }
     finally { $master_704ILR.Dispose() }
     Anotar_704ILR 'ESTADO' 'CORRECTO'
     Terminar_704ILR 0

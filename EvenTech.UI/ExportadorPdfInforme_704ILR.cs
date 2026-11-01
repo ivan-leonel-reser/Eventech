@@ -61,7 +61,7 @@ namespace EvenTech.UI
             Tabla_704ILR(new[] { T_704ILR("INF_COL_ESTADO", "Estado"), T_704ILR("INF_COL_CANTIDAD", "Cantidad"), T_704ILR("INF_COL_MONTO", "Monto") },
                 new[] { 0.5, 0.2, 0.3 }, new[] { false, true, true },
                 informe_704ILR.PorEstado_704ILR.Select(e_704ILR => new[] { Tr_704ILR.Estado_704ILR(e_704ILR.Estado_704ILR), e_704ILR.Cantidad_704ILR.ToString(CultureInfo.CurrentCulture), Importe_704ILR(e_704ILR.Monto_704ILR) })
-                    .Concat(new[] { new[] { T_704ILR("INF_TOTAL", "Total"), informe_704ILR.TotalReservas_704ILR.ToString(CultureInfo.CurrentCulture), Importe_704ILR(informe_704ILR.PorEstado_704ILR.Sum(e_704ILR => e_704ILR.Monto_704ILR)) } }).ToList(),
+                    .Concat(new[] { new[] { T_704ILR("INF_TOTAL", "Total"), informe_704ILR.TotalReservas_704ILR.ToString(CultureInfo.CurrentCulture), Importe_704ILR(informe_704ILR.MontoTotal_704ILR) } }).ToList(),
                 ultimaEnNegrita_704ILR: true);
 
             Seccion_704ILR(T_704ILR("INF_SEC_COBRANZA", "2. Cobranza de las reservas confirmadas"));
@@ -109,8 +109,19 @@ namespace EvenTech.UI
             CerrarHoja_704ILR();
             int hojas_704ILR = _doc_704ILR.PageCount;
             for (int i_704ILR = 0; i_704ILR < hojas_704ILR; i_704ILR++) Pie_704ILR(_doc_704ILR.Pages[i_704ILR], i_704ILR + 1, hojas_704ILR);
-            _doc_704ILR.Save(ruta_704ILR);
-            _doc_704ILR.Dispose();
+            // Se escribe a un temporal de la misma carpeta y, completo, reemplaza al archivo
+            // elegido: una falla a mitad de camino no deja un PDF truncado con ese nombre.
+            string temporal_704ILR = ruta_704ILR + ".tmp";
+            try
+            {
+                _doc_704ILR.Save(temporal_704ILR);
+                File.Move(temporal_704ILR, ruta_704ILR, true);
+            }
+            finally
+            {
+                _doc_704ILR.Dispose();
+                try { if (File.Exists(temporal_704ILR)) File.Delete(temporal_704ILR); } catch (IOException) { }
+            }
             return hojas_704ILR;
         }
 

@@ -39,11 +39,12 @@ namespace EvenTech.Services
         private static readonly XmlSerializer SerializadorLote_704ILR = new XmlSerializer(typeof(BE_LoteExcepciones_704ILR));
         private static readonly object _lock_704ILR = new object();
 
-        // Un valor que parezca una credencial ("Password=...", "Pwd=...") se reemplaza
-        // antes de escribir: ningun mensaje deberia traerla, pero el archivo no es el
-        // lugar para comprobarlo.
+        // Un valor que parezca una credencial ("Password=...", "Pwd: ...", entre comillas o
+        // no) se reemplaza antes de escribir: ningun mensaje deberia traerla, pero el archivo
+        // no es el lugar para comprobarlo. Entre comillas se oculta hasta la comilla que cierra;
+        // sin comillas, hasta el primer ';', espacio o fin de linea.
         private static readonly Regex Credencial_704ILR = new Regex(
-            @"(?i)\b(password|pwd|contrase(n|ñ)a|clave)\s*=\s*[^;""'\s]*", RegexOptions.CultureInvariant);
+            @"(?i)\b(password|pwd|contrase(n|ñ)a|clave)\s*[=:]\s*(""[^""]*""?|'[^']*'?|[^;\s]*)", RegexOptions.CultureInvariant);
 
         private static string _carpetaDeEstaEjecucion_704ILR;
 

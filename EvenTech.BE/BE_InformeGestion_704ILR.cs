@@ -59,8 +59,10 @@ namespace EvenTech.BE
         public string GeneradoPor_704ILR { get; set; }
         public int DiasPeriodo_704ILR { get; set; }
 
-        // Resumen: todas las reservas cuyo evento cae en el periodo, por estado.
+        // Resumen: todas las reservas cuyo evento cae en el periodo, por estado, y los totales
+        // de la tabla (cantidad y monto de las operaciones de los cuatro estados).
         public int TotalReservas_704ILR { get; set; }
+        public decimal MontoTotal_704ILR { get; set; }
         public List<BE_InformeEstado_704ILR> PorEstado_704ILR { get; set; } = new List<BE_InformeEstado_704ILR>();
 
         // Cobranza de las reservas CONFIRMADAS del periodo.

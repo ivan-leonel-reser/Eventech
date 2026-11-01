@@ -58,7 +58,8 @@ namespace EvenTech.BLL
                 GeneradoEl_704ILR = ahora_704ILR,
                 GeneradoPor_704ILR = usuario_704ILR,
                 DiasPeriodo_704ILR = dias_704ILR,
-                TotalReservas_704ILR = filas_704ILR.Count
+                TotalReservas_704ILR = filas_704ILR.Count,
+                MontoTotal_704ILR = filas_704ILR.Sum(f_704ILR => f_704ILR.Monto_704ILR)
             };
 
             // Resumen por estado, en el orden del ciclo de vida (los cuatro, aunque esten en cero).

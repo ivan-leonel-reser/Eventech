@@ -131,6 +131,8 @@ es.ErrRestauracion=No se pudo crear la base de datos %1 en la instancia «%2». 
 es.ErrActualizacion=No se pudo actualizar la base de datos %1 en la instancia «%2». Los archivos instalados no se modificaron.
 es.ErrReemplazo=No se pudo reemplazar la base de datos %1 en la instancia «%2». Los archivos instalados no se modificaron.
 es.BaseRestaurada=La base volvió al respaldo previo: quedó exactamente como estaba.
+es.ErrYaPreparada=La base de datos ya se preparó en este asistente con otra instancia u otra opción. Para elegir otra cosa, cancele la instalación y vuelva a ejecutar el asistente.
+es.RevertirOmitido=La instalación se canceló, pero la base de datos %1 se usó mientras tanto (conexiones abiertas o movimientos nuevos): no se la devolvió al respaldo, para no perder esos datos. La base quedó en la versión %2.%n%nRespaldo de la base anterior:%n%3
 es.BaseNoRestaurada=ATENCIÓN: la base no pudo volver automáticamente al respaldo previo. El respaldo completo quedó en %1.
 es.ErrDegradacion=Este equipo tiene instalado %1 %2, posterior a la versión de este asistente (%3).%n%nNo se instala una versión anterior sobre una posterior.
 es.DetalleTecnico=Detalle informado por SQL Server:
@@ -227,6 +229,9 @@ var
   // Respaldo que tomo ESTA ejecucion antes de actualizar o reemplazar la base.
   RespaldoPrevio_704ILR: String;
   BaseModificada_704ILR: Boolean;
+  // Operacion con la que ESTA ejecucion preparo la base y huella de uso que dejo (la
+  // reversion no se hace si la base cambio despues).
+  OperacionDeLaBase_704ILR, HuellaDeLaBase_704ILR: String;
   InstalacionCompleta_704ILR: Boolean;
   // Medios de SQL Server Express que trae el paquete (vacio: no trae).
   MediosDelMotor_704ILR: String;
@@ -910,8 +915,14 @@ var
   Respaldo_704ILR, Esquema_704ILR, Codigo_704ILR: String;
 begin
   Result := '';
-  // Si un intento anterior de esta misma ejecucion ya preparo la base ahi, no se repite.
-  if (InstanciaDeLaBase_704ILR = InstanciaElegida_704ILR) and ((MarcaDeLaBase_704ILR <> '') or BaseModificada_704ILR) then Exit;
+  // Si un intento anterior de esta misma ejecucion ya preparo la base, no se repite; y si
+  // despues se eligio otra instancia u otra opcion, no se la prepara de nuevo encima.
+  if (MarcaDeLaBase_704ILR <> '') or BaseModificada_704ILR then
+  begin
+    if (InstanciaDeLaBase_704ILR = InstanciaElegida_704ILR) and (OperacionDeLaBase_704ILR = Operacion_704ILR) then Exit;
+    Result := CustomMessage('ErrYaPreparada');
+    Exit;
+  end;
 
   if Operacion_704ILR = OpActualizar_704ILR then
     PaginaProgreso_704ILR.SetText(FmtMessage(CustomMessage('ProgresoActualizar'), [BaseDeDatos_704ILR, '{#Version_704ILR}']), CustomMessage('ProgresoNota'))
@@ -935,6 +946,8 @@ begin
            False, Resultado_704ILR) = 0 then
       begin
         RespaldoPrevio_704ILR := Valor_704ILR(Resultado_704ILR, 'RESPALDO');
+        HuellaDeLaBase_704ILR := Valor_704ILR(Resultado_704ILR, 'HUELLA');
+        OperacionDeLaBase_704ILR := Operacion_704ILR;
         BaseModificada_704ILR := True;
         InstanciaDeLaBase_704ILR := InstanciaElegida_704ILR;
       end
@@ -959,6 +972,8 @@ begin
              False, Resultado_704ILR) = 0 then
         begin
           RespaldoPrevio_704ILR := Valor_704ILR(Resultado_704ILR, 'RESPALDO');
+          HuellaDeLaBase_704ILR := Valor_704ILR(Resultado_704ILR, 'HUELLA');
+          OperacionDeLaBase_704ILR := Operacion_704ILR;
           BaseModificada_704ILR := True;
           InstanciaDeLaBase_704ILR := InstanciaElegida_704ILR;
         end
@@ -975,6 +990,7 @@ begin
              False, Resultado_704ILR) = 0 then
         begin
           MarcaDeLaBase_704ILR := Valor_704ILR(Resultado_704ILR, 'MARCA');
+          OperacionDeLaBase_704ILR := Operacion_704ILR;
           InstanciaDeLaBase_704ILR := InstanciaElegida_704ILR;
         end
         else if Valor_704ILR(Resultado_704ILR, 'CODIGO') = 'BASE_EXISTENTE' then
@@ -1069,10 +1085,18 @@ begin
       EjecutarGuion_704ILR(ExpandConstant('{tmp}'), GuionBase_704ILR,
         '-Accion_704ILR Quitar -Instancia_704ILR "' + InstanciaDeLaBase_704ILR + '"' +
         ' -Marca_704ILR "' + MarcaDeLaBase_704ILR + '"', False, Resultado_704ILR)
-    else
-      EjecutarGuion_704ILR(ExpandConstant('{tmp}'), GuionBase_704ILR,
+    else if EjecutarGuion_704ILR(ExpandConstant('{tmp}'), GuionBase_704ILR,
         '-Accion_704ILR Revertir -Instancia_704ILR "' + InstanciaDeLaBase_704ILR + '"' +
-        ' -Respaldo_704ILR "' + RespaldoPrevio_704ILR + '"', False, Resultado_704ILR);
+        ' -Respaldo_704ILR "' + RespaldoPrevio_704ILR + '"' +
+        ' -Huella_704ILR "' + HuellaDeLaBase_704ILR + '"', False, Resultado_704ILR) <> 0 then
+    begin
+      // La base se uso despues de prepararla (o no se pudo restaurar): se la deja como
+      // esta y se informa donde quedo el respaldo.
+      if not WizardSilent then
+        MsgBox(FmtMessage(CustomMessage('RevertirOmitido'), [BaseDeDatos_704ILR, '{#Version_704ILR}', RespaldoPrevio_704ILR]),
+          mbInformation, MB_OK);
+      Log('Reversion omitida: ' + Valor_704ILR(Resultado_704ILR, 'CODIGO') + ' ' + Valor_704ILR(Resultado_704ILR, 'DETALLE'));
+    end;
   finally
     Resultado_704ILR.Free;
   end;

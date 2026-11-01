@@ -4399,6 +4399,7 @@ try
     var inf57_704ILR = BLL_Informe_704ILR.Calcular_704ILR(d57_704ILR, h57_704ILR, filas57_704ILR, salones57_704ILR, ahora57_704ILR, "smoke");
     Esperar_704ILR("dias del periodo", inf57_704ILR.DiasPeriodo_704ILR, 10);
     Esperar_704ILR("total de reservas", inf57_704ILR.TotalReservas_704ILR, 7);
+    Esperar_704ILR("monto total del resumen (los cuatro estados)", inf57_704ILR.MontoTotal_704ILR, inf57_704ILR.PorEstado_704ILR.Sum(e_704ILR => e_704ILR.Monto_704ILR));
     Esperar_704ILR("los cuatro estados en el resumen", inf57_704ILR.PorEstado_704ILR.Count, 4);
     Esperar_704ILR("confirmadas: cantidad", inf57_704ILR.PorEstado_704ILR.Single(e_704ILR => e_704ILR.Estado_704ILR == EvenTech.BE.EstadoReserva_704ILR.CONFIRMADA).Cantidad_704ILR, 3);
     Esperar_704ILR("cotizaciones: monto", inf57_704ILR.PorEstado_704ILR.Single(e_704ILR => e_704ILR.Estado_704ILR == EvenTech.BE.EstadoReserva_704ILR.COTIZACION).Monto_704ILR, 1400m);
@@ -4507,6 +4508,16 @@ try
     Esperar_704ILR("caracteres especiales conservados (<, &, comillas, ñ, emoji)", leido58_704ILR?.Mensaje_704ILR.Contains("<externa> & \"citada\"") == true && leido58_704ILR.Mensaje_704ILR.Contains("ñ 😀"), true);
     Esperar_704ILR("caracter de control quitado", leido58_704ILR?.Mensaje_704ILR.Contains("\u0001"), false);
     Esperar_704ILR("credencial oculta", leido58_704ILR?.Mensaje_704ILR.Contains("secreta"), false);
+    {
+        // Las formas que no son "clave=valor" sin comillas tambien se ocultan enteras.
+        Exception conComillas_704ILR;
+        try { throw new InvalidOperationException("a Password='mi clave'; b Pwd = \"otra clave\" c contraseña: tercera d"); }
+        catch (Exception ex_704ILR) { conComillas_704ILR = ex_704ILR; }
+        string msg58_704ILR = EvenTech.Services.RegistroDeExcepciones_704ILR.Crear_704ILR(conComillas_704ILR, "Smoke", "Prueba [58]", "smoke").Mensaje_704ILR;
+        Esperar_704ILR("credenciales entre comillas o con dos puntos ocultas",
+            msg58_704ILR.Contains("mi clave") || msg58_704ILR.Contains("otra clave") || msg58_704ILR.Contains("tercera"), false);
+        Esperar_704ILR("el resto del mensaje se conserva", msg58_704ILR.Contains("a ") && msg58_704ILR.Contains(" b ") && msg58_704ILR.Contains(" d"), true);
+    }
     Esperar_704ILR("dos excepciones internas", leido58_704ILR?.Internas_704ILR.Count, 2);
     Esperar_704ILR("pila de llamadas", string.IsNullOrEmpty(leido58_704ILR?.Pila_704ILR), false);
     Esperar_704ILR("version del sistema", leido58_704ILR?.Version_704ILR.StartsWith(VersionSistema_704ILR.Actual_704ILR.Version_704ILR), true);
@@ -4707,6 +4718,10 @@ try
 }
 catch (Exception exFin_704ILR) { Excepcion_704ILR("[cierre]", exFin_704ILR); }
 CerrarCaso_704ILR();
+
+// La carpeta temporal del registro de excepciones de la corrida no queda en el equipo.
+EvenTech.Services.RegistroDeExcepciones_704ILR.UsarCarpetaEnEstaEjecucion_704ILR(null);
+try { if (Directory.Exists(carpetaExcepcionesCorrida_704ILR)) Directory.Delete(carpetaExcepcionesCorrida_704ILR, true); } catch (IOException) { }
 
 // Resumen y codigo de salida: 0 todo bien; 1 hubo fallos; 2 sin fallos pero con
 // casos omitidos (cobertura incompleta: no es verde).
