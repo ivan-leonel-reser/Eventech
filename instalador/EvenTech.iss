@@ -127,6 +127,8 @@ es.MotorNota=La instalación del motor demora varios minutos (habitualmente entr
 es.MotorLicencia=Acepto los términos de licencia de Microsoft SQL Server Express
 es.MotorLicenciaEnlace=Leer los términos de licencia de SQL Server
 es.MotorFaltaLicencia=Para instalar SQL Server Express hay que aceptar los términos de licencia de Microsoft.
+es.MotorProgresoTitulo=Instalación de SQL Server Express
+es.MotorProgresoDescripcion=El asistente está instalando el motor de base de datos del sistema.
 es.MotorExtrayendo=Preparando los archivos de SQL Server Express...
 es.MotorProgresoTexto=Instalando SQL Server Express en la instancia %1...
 es.MotorProgresoNota=Puede demorar varios minutos (habitualmente entre 5 y 15). No apague el equipo.
@@ -253,7 +255,7 @@ var
   PaginaBase_704ILR: TWizardPage;
   LblResumenBase_704ILR, NotaConservar_704ILR, NotaReemplazar_704ILR: TNewStaticText;
   RadioConservar_704ILR, RadioReemplazar_704ILR: TNewRadioButton;
-  PaginaProgreso_704ILR: TOutputProgressWizardPage;
+  PaginaProgreso_704ILR, PaginaMotor_704ILR: TOutputProgressWizardPage;
   InstanciaElegida_704ILR: String;
   MotorDetectado_704ILR: String;
   // Instalacion previa del sistema en este equipo (vacio: no hay).
@@ -637,10 +639,10 @@ begin
     Exit;
   end;
 
-  PaginaProgreso_704ILR.SetText(FmtMessage(CustomMessage('MotorProgresoTexto'), [Instancia_704ILR]), CustomMessage('MotorProgresoNota'));
-  PaginaProgreso_704ILR.SetProgress(0, 100);
-  PaginaProgreso_704ILR.ProgressBar.Style := npbstMarquee;
-  PaginaProgreso_704ILR.Show;
+  PaginaMotor_704ILR.SetText(FmtMessage(CustomMessage('MotorProgresoTexto'), [Instancia_704ILR]), CustomMessage('MotorProgresoNota'));
+  PaginaMotor_704ILR.SetProgress(0, 100);
+  PaginaMotor_704ILR.ProgressBar.Style := npbstMarquee;
+  PaginaMotor_704ILR.Show;
   try
     Cuentas_704ILR := CuentasAdministradoras_704ILR('localhost\' + Instancia_704ILR);
     Programa_704ILR := MediosDelMotor_704ILR;
@@ -650,13 +652,13 @@ begin
       Programa_704ILR := ExpandConstant(CarpetaMotorEmbebido_704ILR + '\SETUP.EXE');
       if not FileExists(Programa_704ILR) then
       begin
-        PaginaProgreso_704ILR.SetText(CustomMessage('MotorExtrayendo'), CustomMessage('MotorProgresoNota'));
+        PaginaMotor_704ILR.SetText(CustomMessage('MotorExtrayendo'), CustomMessage('MotorProgresoNota'));
         try
           ExtractTemporaryFiles(CarpetaMotorEmbebido_704ILR + '\*');
         except
           Log('No se pudieron extraer los medios de SQL Server Express: ' + GetExceptionMessage);
         end;
-        PaginaProgreso_704ILR.SetText(FmtMessage(CustomMessage('MotorProgresoTexto'), [Instancia_704ILR]), CustomMessage('MotorProgresoNota'));
+        PaginaMotor_704ILR.SetText(FmtMessage(CustomMessage('MotorProgresoTexto'), [Instancia_704ILR]), CustomMessage('MotorProgresoNota'));
       end;
     end;
 
@@ -672,7 +674,7 @@ begin
       Codigo_704ILR := -1;
     Log('SQL Server Express termino con el codigo ' + IntToStr(Codigo_704ILR));
   finally
-    PaginaProgreso_704ILR.Hide;
+    PaginaMotor_704ILR.Hide;
   end;
 
   Instancias_704ILR := TStringList.Create;
@@ -955,6 +957,8 @@ begin
   CrearPaginaBase_704ILR;
   PaginaProgreso_704ILR := CreateOutputProgressPage(
     CustomMessage('ProgresoTitulo'), CustomMessage('ProgresoDescripcion'));
+  PaginaMotor_704ILR := CreateOutputProgressPage(
+    CustomMessage('MotorProgresoTitulo'), CustomMessage('MotorProgresoDescripcion'));
 end;
 
 function ShouldSkipPage(PageID: Integer): Boolean;
