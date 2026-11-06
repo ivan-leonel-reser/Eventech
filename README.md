@@ -22,11 +22,14 @@ organizada en cinco capas y sin frameworks de persistencia de terceros.
 
 ## Instalación
 
-El sistema se instala con el asistente `EvenTech_Instalador_v2.0.exe`, pensado para
-el usuario final: copia la aplicación —con .NET 8 incluido—, crea la base de datos
-con los datos de demostración en la instancia de SQL Server que se elija y deja
-configurada la conexión. El equipo solo necesita Windows 10 u 11 de 64 bits y SQL
-Server Express 2019 o superior; no hacen falta `sqlcmd` ni el SDK de .NET.
+El sistema se instala con el asistente `EvenTech_Instalador_v2.1.exe`, pensado para
+el usuario final: si el equipo no tiene SQL Server, instala SQL Server Express (viene
+incluido); crea la base de datos con los datos de demostración en la instancia de SQL
+Server que se elija, copia la aplicación —con .NET 8 incluido— y deja configurada la
+conexión. El equipo solo necesita Windows 10 u 11 de 64 bits; no hacen falta `sqlcmd`
+ni el SDK de .NET, y **no hace falta ser administrador**: la aplicación se instala en
+la carpeta de programas del usuario y Windows pide la autorización de un administrador
+solo si hay que instalar SQL Server.
 
 El instalador se genera con `instalador\construir.ps1`. Su alcance, sus pasos y sus
 decisiones de diseño están en **[instalador/README.md](instalador/README.md)**; el
@@ -68,7 +71,7 @@ git archive --format=zip -9 --prefix=EvenTech/ -o EvenTech.zip <commit> -- . ":(
 |---|---|
 | Sistema operativo | Windows 10 (x64) |
 | Runtime | .NET 8 Desktop Runtime (el instalador lo lleva incluido) |
-| Motor de base de datos | SQL Server Express 2019 (MSSQL15) |
+| Motor de base de datos | SQL Server Express 2019 (MSSQL15) para restaurar el respaldo; 2012 o superior con `schema.sql`. El instalador incluye SQL Server 2022 Express |
 | Herramienta de línea de comandos | `sqlcmd` (ver nota) |
 | Para compilar | .NET 8 SDK |
 

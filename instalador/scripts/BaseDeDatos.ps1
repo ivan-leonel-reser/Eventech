@@ -1,17 +1,31 @@
 <#
 BaseDeDatos.ps1 - operaciones del instalador sobre la instancia de SQL Server elegida.
 
-    Diagnosticar   comprueba que la instancia sirva para una primera instalacion:
-                   que responda, que este en este equipo, que sea SQL Server 2019 o
-                   superior, que el usuario pueda crear bases y que la base del
-                   sistema todavia no exista.
-    Restaurar      crea la base restaurando el respaldo de demostracion.
+    Cuentas        informa las cuentas de Windows que administran una instancia nueva de
+                   SQL Server Express: el grupo de administradores del equipo (con su
+                   nombre en el idioma de Windows) y quien inicio la instalacion.
+    Diagnosticar   comprueba que la instancia sirva para una primera instalacion y decide
+                   como se crea la base (MODO):
+                     RESPALDO  la base no existe y el motor es SQL Server 2019 o superior:
+                               se restaura el respaldo con los datos de demostracion;
+                     ESQUEMA   la base no existe y el motor es anterior a 2019 (no puede
+                               leer el respaldo): se la crea con db\schema.sql;
+                     VACIA     la base ya existe pero esta vacia (la creo el administrador
+                               de SQL Server para quien no puede crear bases) y el usuario
+                               es su propietario: se le aplica db\schema.sql.
+    Restaurar      crea la base restaurando el respaldo de demostracion (MODO RESPALDO).
+    Crear          crea la base vacia y le aplica el esquema (MODO ESQUEMA).
+    Cargar         aplica el esquema a la base vacia existente (MODO VACIA).
     Verificar      abre la base creada y cuenta sus tablas y sus cuentas.
-    Quitar         deshace la restauracion de ESTA ejecucion (instalacion cancelada).
+    Quitar         deshace lo que hizo ESTA ejecucion (instalacion cancelada): elimina la
+                   base que creo o, si cargo una base vacia existente, la deja vacia.
 
 El resultado se escribe en el archivo -Salida_704ILR como lineas CLAVE=valor (UTF-8
 con marca de orden de bytes, que es como lo lee el asistente) y en el codigo de
 salida: 0 correcto, 1 condicion prevista que impide continuar, 2 error no previsto.
+
+Ninguna operacion necesita que Windows de permisos de administrador: alcanza con que
+el usuario pueda crear bases en la instancia (o sea propietario de la base vacia).
 
 Usa el proveedor de SQL Server de .NET Framework, que viene con Windows: el equipo
 no necesita sqlcmd ni ninguna otra herramienta. La conexion es siempre con la
@@ -19,7 +33,7 @@ autenticacion integrada de Windows, como la de la aplicacion.
 #>
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet('Diagnosticar', 'Restaurar', 'Verificar', 'Quitar')]
+    [ValidateSet('Cuentas', 'Diagnosticar', 'Restaurar', 'Crear', 'Cargar', 'Verificar', 'Quitar')]
     [string]$Accion_704ILR,
 
     [Parameter(Mandatory = $true)]
@@ -31,16 +45,23 @@ param(
     # Restaurar: el respaldo, en una carpeta que el servicio de SQL Server pueda leer.
     [string]$Respaldo_704ILR = '',
 
-    # Quitar: fecha de creacion que informo Restaurar. Solo se quita la base que la tenga.
+    # Crear y Cargar: el guion del esquema (db\schema.sql).
+    [string]$Esquema_704ILR = '',
+
+    # Quitar: la marca que informo Restaurar, Crear o Cargar. Solo se deshace lo que la tenga.
     [string]$Marca_704ILR = ''
 )
 
 $ErrorActionPreference = 'Stop'
 
 $Base_704ILR = 'EvenTechDB'
-# El respaldo se genera con SQL Server 2019 y un motor anterior no puede restaurarlo.
-$VersionMinima_704ILR = 15
+# El respaldo se genera con SQL Server 2019 y un motor anterior no puede restaurarlo:
+# con un motor anterior la base se crea con el esquema, que pide SQL Server 2012.
+$VersionDelRespaldo_704ILR = 15
+$VersionMinima_704ILR = 11
 $CodigoBaseExistente_704ILR = 'BASE_EXISTENTE'
+# Marca de Quitar para una base vacia existente que cargo esta ejecucion.
+$PrefijoVacia_704ILR = 'VACIA:'
 $Resultado_704ILR = New-Object System.Collections.Generic.List[string]
 
 function Anotar_704ILR([string]$clave_704ILR, [string]$valor_704ILR) {
@@ -125,11 +146,33 @@ function ExisteEnElServidor_704ILR($conexion_704ILR, [string]$ruta_704ILR) {
     catch { return $false }     # sin permiso para consultarlo: RESTORE informa si el archivo existe
 }
 
+# Objetos creados por el usuario en la base de la conexion (tablas, vistas, procedimientos,
+# funciones, tipos y esquemas propios). Cero: la base esta vacia.
+function ObjetosPropios_704ILR($conexion_704ILR) {
+    return [int](Escalar_704ILR $conexion_704ILR @"
+SELECT (SELECT COUNT(*) FROM sys.objects WHERE is_ms_shipped = 0 AND parent_object_id = 0)
+     + (SELECT COUNT(*) FROM sys.types WHERE is_user_defined = 1)
+     + (SELECT COUNT(*) FROM sys.schemas WHERE schema_id BETWEEN 5 AND 16383)
+"@ $null)
+}
+
+# ------------------------------------------------------------------------ Cuentas
+function Cuentas_704ILR {
+    # El grupo se busca por su identificador (S-1-5-32-544): su nombre cambia con el
+    # idioma de Windows (Administradores, Administrators...).
+    $administradores_704ILR = (New-Object System.Security.Principal.SecurityIdentifier('S-1-5-32-544')).Translate([System.Security.Principal.NTAccount]).Value
+    Anotar_704ILR 'ADMINISTRADORES' $administradores_704ILR
+    Anotar_704ILR 'USUARIO' ([System.Security.Principal.WindowsIdentity]::GetCurrent().Name)
+    Anotar_704ILR 'ESTADO' 'CORRECTO'
+    Terminar_704ILR 0
+}
+
 # ----------------------------------------------------------------- Diagnosticar
 function Diagnosticar_704ILR {
     try { $conexion_704ILR = Conectar_704ILR 'master' }
     catch { Rechazar_704ILR 'SIN_CONEXION' $_.Exception.GetBaseException().Message }
 
+    $usuario_704ILR = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
     try {
         $fila_704ILR = (Filas_704ILR $conexion_704ILR @"
 SELECT CAST(SERVERPROPERTY('ProductVersion') AS NVARCHAR(40))             AS Version,
@@ -153,11 +196,34 @@ SELECT CAST(SERVERPROPERTY('ProductVersion') AS NVARCHAR(40))             AS Ver
         if ($mayor_704ILR -lt $VersionMinima_704ILR) {
             Rechazar_704ILR 'VERSION_ANTERIOR' $motor_704ILR
         }
-        if (([int]$fila_704ILR['EsAdministrador'] -ne 1) -and ([int]$fila_704ILR['CreaBases'] -ne 1)) {
-            Rechazar_704ILR 'SIN_PERMISO' ([System.Security.Principal.WindowsIdentity]::GetCurrent().Name)
-        }
+        $puedeCrear_704ILR = ([int]$fila_704ILR['EsAdministrador'] -eq 1) -or ([int]$fila_704ILR['CreaBases'] -eq 1)
+
         if ([int]$fila_704ILR['BaseExiste'] -eq 1) {
-            Rechazar_704ILR 'BASE_EXISTENTE' $Base_704ILR
+            # Una base existente solo se usa si esta vacia y el usuario es su propietario
+            # (o administrador de la instancia): es la que prepara el administrador de SQL
+            # Server para quien no puede crear bases. Cualquier otra no se toca.
+            $vacia_704ILR = $false
+            try {
+                $enLaBase_704ILR = Conectar_704ILR $Base_704ILR
+                try {
+                    $propietario_704ILR = [int](Escalar_704ILR $enLaBase_704ILR "SELECT ISNULL(IS_ROLEMEMBER('db_owner'), 0)" $null)
+                    $vacia_704ILR = ((ObjetosPropios_704ILR $enLaBase_704ILR) -eq 0) -and
+                        (($propietario_704ILR -eq 1) -or ([int]$fila_704ILR['EsAdministrador'] -eq 1))
+                }
+                finally { $enLaBase_704ILR.Dispose() }
+            }
+            catch { $vacia_704ILR = $false }
+            if (-not $vacia_704ILR) { Rechazar_704ILR $CodigoBaseExistente_704ILR $Base_704ILR }
+            Anotar_704ILR 'MODO' 'VACIA'
+        }
+        elseif (-not $puedeCrear_704ILR) {
+            Rechazar_704ILR 'SIN_PERMISO' $usuario_704ILR
+        }
+        elseif ($mayor_704ILR -lt $VersionDelRespaldo_704ILR) {
+            Anotar_704ILR 'MODO' 'ESQUEMA'
+        }
+        else {
+            Anotar_704ILR 'MODO' 'RESPALDO'
         }
     }
     finally { $conexion_704ILR.Dispose() }
@@ -217,6 +283,21 @@ ELSE
     Anotar_704ILR 'ARCHIVO_DATOS' $datos_704ILR
 }
 
+# Quien lee el respaldo no es quien instala sino la cuenta del servicio de SQL Server.
+# El asistente lo deja en una carpeta de datos de programas del equipo; aca se le agrega
+# permiso de lectura para todos (el respaldo solo tiene los datos de demostracion y se
+# borra al terminar), asi lo lee cualquiera sea la cuenta con que corre el servicio.
+function PermitirLectura_704ILR([string]$ruta_704ILR) {
+    try {
+        $todos_704ILR = New-Object System.Security.Principal.SecurityIdentifier('S-1-1-0')
+        $regla_704ILR = New-Object System.Security.AccessControl.FileSystemAccessRule($todos_704ILR, 'Read', 'Allow')
+        $acl_704ILR = Get-Acl -LiteralPath $ruta_704ILR
+        $acl_704ILR.AddAccessRule($regla_704ILR)
+        Set-Acl -LiteralPath $ruta_704ILR -AclObject $acl_704ILR
+    }
+    catch { }   # si no se pudo, RESTORE informa que no puede leer el archivo
+}
+
 function Restaurar_704ILR {
     if (-not $Respaldo_704ILR -or -not (Test-Path -LiteralPath $Respaldo_704ILR)) {
         Rechazar_704ILR 'RESPALDO_AUSENTE' $Respaldo_704ILR
@@ -230,11 +311,11 @@ function Restaurar_704ILR {
             Rechazar_704ILR $CodigoBaseExistente_704ILR $Base_704ILR
         }
 
-        # Quien lee el respaldo no es quien instala sino la cuenta del servicio de SQL
-        # Server, que no tiene acceso a la carpeta temporal del asistente. Por eso se
-        # lo copia a la carpeta de respaldos de la propia instancia, que el motor
-        # siempre puede leer, y se borra esa copia al terminar. Si la instancia no
-        # informa esa carpeta, o no se puede copiar ahi, se restaura desde donde esta.
+        # Si quien instala es administrador del equipo, el respaldo se copia a la carpeta
+        # de respaldos de la propia instancia, que el motor siempre puede leer (y se borra
+        # esa copia al terminar). Si no lo es, no puede escribir ahi: se restaura desde la
+        # carpeta donde lo dejo el asistente, con permiso de lectura para el servicio.
+        PermitirLectura_704ILR $Respaldo_704ILR
         $origen_704ILR = $Respaldo_704ILR
         $copia_704ILR = $null
         $carpeta_704ILR = [string](Escalar_704ILR $conexion_704ILR "SELECT CAST(SERVERPROPERTY('InstanceDefaultBackupPath') AS NVARCHAR(400))" $null)
@@ -272,11 +353,103 @@ function Restaurar_704ILR {
 
         # La fecha de creacion identifica la base creada por esta ejecucion: es lo unico
         # que Quitar acepta eliminar.
-        $marca_704ILR = [string](Escalar_704ILR $conexion_704ILR 'SELECT CONVERT(NVARCHAR(30), create_date, 126) FROM sys.databases WHERE name = @base' @{ base = $Base_704ILR })
-        Anotar_704ILR 'MARCA' $marca_704ILR
+        Anotar_704ILR 'ORIGEN' $(if ($copia_704ILR) { 'CARPETA_DE_RESPALDOS' } else { 'CARPETA_DE_APOYO' })
+        Anotar_704ILR 'MARCA' (MarcaDeCreacion_704ILR $conexion_704ILR)
     }
     finally { $conexion_704ILR.Dispose() }
 
+    Anotar_704ILR 'ESTADO' 'CORRECTO'
+    Terminar_704ILR 0
+}
+
+function MarcaDeCreacion_704ILR($conexion_704ILR) {
+    return [string](Escalar_704ILR $conexion_704ILR 'SELECT CONVERT(NVARCHAR(30), create_date, 126) FROM sys.databases WHERE name = @base' @{ base = $Base_704ILR })
+}
+
+# ---------------------------------------------------------------- Crear y Cargar
+# Ejecuta db\schema.sql sobre la base de la conexion, lote por lote (los lotes se separan
+# con GO, como en sqlcmd). Un error corta la ejecucion.
+function AplicarEsquema_704ILR($conexion_704ILR) {
+    if (-not $Esquema_704ILR -or -not (Test-Path -LiteralPath $Esquema_704ILR)) {
+        throw ('No se encuentra el guion del esquema: ' + $Esquema_704ILR)
+    }
+    $texto_704ILR = [System.IO.File]::ReadAllText($Esquema_704ILR, [System.Text.Encoding]::UTF8)
+    $lotes_704ILR = [System.Text.RegularExpressions.Regex]::Split($texto_704ILR, '^[ \t]*GO[ \t]*\r?$',
+        [System.Text.RegularExpressions.RegexOptions]::Multiline -bor [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+    $n_704ILR = 0
+    foreach ($lote_704ILR in $lotes_704ILR) {
+        if ($lote_704ILR.Trim().Length -eq 0) { continue }
+        $n_704ILR++
+        try { (Comando_704ILR $conexion_704ILR $lote_704ILR $null).ExecuteNonQuery() | Out-Null }
+        catch { throw ('Lote ' + $n_704ILR + ' del esquema: ' + $_.Exception.GetBaseException().Message) }
+    }
+    Anotar_704ILR 'LOTES' $n_704ILR
+}
+
+function Crear_704ILR {
+    try { $conexion_704ILR = Conectar_704ILR 'master' }
+    catch { Rechazar_704ILR 'SIN_CONEXION' $_.Exception.GetBaseException().Message }
+
+    $marca_704ILR = ''
+    try {
+        # Misma guarda que la restauracion: en el mismo lote que la creacion.
+        try {
+            (Comando_704ILR $conexion_704ILR @"
+IF DB_ID(@base) IS NOT NULL
+    RAISERROR(N'$CodigoBaseExistente_704ILR', 16, 1);
+ELSE
+    EXEC (N'CREATE DATABASE [$Base_704ILR]');
+"@ @{ base = $Base_704ILR }).ExecuteNonQuery() | Out-Null
+        }
+        catch {
+            if ($_.Exception.GetBaseException().Message -eq $CodigoBaseExistente_704ILR) { Rechazar_704ILR $CodigoBaseExistente_704ILR $Base_704ILR }
+            Rechazar_704ILR 'CREACION_FALLIDA' $_.Exception.GetBaseException().Message
+        }
+        $marca_704ILR = MarcaDeCreacion_704ILR $conexion_704ILR
+    }
+    finally { $conexion_704ILR.Dispose() }
+
+    $falla_704ILR = $null
+    try {
+        $enLaBase_704ILR = Conectar_704ILR $Base_704ILR
+        try { AplicarEsquema_704ILR $enLaBase_704ILR } finally { $enLaBase_704ILR.Dispose() }
+    }
+    catch { $falla_704ILR = $_.Exception.GetBaseException().Message }
+
+    if ($falla_704ILR) {
+        # La base la creo este paso: si el esquema no se pudo aplicar, se la quita.
+        try {
+            $conexion_704ILR = Conectar_704ILR 'master'
+            try { QuitarBase_704ILR $conexion_704ILR $marca_704ILR | Out-Null } finally { $conexion_704ILR.Dispose() }
+        }
+        catch { }
+        Rechazar_704ILR 'CREACION_FALLIDA' $falla_704ILR
+    }
+
+    Anotar_704ILR 'MARCA' $marca_704ILR
+    Anotar_704ILR 'ESTADO' 'CORRECTO'
+    Terminar_704ILR 0
+}
+
+function Cargar_704ILR {
+    try { $conexion_704ILR = Conectar_704ILR $Base_704ILR }
+    catch { Rechazar_704ILR 'SIN_CONEXION' $_.Exception.GetBaseException().Message }
+
+    try {
+        # Entre el diagnostico y este paso alguien pudo haber creado algo en la base.
+        if ((ObjetosPropios_704ILR $conexion_704ILR) -ne 0) { Rechazar_704ILR $CodigoBaseExistente_704ILR $Base_704ILR }
+        # Todo objeto creado desde esta hora es de esta ejecucion (lo que Quitar deshace).
+        $desde_704ILR = [string](Escalar_704ILR $conexion_704ILR 'SELECT CONVERT(NVARCHAR(30), DATEADD(SECOND, -1, GETDATE()), 126)' $null)
+        try { AplicarEsquema_704ILR $conexion_704ILR }
+        catch {
+            $falla_704ILR = $_.Exception.GetBaseException().Message
+            try { VaciarBase_704ILR $conexion_704ILR $desde_704ILR | Out-Null } catch { }
+            Rechazar_704ILR 'CREACION_FALLIDA' $falla_704ILR
+        }
+    }
+    finally { $conexion_704ILR.Dispose() }
+
+    Anotar_704ILR 'MARCA' ($PrefijoVacia_704ILR + $desde_704ILR)
     Anotar_704ILR 'ESTADO' 'CORRECTO'
     Terminar_704ILR 0
 }
@@ -300,15 +473,57 @@ function Verificar_704ILR {
 }
 
 # ----------------------------------------------------------------------- Quitar
+# Elimina la base solo si su fecha de creacion es la marca. Devuelve si la elimino.
+function QuitarBase_704ILR($conexion_704ILR, [string]$marca_704ILR) {
+    if (-not $marca_704ILR) { return $false }
+    $coincide_704ILR = Escalar_704ILR $conexion_704ILR 'SELECT COUNT(*) FROM sys.databases WHERE name = @base AND CONVERT(NVARCHAR(30), create_date, 126) = @marca' @{ base = $Base_704ILR; marca = $marca_704ILR }
+    if ([int]$coincide_704ILR -ne 1) { return $false }
+    (Comando_704ILR $conexion_704ILR "ALTER DATABASE [$Base_704ILR] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [$Base_704ILR];" $null).ExecuteNonQuery() | Out-Null
+    return $true
+}
+
+# Deja vacia la base existente que cargo esta ejecucion: elimina las claves foraneas y las
+# tablas creadas desde la marca, y solo si no hay ningun objeto propio anterior a ella.
+function VaciarBase_704ILR($conexion_704ILR, [string]$desde_704ILR) {
+    $anteriores_704ILR = [int](Escalar_704ILR $conexion_704ILR 'SELECT COUNT(*) FROM sys.objects WHERE is_ms_shipped = 0 AND parent_object_id = 0 AND create_date < CONVERT(DATETIME, @desde, 126)' @{ desde = $desde_704ILR })
+    if ($anteriores_704ILR -ne 0) { return $false }
+    (Comando_704ILR $conexion_704ILR @"
+DECLARE @sql NVARCHAR(MAX) = N'';
+SELECT @sql = @sql + N'ALTER TABLE ' + QUOTENAME(SCHEMA_NAME(t.schema_id)) + N'.' + QUOTENAME(t.name) +
+              N' DROP CONSTRAINT ' + QUOTENAME(f.name) + N';'
+FROM sys.foreign_keys f JOIN sys.tables t ON t.object_id = f.parent_object_id;
+EXEC (@sql);
+SET @sql = N'';
+SELECT @sql = @sql + N'DROP TABLE ' + QUOTENAME(SCHEMA_NAME(schema_id)) + N'.' + QUOTENAME(name) + N';'
+FROM sys.tables WHERE is_ms_shipped = 0;
+EXEC (@sql);
+SET @sql = N'';
+SELECT @sql = @sql + N'DROP ' + CASE type WHEN 'V' THEN N'VIEW ' WHEN 'P' THEN N'PROCEDURE ' ELSE N'FUNCTION ' END +
+              QUOTENAME(SCHEMA_NAME(schema_id)) + N'.' + QUOTENAME(name) + N';'
+FROM sys.objects WHERE is_ms_shipped = 0 AND parent_object_id = 0 AND type IN ('V', 'P', 'FN', 'IF', 'TF');
+EXEC (@sql);
+"@ $null).ExecuteNonQuery() | Out-Null
+    return $true
+}
+
 function Quitar_704ILR {
     if (-not $Marca_704ILR) { Rechazar_704ILR 'SIN_MARCA' '' }
-    $conexion_704ILR = Conectar_704ILR 'master'
-    try {
-        $coincide_704ILR = Escalar_704ILR $conexion_704ILR 'SELECT COUNT(*) FROM sys.databases WHERE name = @base AND CONVERT(NVARCHAR(30), create_date, 126) = @marca' @{ base = $Base_704ILR; marca = $Marca_704ILR }
-        if ([int]$coincide_704ILR -ne 1) { Rechazar_704ILR 'NO_ES_LA_BASE_CREADA' $Marca_704ILR }
-        (Comando_704ILR $conexion_704ILR "ALTER DATABASE [$Base_704ILR] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [$Base_704ILR];" $null).ExecuteNonQuery() | Out-Null
+    if ($Marca_704ILR.StartsWith($PrefijoVacia_704ILR)) {
+        $conexion_704ILR = Conectar_704ILR $Base_704ILR
+        try {
+            if (-not (VaciarBase_704ILR $conexion_704ILR $Marca_704ILR.Substring($PrefijoVacia_704ILR.Length))) {
+                Rechazar_704ILR 'NO_ES_LA_BASE_CREADA' $Marca_704ILR
+            }
+        }
+        finally { $conexion_704ILR.Dispose() }
     }
-    finally { $conexion_704ILR.Dispose() }
+    else {
+        $conexion_704ILR = Conectar_704ILR 'master'
+        try {
+            if (-not (QuitarBase_704ILR $conexion_704ILR $Marca_704ILR)) { Rechazar_704ILR 'NO_ES_LA_BASE_CREADA' $Marca_704ILR }
+        }
+        finally { $conexion_704ILR.Dispose() }
+    }
 
     Anotar_704ILR 'ESTADO' 'CORRECTO'
     Terminar_704ILR 0
@@ -316,8 +531,11 @@ function Quitar_704ILR {
 
 try {
     switch ($Accion_704ILR) {
+        'Cuentas' { Cuentas_704ILR }
         'Diagnosticar' { Diagnosticar_704ILR }
         'Restaurar' { Restaurar_704ILR }
+        'Crear' { Crear_704ILR }
+        'Cargar' { Cargar_704ILR }
         'Verificar' { Verificar_704ILR }
         'Quitar' { Quitar_704ILR }
     }

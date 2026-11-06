@@ -50,3 +50,4 @@ Docs/
 # Instalador: lo que se genera al construirlo (ver instalador/README.md)
 instalador/publicado/
 instalador/salida/
+instalador/motor/

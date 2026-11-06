@@ -6,7 +6,7 @@
          ensamblados; el instalador la lee del ejecutable y la reinstalacion la compara con
          la que encuentra instalada. Directory.Build.targets le agrega el commit del que
          salio el codigo (ver ahi). -->
-    <Version>2.0.0</Version>
+    <Version>2.1.0</Version>
     <Company>Ivan Leonel Reser</Company>
     <Product>EvenTech</Product>
     <!-- El commit lo pone Directory.Build.targets, tambien cuando el codigo sale de un zip
