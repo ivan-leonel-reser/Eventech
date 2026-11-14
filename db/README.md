@@ -132,7 +132,7 @@ email mal escrito), de modo que la ficha del cliente nunca queda trabada.
 ## Opción B — Restaurar el snapshot completo (con datos)
 
 `EvenTechDB.bak` es un backup full de la versión 3.0, **generado el 14/11/2026 a las
-18:56** (en una base exclusiva de pruebas, con `refrescar_demo.ps1 -Base EvenTechDemoE3`),
+19:19** (en una base exclusiva de pruebas, con `refrescar_demo.ps1 -Base EvenTechDemoE3`),
 con los
 datos de demostración: 12 clientes (contactos en texto plano), 24 reservas
 repartidas en los tres salones y los cuatro estados (11 CONFIRMADA, 6 COTIZACIÓN,
