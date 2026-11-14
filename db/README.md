@@ -131,15 +131,21 @@ email mal escrito), de modo que la ficha del cliente nunca queda trabada.
 
 ## Opción B — Restaurar el snapshot completo (con datos)
 
-`EvenTechDB.bak` es un backup full de la versión 3.0, **generado el 01/11/2026 a las
-12:42** (en una base exclusiva de pruebas, con `refrescar_demo.ps1 -Base EvenTechDemoE3`),
+`EvenTechDB.bak` es un backup full de la versión 3.0, **generado el 14/11/2026 a las
+18:56** (en una base exclusiva de pruebas, con `refrescar_demo.ps1 -Base EvenTechDemoE3`),
 con los
 datos de demostración: 12 clientes (contactos en texto plano), 24 reservas
 repartidas en los tres salones y los cuatro estados (11 CONFIRMADA, 6 COTIZACIÓN,
 5 PENDIENTE y 2 CANCELADA), 95 líneas de servicios contratados, 11 pagos (toda
 CONFIRMADA tiene su adelanto, RN-07), 15 versiones con 17 asientos de historial
-de cambios y 155 asientos de bitácora de esas operaciones. La reserva #4 acumula
+de cambios y 161 asientos de bitácora de esas operaciones. La reserva #4 acumula
 dos modificaciones, para recorrer su historial y sus versiones.
+
+El catálogo tiene 7 servicios y su bitácora de cambios (`Servicios_C`), 11 versiones:
+la inicial de los seis sembrados, dos aumentos de precio (Catering por persona y DJ
+y sonido), un precio cargado por error en Fotografía y video que se corrigió
+activando la versión anterior —su versión vigente no es la última—, y el alta y la
+baja de Mesa dulce. Se recorre en *Maestros → Bitácora de cambios*.
 
 De la coordinación de eventos trae las 9 especialidades, 12 empleados (11 activos,
 cada uno con su cuenta, y 1 dado de baja), 19 asignaciones de personal repartidas
