@@ -59,6 +59,11 @@
 	</OBJECT>
 
 <LI> <OBJECT type="text/sitemap">
+	<param name="Name" value="Bitácora de cambios del catálogo">
+	<param name="Local" value="bitacora_cambios.htm">
+	</OBJECT>
+
+<LI> <OBJECT type="text/sitemap">
 	<param name="Name" value="Empleados">
 	<param name="Local" value="empleados.htm">
 	</OBJECT>

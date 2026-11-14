@@ -7,6 +7,11 @@
 	</OBJECT>
 
 <LI> <OBJECT type="text/sitemap">
+	<param name="Name" value="Activar versión">
+	<param name="Local" value="bitacora_cambios.htm">
+	</OBJECT>
+
+<LI> <OBJECT type="text/sitemap">
 	<param name="Name" value="Adelanto">
 	<param name="Local" value="pagos.htm">
 	</OBJECT>
@@ -34,6 +39,11 @@
 <LI> <OBJECT type="text/sitemap">
 	<param name="Name" value="Bitácora">
 	<param name="Local" value="auditoria.htm">
+	</OBJECT>
+
+<LI> <OBJECT type="text/sitemap">
+	<param name="Name" value="Bitácora de cambios">
+	<param name="Local" value="bitacora_cambios.htm">
 	</OBJECT>
 
 <LI> <OBJECT type="text/sitemap">
@@ -134,6 +144,11 @@
 <LI> <OBJECT type="text/sitemap">
 	<param name="Name" value="Línea base">
 	<param name="Local" value="auditoria.htm">
+	</OBJECT>
+
+<LI> <OBJECT type="text/sitemap">
+	<param name="Name" value="Maestros">
+	<param name="Local" value="servicios.htm">
 	</OBJECT>
 
 <LI> <OBJECT type="text/sitemap">

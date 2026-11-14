@@ -126,8 +126,9 @@ namespace EvenTech.DAL
 
         // ================== Diagnostico de conectividad ==================
 
-        // Contrato minimo del esquema que la app necesita para arrancar: las 27
-        // tablas de db/schema.sql y TODAS las columnas que ese script agrega por
+        // Contrato minimo del esquema que la app necesita para arrancar: las 28
+        // tablas de db/schema.sql (Servicios_C es la tabla copia de la bitacora de
+        // cambios del catalogo; sin ella el alta de un servicio fallaria) y TODAS las columnas que ese script agrega por
         // migracion con ALTER TABLE ... ADD (una base de una revision anterior tiene
         // Users pero no estas). Una columna migrada nueva se agrega tambien aca.
         // Nombres de tabla/columna sin sufijo: son datos de la base, no
@@ -139,7 +140,7 @@ namespace EvenTech.DAL
             "Bitacora", "HistorialCambios", "ReservaMemento", "ReservaMementoServicio",
             "Idiomas", "Traducciones", "DVVertical",
             "Especialidades", "Empleados", "AsignacionesPersonal", "Cronogramas", "CronogramaActividades",
-            "Tareas", "Incidencias"
+            "Tareas", "Incidencias", "Servicios_C"
         };
         private static readonly string[] ColumnasRequeridas_704ILR =
         {

@@ -76,13 +76,18 @@ Usuario inicial: **admin / admin123** (perfil Administrador, acceso total). Es l
 única cuenta que siembra el script. Los perfiles sí los siembra: son **seis**
 —Administrador, Vendedor, Supervisor (incluye a Vendedor), Gerencial (incluye a
 Supervisor), Coordinador y Empleado—, con sus permisos y las dos inclusiones del
-Composite; el árbol tiene **30 permisos** (7 grupos y 23 asignables, entre ellos los
-de la versión 3.0: `INFORMES_VER`, para el informe de gestión, y `EXCEPCIONES_VER`,
-para el registro de excepciones de Auditoría) y cada idioma, **746 claves de
-traducción**. El script crea **27 tablas**: las veinte de seguridad, reservas,
-auditoría e idiomas, y las siete de la coordinación de eventos (`Especialidades`,
-`Empleados`, `AsignacionesPersonal`, `Cronogramas`, `CronogramaActividades`,
-`Tareas` e `Incidencias`), más la columna `Reservas.EstadoCoordinacion`.
+Composite; el árbol tiene **32 permisos** (7 grupos y 25 asignables, entre ellos los
+de la versión 3.0: `INFORMES_VER`, para el informe de gestión, `EXCEPCIONES_VER`,
+para el registro de excepciones de Auditoría, y `SERVICIOS_CAMBIOS_VER` y
+`SERVICIOS_CAMBIOS_ACTIVAR`, para la bitácora de cambios del catálogo en Maestros) y
+cada idioma, **791 claves de traducción**. El script crea **28 tablas**: las veinte de
+seguridad, reservas, auditoría e idiomas, las siete de la coordinación de eventos
+(`Especialidades`, `Empleados`, `AsignacionesPersonal`, `Cronogramas`,
+`CronogramaActividades`, `Tareas` e `Incidencias`), más la columna
+`Reservas.EstadoCoordinacion`, y la tabla copia `Servicios_C` de la bitácora de cambios
+del catálogo, que escriben los triggers de `Servicios` (cinco triggers en total: ver el
+último bloque del script). Sobre una base anterior, cada servicio recibe su versión
+`INICIAL` vigente.
 
 **Versión de la base.** El asistente de instalación graba en la propia base la versión
 que la creó o la actualizó (propiedad extendida `EvenTech_Version`, sin tabla) y con ella

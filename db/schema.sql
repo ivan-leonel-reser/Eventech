@@ -5,7 +5,7 @@
 -- Se ejecuta SOBRE la base que indica -d (no crea la base ni cambia de
 -- contexto); la base se crea aparte, ver db/README.md.
 --
--- Inventario (27 tablas):
+-- Inventario (28 tablas):
 --   Seguridad y acceso ...... Users, LoginAuditLog, Perfiles, Permisos,
 --                             PerfilPermiso, PerfilIncluido
 --   Negocio (RFN1) .......... Clientes, Salones, Reservas, Servicios,
@@ -14,7 +14,9 @@
 --                             Cronogramas, CronogramaActividades, Tareas,
 --                             Incidencias
 --   Auditoria e integridad .. Bitacora, HistorialCambios, ReservaMemento,
---                             ReservaMementoServicio, DVVertical
+--                             ReservaMementoServicio, DVVertical, Servicios_C
+--                             (tabla copia del catalogo, la escriben los
+--                             triggers TRG_Servicios_*)
 --   Idiomas ................. Idiomas, Traducciones
 -- Semillas: usuario admin/admin123, arbol de permisos, perfiles Administrador,
 -- Vendedor, Supervisor, Gerencial, Coordinador y Empleado, catalogos de ejemplo
@@ -22,7 +24,7 @@
 -- clientes) y las traducciones ES/EN/PT de la interfaz.
 
 -- Los indices filtrados (UX_Clientes_Dni, UX_Reservas_SalonFecha_Confirmada,
--- UX_Empleados_UserId) exigen QUOTED_IDENTIFIER ON. El sqlcmd ODBC (el de las
+-- UX_Empleados_UserId, UX_Servicios_C_Act) exigen QUOTED_IDENTIFIER ON. El sqlcmd ODBC (el de las
 -- utilidades de linea de comandos de SQL Server) arranca con OFF salvo que se
 -- pase -I, asi que se fija aca para no depender del cliente.
 -- NOEXEC OFF va primero: si en la misma sesion (una ventana de SSMS) una corrida
@@ -3914,6 +3916,116 @@ GROUP BY i.Id, t.Clave;   -- una sola fila por idioma+clave: una clave repetida 
                           -- bloque de arriba no puede romper UQ_Traducciones.
 GO
 
+-- ===========================================================================
+-- Entrega 3: bitacora de cambios del catalogo de servicios (T06.B). Permisos
+-- y textos; la tabla copia y sus triggers van al final del script.
+--  * SERVICIOS_CAMBIOS_VER: consultar la bitacora de cambios (Maestros).
+--  * SERVICIOS_CAMBIOS_ACTIVAR: volver un servicio a una version guardada.
+--  Las dos hojas cuelgan del mismo grupo que la gestion del catalogo y las
+--  recibe el Administrador (acceso total). Ningun otro perfil de fabrica.
+--  Idempotente y en una transaccion, como el bloque anterior.
+-- ===========================================================================
+BEGIN TRY
+BEGIN TRANSACTION;
+
+DECLARE @gCatalogo INT = (SELECT PermisoPadreId FROM dbo.Permisos WHERE Clave = N'SERVICIOS_GESTION');
+
+IF NOT EXISTS (SELECT 1 FROM dbo.Permisos WHERE Clave = N'SERVICIOS_CAMBIOS_VER')
+    INSERT INTO dbo.Permisos (Nombre, Descripcion, EsGrupo, Clave, PermisoPadreId)
+        VALUES (N'Ver Bitacora de Cambios', N'Consultar la bitacora de cambios del catalogo de servicios', 0, N'SERVICIOS_CAMBIOS_VER', @gCatalogo);
+IF NOT EXISTS (SELECT 1 FROM dbo.Permisos WHERE Clave = N'SERVICIOS_CAMBIOS_ACTIVAR')
+    INSERT INTO dbo.Permisos (Nombre, Descripcion, EsGrupo, Clave, PermisoPadreId)
+        VALUES (N'Activar Versiones de Servicios', N'Volver un servicio a una version guardada en la bitacora de cambios', 0, N'SERVICIOS_CAMBIOS_ACTIVAR', @gCatalogo);
+
+-- Acceso total del Administrador: se le asigna todo permiso que le falte.
+INSERT INTO dbo.PerfilPermiso (PerfilId, PermisoId)
+SELECT p.Id, pe.Id
+FROM dbo.Perfiles p
+CROSS JOIN dbo.Permisos pe
+WHERE p.Nombre = N'Administrador'
+  AND NOT EXISTS (SELECT 1 FROM dbo.PerfilPermiso pp
+                  WHERE pp.PerfilId = p.Id AND pp.PermisoId = pe.Id);
+
+COMMIT TRANSACTION;
+END TRY
+BEGIN CATCH
+    IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+    THROW;
+END CATCH
+GO
+
+-- ---------------------------------------------------------------------------
+-- Traducciones ES/EN/PT de la seccion Maestros y de la bitacora de cambios del
+-- catalogo: item del menu, pestanas, pantalla, permisos, operaciones, mensajes,
+-- descripciones emergentes y los asientos que deja en la bitacora. Inserta solo
+-- lo que falte (una traduccion editada por el usuario se conserva). Va antes de
+-- la copia a los idiomas agregados por el usuario, que las recibe.
+-- ---------------------------------------------------------------------------
+;WITH Txt(Codigo, Clave, Texto) AS (
+    SELECT * FROM (VALUES
+        -- Menu lateral y pestanas de la seccion
+        (N'ES', N'MENU_MAESTROS', N'Maestros'), (N'EN', N'MENU_MAESTROS', N'Master data'), (N'PT', N'MENU_MAESTROS', N'Cadastros'),
+        (N'ES', N'MAE_TAB_SERVICIOS', N'Servicios y productos'), (N'EN', N'MAE_TAB_SERVICIOS', N'Services and products'), (N'PT', N'MAE_TAB_SERVICIOS', N'Serviços e produtos'),
+        (N'ES', N'MAE_TAB_CAMBIOS', N'Bitácora de cambios'), (N'EN', N'MAE_TAB_CAMBIOS', N'Change log'), (N'PT', N'MAE_TAB_CAMBIOS', N'Registro de alterações'),
+        -- Arbol de permisos
+        (N'ES', N'PERM_SERVICIOS_CAMBIOS_VER', N'Ver Bitácora de Cambios'), (N'EN', N'PERM_SERVICIOS_CAMBIOS_VER', N'View Change Log'), (N'PT', N'PERM_SERVICIOS_CAMBIOS_VER', N'Ver Registro de Alterações'),
+        (N'ES', N'PERM_SERVICIOS_CAMBIOS_ACTIVAR', N'Activar Versiones de Servicios'), (N'EN', N'PERM_SERVICIOS_CAMBIOS_ACTIVAR', N'Activate Service Versions'), (N'PT', N'PERM_SERVICIOS_CAMBIOS_ACTIVAR', N'Ativar Versões de Serviços'),
+        -- Pantalla de la bitacora de cambios
+        (N'ES', N'BCS_TITULO', N'Bitácora de cambios de servicios'), (N'EN', N'BCS_TITULO', N'Service change log'), (N'PT', N'BCS_TITULO', N'Registro de alterações de serviços'),
+        (N'ES', N'BCS_CODIGO', N'Código'), (N'EN', N'BCS_CODIGO', N'Code'), (N'PT', N'BCS_CODIGO', N'Código'),
+        (N'ES', N'BCS_NOMBRE', N'Nombre'), (N'EN', N'BCS_NOMBRE', N'Name'), (N'PT', N'BCS_NOMBRE', N'Nome'),
+        (N'ES', N'BCS_FECHA_INI', N'Fecha inicial'), (N'EN', N'BCS_FECHA_INI', N'Start date'), (N'PT', N'BCS_FECHA_INI', N'Data inicial'),
+        (N'ES', N'BCS_FECHA_FIN', N'Fecha final'), (N'EN', N'BCS_FECHA_FIN', N'End date'), (N'PT', N'BCS_FECHA_FIN', N'Data final'),
+        (N'ES', N'BCS_BTN_APLICAR', N'Aplicar'), (N'EN', N'BCS_BTN_APLICAR', N'Apply'), (N'PT', N'BCS_BTN_APLICAR', N'Aplicar'),
+        (N'ES', N'BCS_BTN_LIMPIAR', N'Limpiar'), (N'EN', N'BCS_BTN_LIMPIAR', N'Clear'), (N'PT', N'BCS_BTN_LIMPIAR', N'Limpar'),
+        (N'ES', N'BCS_BTN_ACTIVAR', N'Activar'), (N'EN', N'BCS_BTN_ACTIVAR', N'Activate'), (N'PT', N'BCS_BTN_ACTIVAR', N'Ativar'),
+        (N'ES', N'BCS_BTN_SALIR', N'Salir'), (N'EN', N'BCS_BTN_SALIR', N'Exit'), (N'PT', N'BCS_BTN_SALIR', N'Sair'),
+        (N'ES', N'BCS_COL_FECHA', N'Fecha'), (N'EN', N'BCS_COL_FECHA', N'Date'), (N'PT', N'BCS_COL_FECHA', N'Data'),
+        (N'ES', N'BCS_COL_HORA', N'Hora'), (N'EN', N'BCS_COL_HORA', N'Time'), (N'PT', N'BCS_COL_HORA', N'Hora'),
+        (N'ES', N'BCS_COL_PRECIO', N'Precio'), (N'EN', N'BCS_COL_PRECIO', N'Price'), (N'PT', N'BCS_COL_PRECIO', N'Preço'),
+        (N'ES', N'BCS_COL_DESCRIPCION', N'Descripción'), (N'EN', N'BCS_COL_DESCRIPCION', N'Description'), (N'PT', N'BCS_COL_DESCRIPCION', N'Descrição'),
+        (N'ES', N'BCS_COL_ESTADO', N'Estado'), (N'EN', N'BCS_COL_ESTADO', N'Status'), (N'PT', N'BCS_COL_ESTADO', N'Situação'),
+        (N'ES', N'BCS_COL_OPERACION', N'Operación'), (N'EN', N'BCS_COL_OPERACION', N'Operation'), (N'PT', N'BCS_COL_OPERACION', N'Operação'),
+        (N'ES', N'BCS_COL_USUARIO', N'Usuario'), (N'EN', N'BCS_COL_USUARIO', N'User'), (N'PT', N'BCS_COL_USUARIO', N'Usuário'),
+        (N'ES', N'BCS_COL_ACT', N'Act.'), (N'EN', N'BCS_COL_ACT', N'Act.'), (N'PT', N'BCS_COL_ACT', N'At.'),
+        (N'ES', N'BCS_OP_INICIAL', N'Versión inicial'), (N'EN', N'BCS_OP_INICIAL', N'Initial version'), (N'PT', N'BCS_OP_INICIAL', N'Versão inicial'),
+        (N'ES', N'BCS_OP_ALTA', N'Alta'), (N'EN', N'BCS_OP_ALTA', N'Created'), (N'PT', N'BCS_OP_ALTA', N'Inclusão'),
+        (N'ES', N'BCS_OP_MODIFICACION', N'Modificación'), (N'EN', N'BCS_OP_MODIFICACION', N'Modified'), (N'PT', N'BCS_OP_MODIFICACION', N'Alteração'),
+        (N'ES', N'BCS_OP_BAJA', N'Baja'), (N'EN', N'BCS_OP_BAJA', N'Deactivated'), (N'PT', N'BCS_OP_BAJA', N'Desativação'),
+        (N'ES', N'BCS_ACTIVO', N'Activo'), (N'EN', N'BCS_ACTIVO', N'Active'), (N'PT', N'BCS_ACTIVO', N'Ativo'),
+        (N'ES', N'BCS_INACTIVO', N'Dado de baja'), (N'EN', N'BCS_INACTIVO', N'Deactivated'), (N'PT', N'BCS_INACTIVO', N'Desativado'),
+        (N'ES', N'BCS_TODOS', N'(Todos)'), (N'EN', N'BCS_TODOS', N'(All)'), (N'PT', N'BCS_TODOS', N'(Todos)'),
+        (N'ES', N'BCS_COUNT', N'{0} versión(es)'), (N'EN', N'BCS_COUNT', N'{0} version(s)'), (N'PT', N'BCS_COUNT', N'{0} versão(ões)'),
+        -- Mensajes
+        (N'ES', N'BCS_RANGO', N'La fecha inicial no puede ser posterior a la fecha final.'), (N'EN', N'BCS_RANGO', N'The start date cannot be later than the end date.'), (N'PT', N'BCS_RANGO', N'A data inicial não pode ser posterior à data final.'),
+        (N'ES', N'BCS_ELEGIR', N'Seleccione en la lista la versión que quiere activar.'), (N'EN', N'BCS_ELEGIR', N'Select in the list the version you want to activate.'), (N'PT', N'BCS_ELEGIR', N'Selecione na lista a versão que deseja ativar.'),
+        (N'ES', N'BCS_YA_VIGENTE', N'La versión elegida ya es la vigente (Act. = 1): no hay nada que activar.'), (N'EN', N'BCS_YA_VIGENTE', N'The chosen version is already the current one (Act. = 1): there is nothing to activate.'), (N'PT', N'BCS_YA_VIGENTE', N'A versão escolhida já é a vigente (At. = 1): não há nada a ativar.'),
+        (N'ES', N'BCS_CONFIRMA', N'¿Activar la versión del {0} a las {1} del servicio {2}?'), (N'EN', N'BCS_CONFIRMA', N'Activate the version of {0} at {1} of service {2}?'), (N'PT', N'BCS_CONFIRMA', N'Ativar a versão de {0} às {1} do serviço {2}?'),
+        (N'ES', N'BCS_CONFIRMA_DATOS', N'El servicio pasa a tener nombre «{0}», precio {1} y estado «{2}».'), (N'EN', N'BCS_CONFIRMA_DATOS', N'The service will have the name "{0}", the price {1} and the status "{2}".'), (N'PT', N'BCS_CONFIRMA_DATOS', N'O serviço passa a ter nome «{0}», preço {1} e situação «{2}».'),
+        (N'ES', N'BCS_CONFIRMA_RESERVAS', N'Las reservas ya registradas conservan el precio con que se contrató cada servicio.'), (N'EN', N'BCS_CONFIRMA_RESERVAS', N'Reservations already registered keep the price each service was contracted at.'), (N'PT', N'BCS_CONFIRMA_RESERVAS', N'As reservas já registradas mantêm o preço com que cada serviço foi contratado.'),
+        (N'ES', N'BCS_OK', N'Versión activada: el servicio {0} tiene ahora los datos del {1} a las {2}.'), (N'EN', N'BCS_OK', N'Version activated: service {0} now has the data of {1} at {2}.'), (N'PT', N'BCS_OK', N'Versão ativada: o serviço {0} agora tem os dados de {1} às {2}.'),
+        (N'ES', N'BCS_NOMBRE_DUPLICADO', N'No se puede activar: otro servicio ya usa el nombre «{0}».'), (N'EN', N'BCS_NOMBRE_DUPLICADO', N'Cannot activate: another service already uses the name "{0}".'), (N'PT', N'BCS_NOMBRE_DUPLICADO', N'Não é possível ativar: outro serviço já usa o nome «{0}».'),
+        (N'ES', N'BCS_INEXISTENTE', N'La versión elegida ya no existe.'), (N'EN', N'BCS_INEXISTENTE', N'The chosen version no longer exists.'), (N'PT', N'BCS_INEXISTENTE', N'A versão escolhida não existe mais.'),
+        -- Descripciones emergentes (ayuda en linea)
+        (N'ES', N'AYU_TT_MENU_MAESTROS', N'Catálogo de servicios y productos y su bitácora de cambios.'), (N'EN', N'AYU_TT_MENU_MAESTROS', N'Catalog of services and products and its change log.'), (N'PT', N'AYU_TT_MENU_MAESTROS', N'Catálogo de serviços e produtos e seu registro de alterações.'),
+        (N'ES', N'AYU_TT_BCS_APLICAR', N'Filtra la bitácora por código, nombre y fechas.'), (N'EN', N'AYU_TT_BCS_APLICAR', N'Filters the log by code, name and dates.'), (N'PT', N'AYU_TT_BCS_APLICAR', N'Filtra o registro por código, nome e datas.'),
+        (N'ES', N'AYU_TT_BCS_ACTIVAR', N'Vuelve el servicio a los datos de la versión elegida, que pasa a tener Act. = 1.'), (N'EN', N'AYU_TT_BCS_ACTIVAR', N'Returns the service to the data of the chosen version, which then has Act. = 1.'), (N'PT', N'AYU_TT_BCS_ACTIVAR', N'Volta o serviço aos dados da versão escolhida, que passa a ter At. = 1.'),
+        (N'ES', N'AYU_TT_BCS_SALIR', N'Cierra la sección y vuelve a Inicio.'), (N'EN', N'AYU_TT_BCS_SALIR', N'Closes the section and returns to Home.'), (N'PT', N'AYU_TT_BCS_SALIR', N'Fecha a seção e volta ao Início.'),
+        -- Bitacora: acciones nuevas del modulo Servicios
+        (N'ES', N'BACC_VERSION_DE_SERVICIO_ACTIVADA', N'Versión de servicio activada'), (N'EN', N'BACC_VERSION_DE_SERVICIO_ACTIVADA', N'Service version activated'), (N'PT', N'BACC_VERSION_DE_SERVICIO_ACTIVADA', N'Versão de serviço ativada'),
+        (N'ES', N'BACC_ACTIVACION_DE_VERSION_RECHAZADA', N'Activación de versión rechazada'), (N'EN', N'BACC_ACTIVACION_DE_VERSION_RECHAZADA', N'Version activation rejected'), (N'PT', N'BACC_ACTIVACION_DE_VERSION_RECHAZADA', N'Ativação de versão rejeitada')
+    ) AS v(Codigo, Clave, Texto)
+)
+INSERT INTO dbo.Traducciones (IdiomaId, Clave, Texto)
+SELECT i.Id, t.Clave, MIN(t.Texto)
+FROM Txt t
+JOIN dbo.Idiomas i ON i.Codigo = t.Codigo
+WHERE NOT EXISTS (
+    SELECT 1 FROM dbo.Traducciones x WHERE x.IdiomaId = i.Id AND x.Clave = t.Clave
+)
+GROUP BY i.Id, t.Clave;
+GO
+
 -- ---------------------------------------------------------------------------
 -- Idiomas agregados desde Gestion de Idiomas. Al crearlos, la aplicacion les
 -- copia todas las claves del espanol; las claves que el script suma despues solo
@@ -4004,6 +4116,198 @@ FROM dbo.Traducciones t
 JOIN Fix f ON f.Clave = t.Clave
 WHERE t.Texto COLLATE Latin1_General_BIN = f.Anterior COLLATE Latin1_General_BIN
   AND DATALENGTH(t.Texto) = DATALENGTH(f.Anterior);
+GO
+
+-- ===========================================================================
+-- Bitacora de cambios del catalogo de servicios (T06.B, Entrega 3).
+--
+-- Servicios es la tabla ACTIVA: una fila por servicio con sus datos vigentes;
+-- se le agregan y se le modifican filas y el borrado es logico (Activo = 0).
+-- Servicios_C es la tabla COPIA: una fila por cada version que tuvo cada
+-- servicio, con la fecha y la hora del cambio, la operacion y el usuario. A
+-- Servicios_C no se le elimina ninguna fila: se le agregan y solo se modifica
+-- Act, que marca la version vigente de cada servicio (una sola, la que
+-- coincide con la fila de Servicios; lo garantiza el indice unico filtrado).
+--
+-- La copia la escriben los TRIGGERS de Servicios, no la aplicacion: cualquier
+-- alta, modificacion o baja, venga de la aplicacion o de una consulta directa,
+-- deja su version. Ningun trigger atrapa errores: si la copia falla, el cambio
+-- de Servicios se deshace con ella (misma instruccion, misma transaccion).
+--  * TRG_Servicios_Alta (AFTER INSERT): copia cada servicio nuevo con Act = 1.
+--  * TRG_Servicios_Cambio (AFTER UPDATE): por cada servicio cuyos datos
+--    cambiaron de verdad (comparacion binaria: una mayuscula es un cambio),
+--    pasa a 0 la version vigente y agrega la nueva con Act = 1 (BAJA si Activo
+--    paso de 1 a 0, MODIFICACION en otro caso). Guardar sin cambios no agrega
+--    nada. Al ACTIVAR una version guardada (la aplicacion lo indica con la
+--    clave de sesion EvenTech.ActivarVersion) no agrega version: mueve Act a la
+--    version elegida, cuyos datos son los que se acaban de escribir.
+--  * TRG_Servicios_Borrado (INSTEAD OF DELETE): un DELETE no borra la fila,
+--    la da de baja (Activo = 0); esa modificacion dispara TRG_Servicios_Cambio,
+--    que registra la BAJA (triggers anidados, opcion por defecto del servidor).
+--  * TRG_Servicios_C_SinBorrado y TRG_Servicios_C_SoloAct resguardan la copia:
+--    no se borran versiones y de una version solo cambia Act.
+-- El usuario llega en la clave de sesion EvenTech.Usuario (la escribe la capa de
+-- datos en la misma conexion); sin ella, el inicio de sesion de Windows/SQL.
+-- ===========================================================================
+IF OBJECT_ID('dbo.Servicios_C','U') IS NULL
+BEGIN
+    CREATE TABLE dbo.Servicios_C (
+        Id          INT IDENTITY(1,1) NOT NULL CONSTRAINT PK_Servicios_C PRIMARY KEY,
+        ServicioId  INT               NOT NULL,
+        Fecha       DATE              NOT NULL,
+        Hora        TIME(0)           NOT NULL,
+        Nombre      NVARCHAR(80)      NOT NULL,
+        Descripcion NVARCHAR(250)     NULL,
+        Precio      DECIMAL(12,2)     NOT NULL,
+        Activo      BIT               NOT NULL,
+        Act         BIT               NOT NULL,
+        Operacion   NVARCHAR(20)      NOT NULL,
+        Usuario     NVARCHAR(50)      NOT NULL,
+        CONSTRAINT FK_Servicios_C_Servicio FOREIGN KEY (ServicioId) REFERENCES dbo.Servicios(Id),
+        CONSTRAINT CK_Servicios_C_Operacion CHECK (Operacion IN (N'INICIAL', N'ALTA', N'MODIFICACION', N'BAJA'))
+    );
+    CREATE INDEX IX_Servicios_C_ServicioId ON dbo.Servicios_C(ServicioId);
+END
+GO
+
+-- Una sola version vigente por servicio: lo garantiza el motor, no solo los triggers.
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_Servicios_C_Act' AND object_id = OBJECT_ID('dbo.Servicios_C'))
+    CREATE UNIQUE INDEX UX_Servicios_C_Act ON dbo.Servicios_C(ServicioId) WHERE Act = 1;
+GO
+
+CREATE OR ALTER TRIGGER dbo.TRG_Servicios_Alta
+ON dbo.Servicios
+AFTER INSERT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    IF NOT EXISTS (SELECT 1 FROM inserted) RETURN;
+
+    -- Fecha y hora del cambio, truncadas al segundo (CAST a TIME(0) redondea y a las
+    -- 23:59:59,7 dejaria la fecha de hoy con la hora 00:00:00).
+    DECLARE @ahora DATETIME = GETDATE();
+    SET @ahora = DATEADD(MILLISECOND, -DATEPART(MILLISECOND, @ahora), @ahora);
+    DECLARE @usuario NVARCHAR(50) = COALESCE(CAST(SESSION_CONTEXT(N'EvenTech.Usuario') AS NVARCHAR(50)), LEFT(ORIGINAL_LOGIN(), 50));
+
+    INSERT INTO dbo.Servicios_C (ServicioId, Fecha, Hora, Nombre, Descripcion, Precio, Activo, Act, Operacion, Usuario)
+    SELECT i.Id, CAST(@ahora AS DATE), CAST(@ahora AS TIME(0)), i.Nombre, i.Descripcion, i.Precio, i.Activo, 1, N'ALTA', @usuario
+    FROM inserted i;
+END
+GO
+
+CREATE OR ALTER TRIGGER dbo.TRG_Servicios_Cambio
+ON dbo.Servicios
+AFTER UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    IF NOT EXISTS (SELECT 1 FROM inserted) RETURN;
+
+    -- Fecha y hora del cambio, truncadas al segundo (CAST a TIME(0) redondea y a las
+    -- 23:59:59,7 dejaria la fecha de hoy con la hora 00:00:00).
+    DECLARE @ahora DATETIME = GETDATE();
+    SET @ahora = DATEADD(MILLISECOND, -DATEPART(MILLISECOND, @ahora), @ahora);
+    DECLARE @usuario NVARCHAR(50) = COALESCE(CAST(SESSION_CONTEXT(N'EvenTech.Usuario') AS NVARCHAR(50)), LEFT(ORIGINAL_LOGIN(), 50));
+
+    -- Activacion de una version guardada: solo si la version pedida es de un
+    -- servicio de esta instruccion y sus datos son exactamente los que quedaron
+    -- escritos. Si no coincide, el cambio se trata como una modificacion comun.
+    DECLARE @version INT = TRY_CAST(SESSION_CONTEXT(N'EvenTech.ActivarVersion') AS INT);
+    DECLARE @servicioActivado INT = NULL;
+    IF @version IS NOT NULL
+        SELECT @servicioActivado = c.ServicioId
+        FROM dbo.Servicios_C c
+        JOIN inserted i ON i.Id = c.ServicioId
+        WHERE c.Id = @version
+          AND EXISTS (SELECT i.Nombre COLLATE Latin1_General_BIN2, i.Descripcion COLLATE Latin1_General_BIN2, i.Precio, i.Activo
+                      INTERSECT
+                      SELECT c.Nombre COLLATE Latin1_General_BIN2, c.Descripcion COLLATE Latin1_General_BIN2, c.Precio, c.Activo);
+
+    IF @servicioActivado IS NOT NULL
+    BEGIN
+        UPDATE dbo.Servicios_C SET Act = 0 WHERE ServicioId = @servicioActivado AND Act = 1 AND Id <> @version;
+        UPDATE dbo.Servicios_C SET Act = 1 WHERE Id = @version AND Act = 0;
+    END
+
+    -- Cambios comunes: una version nueva por cada servicio cuyos datos cambiaron.
+    DECLARE @cambios TABLE (Id INT NOT NULL PRIMARY KEY);
+    INSERT INTO @cambios (Id)
+    SELECT i.Id
+    FROM inserted i
+    JOIN deleted d ON d.Id = i.Id
+    WHERE (@servicioActivado IS NULL OR i.Id <> @servicioActivado)
+      AND EXISTS (SELECT i.Nombre COLLATE Latin1_General_BIN2, i.Descripcion COLLATE Latin1_General_BIN2, i.Precio, i.Activo
+                  EXCEPT
+                  SELECT d.Nombre COLLATE Latin1_General_BIN2, d.Descripcion COLLATE Latin1_General_BIN2, d.Precio, d.Activo);
+    IF NOT EXISTS (SELECT 1 FROM @cambios) RETURN;
+
+    UPDATE c SET Act = 0
+    FROM dbo.Servicios_C c
+    JOIN @cambios x ON x.Id = c.ServicioId
+    WHERE c.Act = 1;
+
+    INSERT INTO dbo.Servicios_C (ServicioId, Fecha, Hora, Nombre, Descripcion, Precio, Activo, Act, Operacion, Usuario)
+    SELECT i.Id, CAST(@ahora AS DATE), CAST(@ahora AS TIME(0)), i.Nombre, i.Descripcion, i.Precio, i.Activo, 1,
+           CASE WHEN d.Activo = 1 AND i.Activo = 0 THEN N'BAJA' ELSE N'MODIFICACION' END, @usuario
+    FROM inserted i
+    JOIN deleted d ON d.Id = i.Id
+    JOIN @cambios x ON x.Id = i.Id;
+END
+GO
+
+CREATE OR ALTER TRIGGER dbo.TRG_Servicios_Borrado
+ON dbo.Servicios
+INSTEAD OF DELETE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    -- El borrado es logico: la fila queda, dada de baja (la BAJA la registra el
+    -- trigger de modificacion). Una fila ya dada de baja no cambia.
+    UPDATE s SET Activo = 0
+    FROM dbo.Servicios s
+    JOIN deleted d ON d.Id = s.Id
+    WHERE s.Activo = 1;
+END
+GO
+
+-- Resguardo de la copia (consigna: "a la tabla copia no se le elimina ningun
+-- registro, solo se le agregan o se modifica Act"): un DELETE sobre
+-- Servicios_C se rechaza, y una modificacion que toque otra columna que no sea
+-- Act, tambien. Los dos deshacen la instruccion entera.
+CREATE OR ALTER TRIGGER dbo.TRG_Servicios_C_SinBorrado
+ON dbo.Servicios_C
+INSTEAD OF DELETE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    IF NOT EXISTS (SELECT 1 FROM deleted) RETURN;
+    THROW 51001, N'La bitacora de cambios (Servicios_C) no admite borrar versiones.', 1;
+END
+GO
+
+CREATE OR ALTER TRIGGER dbo.TRG_Servicios_C_SoloAct
+ON dbo.Servicios_C
+AFTER UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    IF NOT EXISTS (SELECT 1 FROM inserted) RETURN;
+    IF UPDATE(ServicioId) OR UPDATE(Fecha) OR UPDATE(Hora) OR UPDATE(Nombre) OR UPDATE(Descripcion)
+       OR UPDATE(Precio) OR UPDATE(Activo) OR UPDATE(Operacion) OR UPDATE(Usuario)
+        THROW 51002, N'En la bitacora de cambios (Servicios_C) solo se modifica Act.', 1;
+END
+GO
+
+-- Linea base: cada servicio que todavia no tiene version en la copia recibe la
+-- suya (INICIAL, vigente) con sus datos actuales. Sobre una base nueva son los
+-- servicios sembrados; sobre una base de la version 2.0, el catalogo que ya
+-- tenia. Idempotente: un servicio con versiones no se vuelve a copiar.
+DECLARE @ahoraBase DATETIME = GETDATE();
+SET @ahoraBase = DATEADD(MILLISECOND, -DATEPART(MILLISECOND, @ahoraBase), @ahoraBase);
+INSERT INTO dbo.Servicios_C (ServicioId, Fecha, Hora, Nombre, Descripcion, Precio, Activo, Act, Operacion, Usuario)
+SELECT s.Id, CAST(@ahoraBase AS DATE), CAST(@ahoraBase AS TIME(0)), s.Nombre, s.Descripcion, s.Precio, s.Activo, 1, N'INICIAL', N'Sistema'
+FROM dbo.Servicios s
+WHERE NOT EXISTS (SELECT 1 FROM dbo.Servicios_C c WHERE c.ServicioId = s.Id);
 GO
 
 -- ===========================================================================

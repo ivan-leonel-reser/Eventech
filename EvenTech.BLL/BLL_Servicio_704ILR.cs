@@ -43,7 +43,9 @@ namespace EvenTech.BLL
             s_704ILR.Precio_704ILR = PrecioComoSeGuarda_704ILR(s_704ILR.Precio_704ILR);
             try
             {
-                nuevoId_704ILR = DAL_Servicio_704ILR.Insert_704ILR(s_704ILR);
+                // El trigger de alta copia la version nueva a la bitacora de cambios
+                // (dbo.Servicios_C) con este usuario.
+                nuevoId_704ILR = DAL_Servicio_704ILR.Insert_704ILR(s_704ILR, BLL_Bitacora_704ILR.UsuarioActual_704ILR());
             }
             catch (SqlException ex_704ILR) when (EsChoqueDeUnicidad_704ILR(ex_704ILR))
             {
@@ -82,7 +84,9 @@ namespace EvenTech.BLL
 
             try
             {
-                DAL_Servicio_704ILR.Update_704ILR(s_704ILR);
+                // El trigger de modificacion deja la version anterior con Act = 0 y la
+                // nueva, vigente, en la bitacora de cambios (BAJA si se desactiva).
+                DAL_Servicio_704ILR.Update_704ILR(s_704ILR, BLL_Bitacora_704ILR.UsuarioActual_704ILR());
             }
             catch (SqlException ex_704ILR) when (EsChoqueDeUnicidad_704ILR(ex_704ILR))
             {

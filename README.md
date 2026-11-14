@@ -234,7 +234,7 @@ viven en ella, y cada acción vuelve a exigir el suyo al ejecutarse.
 | Inicio | Portada de la sesión | (sin restricción) |
 | Reservas | Cotizaciones y reservas, disponibilidad, servicios, cobros, comprobante, historial y versiones | `RESERVA_CREAR`, `RESERVA_EDITAR`, `RESERVA_HISTORIAL`, `RESERVA_RESTAURAR`, `DISPONIBILIDAD_CONSULTAR`, `PAGOS_REGISTRAR`, `PAGOS_ANULAR` |
 | Clientes | Padrón de clientes | `CLIENTES_GESTION` |
-| Servicios | Catálogo de servicios y precios | `SERVICIOS_GESTION` |
+| Maestros | Catálogo de servicios y productos (pestaña **Servicios y productos**) y su **bitácora de cambios**: cada versión de cada servicio, con filtros por código, nombre y fechas, y la activación de una versión anterior | `SERVICIOS_GESTION`, `SERVICIOS_CAMBIOS_VER`, `SERVICIOS_CAMBIOS_ACTIVAR` |
 | Operaciones | Eventos confirmados: personal, cronograma, tareas y supervisión de la ejecución (un diálogo por cada uno) | `PERSONAL_ASIGNAR`, `CRONOGRAMA_GESTION`, `TAREAS_ASIGNAR`, `EJECUCION_SUPERVISAR` |
 | Mi agenda | Turnos del empleado de la sesión: confirmar o rechazar, y consultar sus tareas y el cronograma | `DISPONIBILIDAD_CONFIRMAR`, `AGENDA_CONSULTAR` |
 | Empleados | Ficha del personal, su especialidad y la cuenta con la que responde | `EMPLEADOS_GESTION` |
@@ -297,6 +297,16 @@ independiente del estado comercial: `SIN_ASIGNAR` (sin personal), `EN_COORDINACI
   usuario afectado.
 - Bitácora de toda operación relevante y de los rechazos por regla de negocio,
   y control de cambios campo por campo con la versión previa de cada reserva.
+- Bitácora de cambios del catálogo con **triggers**: `Servicios` es la tabla activa
+  (el borrado es lógico) y `Servicios_C` la tabla copia, con una fila por versión de
+  cada servicio (fecha, hora, operación, usuario) y la marca `Act` en la vigente. La
+  copia la escriben los triggers `TRG_Servicios_Alta`, `TRG_Servicios_Cambio` y
+  `TRG_Servicios_Borrado` (un `DELETE` da de baja), así que también queda registrado
+  un cambio hecho fuera del sistema; si la copia falla, el cambio se deshace. A la
+  copia no se le borran filas ni se le modifica otra columna que `Act`
+  (`TRG_Servicios_C_SinBorrado`, `TRG_Servicios_C_SoloAct`) y un índice único
+  filtrado admite una sola versión vigente por servicio. Activar una versión desde
+  **Maestros** devuelve el servicio a esos datos sin agregar otra versión.
 - Uso desde más de un puesto: las operaciones que validan y escriben sobre una
   misma reserva leen su cabecera con bloqueo y se ejecutan una detrás de la otra;
   las consultas leen el último dato confirmado sin esperar a quien escribe
@@ -320,9 +330,11 @@ de la sesión). La tercera versión suma el control de cambios reunido en un sol
 recorrido (historial, versiones, restauración con y sin permiso, integridad), el
 informe de gestión y su PDF, el registro serializado de excepciones (ida y vuelta,
 caracteres especiales, archivos dañados, lotes, retención) y los temas de la ayuda en
-línea. Son 59 casos numerados `[1]` a `[59]`, más un bloque `[limpieza]` y un
-`[cierre]` que vuelve a verificar la integridad de toda la base al terminar: 61 casos y
-1047 verificaciones en total.
+línea, y la bitácora de cambios del catálogo con triggers (esquema, alta, modificación,
+baja y borrado lógico desde el sistema y por fuera, resguardo de la copia, activación,
+activaciones simultáneas, filtros y permisos). Son 60 casos numerados `[1]` a `[60]`,
+más un bloque `[limpieza]` y un `[cierre]` que vuelve a verificar la integridad de toda
+la base al terminar: 62 casos y 1120 verificaciones en total.
 
 ```bat
 dotnet run --project EvenTech.SmokeTest
