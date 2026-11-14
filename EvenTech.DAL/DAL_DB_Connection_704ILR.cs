@@ -142,6 +142,13 @@ namespace EvenTech.DAL
             "Especialidades", "Empleados", "AsignacionesPersonal", "Cronogramas", "CronogramaActividades",
             "Tareas", "Incidencias", "Servicios_C"
         };
+        // Los triggers de la bitacora de cambios del catalogo: sin ellos (o
+        // deshabilitados) el catalogo dejaria de registrar sus versiones en silencio.
+        private static readonly string[] TriggersRequeridos_704ILR =
+        {
+            "TRG_Servicios_Alta", "TRG_Servicios_Cambio", "TRG_Servicios_Borrado",
+            "TRG_Servicios_C_SinBorrado", "TRG_Servicios_C_SoloAct"
+        };
         private static readonly string[] ColumnasRequeridas_704ILR =
         {
             "Users.PerfilId", "Users.Activo", "Users.Blocked", "Users.FailedAttempts",
@@ -255,8 +262,9 @@ namespace EvenTech.DAL
             }
         }
 
-        // Tablas y columnas del contrato que la base abierta NO tiene, en una sola
-        // consulta: sys.tables para las tablas y COL_LENGTH para las columnas. Las
+        // Tablas, columnas y triggers del contrato que la base abierta NO tiene, en una
+        // sola consulta: sys.tables para las tablas, COL_LENGTH para las columnas y
+        // sys.triggers (habilitados) para los triggers. Las
         // listas VALUES se arman desde los arreglos constantes de arriba (nombres
         // fijos del codigo, no entrada del usuario).
         private static List<string> ObjetosFaltantes_704ILR(SqlConnection cn_704ILR)
@@ -273,12 +281,19 @@ namespace EvenTech.DAL
                     .Append("('").Append(partes_704ILR[0]).Append("','").Append(partes_704ILR[1]).Append("')");
             }
 
+            var triggers_704ILR = new StringBuilder();
+            foreach (string g_704ILR in TriggersRequeridos_704ILR)
+                triggers_704ILR.Append(triggers_704ILR.Length == 0 ? "" : ",").Append("('").Append(g_704ILR).Append("')");
+
             string sql_704ILR =
                 "SELECT v.n FROM (VALUES " + tablas_704ILR + ") v(n) " +
                 "WHERE NOT EXISTS (SELECT 1 FROM sys.tables s WHERE s.name = v.n AND SCHEMA_NAME(s.schema_id) = 'dbo') " +
                 "UNION ALL " +
                 "SELECT v.t + '.' + v.c FROM (VALUES " + columnas_704ILR + ") v(t, c) " +
-                "WHERE OBJECT_ID('dbo.' + v.t, 'U') IS NOT NULL AND COL_LENGTH('dbo.' + v.t, v.c) IS NULL";
+                "WHERE OBJECT_ID('dbo.' + v.t, 'U') IS NOT NULL AND COL_LENGTH('dbo.' + v.t, v.c) IS NULL " +
+                "UNION ALL " +
+                "SELECT v.n FROM (VALUES " + triggers_704ILR + ") v(n) " +
+                "WHERE NOT EXISTS (SELECT 1 FROM sys.triggers g WHERE g.name = v.n AND g.is_disabled = 0)";
 
             var faltantes_704ILR = new List<string>();
             using (var cmd_704ILR = new SqlCommand(sql_704ILR, cn_704ILR))

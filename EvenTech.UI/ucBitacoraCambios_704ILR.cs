@@ -419,6 +419,7 @@ namespace EvenTech.UI
                             "EvenTech", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                         break;
                     case ActivacionVersionResult_704ILR.NombreDuplicado_704ILR:
+                        Aplicar_704ILR();
                         MessageBox.Show(FindForm(), Tr_704ILR.F_704ILR("BCS_NOMBRE_DUPLICADO", "No se puede activar: otro servicio ya usa el nombre «{0}».", v_704ILR.Nombre_704ILR),
                             "EvenTech", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                         break;

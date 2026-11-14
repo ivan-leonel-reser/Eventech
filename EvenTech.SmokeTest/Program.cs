@@ -1096,6 +1096,11 @@ Caso_704ILR("[25] Base existente pero sin esquema o con esquema incompleto:");
             bool okParcial_704ILR = EvenTech.DAL.DAL_DB_Connection_704ILR.Probar_704ILR(cs_704ILR, out string msgParcial_704ILR);
             Esperar_704ILR("esquema incompleto aceptado", okParcial_704ILR, false);
             Esperar_704ILR("mensaje indica esquema incompleto", (msgParcial_704ILR ?? "").Contains("incompleto"), true);
+            // Los triggers de la bitacora de cambios del catalogo tambien son parte del
+            // contrato: sin ellos el catalogo dejaria de registrar sus versiones.
+            Esperar_704ILR("el diagnostico nombra la tabla copia y los triggers que faltan",
+                (msgParcial_704ILR ?? "").Contains("Servicios_C") && msgParcial_704ILR.Contains("TRG_Servicios_Alta")
+                && msgParcial_704ILR.Contains("TRG_Servicios_C_SoloAct"), true);
             Console.WriteLine($"    diagnostico: {msgParcial_704ILR}");
 
             // Control: la base configurada (esquema completo) si pasa el diagnostico.
@@ -4748,12 +4753,18 @@ try
     Esperar_704ILR("DELETE directo: queda dada de baja", Escalar_704ILR("SELECT CAST(Activo AS INT) FROM dbo.Servicios WHERE Id = @id", ("@id", idA60_704ILR)), 0);
     v60_704ILR = V60_704ILR(idA60_704ILR);
     Esperar_704ILR("DELETE directo: una version BAJA vigente", v60_704ILR.Count - versionesAntesDelete_704ILR + "|" + v60_704ILR.Last().Operacion_704ILR + "|" + v60_704ILR.Last().ActNumero_704ILR, "1|BAJA|1");
+    Ejecutar_704ILR("DELETE FROM dbo.Servicios WHERE Id = @id", ("@id", idA60_704ILR));
+    Esperar_704ILR("DELETE de un servicio ya dado de baja: ninguna version nueva", V60_704ILR(idA60_704ILR).Count, v60_704ILR.Count);
 
     // La copia no admite borrados ni cambios fuera de Act (resguardo en la base).
     Esperar_704ILR("DELETE sobre la copia: rechazado", Error60_704ILR("DELETE FROM dbo.Servicios_C WHERE ServicioId = @id", ("@id", idA60_704ILR)), "51001");
     Esperar_704ILR("cambiar el precio de una version: rechazado", Error60_704ILR("UPDATE dbo.Servicios_C SET Precio = 1 WHERE Id = @v", ("@v", idVersion2_704ILR)), "51002");
     Esperar_704ILR("la copia quedo igual", V60_704ILR(idA60_704ILR).Count, v60_704ILR.Count);
     Esperar_704ILR("dos versiones vigentes: rechazado por el indice", Error60_704ILR("UPDATE dbo.Servicios_C SET Act = 1 WHERE Id = @v", ("@v", idVersion2_704ILR)), "2601");
+    Esperar_704ILR("Act cambiado por fuera (vigente a 0): rechazado", Error60_704ILR("UPDATE dbo.Servicios_C SET Act = 0 WHERE ServicioId = @id AND Act = 1", ("@id", idA60_704ILR)), "51003");
+    Esperar_704ILR("Act de una no vigente, aunque no cambie: rechazado", Error60_704ILR("UPDATE dbo.Servicios_C SET Act = 0 WHERE Id = @v", ("@v", idVersion2_704ILR)), "51003");
+    Esperar_704ILR("sigue habiendo una sola vigente, igual a la tabla activa", Escalar_704ILR(VigenteDistinta60_704ILR) + "|" +
+        V60_704ILR(idA60_704ILR).Count(v_704ILR => v_704ILR.Act_704ILR), "0|1");
 
     // Activar una version guardada: la tabla activa toma sus datos, la version
     // pasa a Act = 1 (la unica) y no se agrega otra version.
@@ -4867,6 +4878,14 @@ try
         "WHERE p.Nombre = N'Administrador' AND pe.Clave IN (N'SERVICIOS_CAMBIOS_VER', N'SERVICIOS_CAMBIOS_ACTIVAR')"), 2);
 }
 catch (Exception ex60_704ILR) { Excepcion_704ILR("[60]", ex60_704ILR); CerrarSesion_704ILR(); }
+finally
+{
+    // Si el caso se corto a mitad, los servicios de prueba quedan igual dados de baja
+    // (con el caso completo ya lo estan y la instruccion no cambia nada).
+    if (idA60_704ILR > 0 || idB60_704ILR > 0)
+        try { Ejecutar_704ILR("UPDATE dbo.Servicios SET Activo = 0 WHERE Id IN (@a, @b) AND Activo = 1", ("@a", idA60_704ILR), ("@b", idB60_704ILR)); }
+        catch (Exception exFin60_704ILR) { Console.WriteLine("  [60] limpieza: " + exFin60_704ILR.Message); }
+}
 
 // ---------------------------------------------------------------------------
 // Limpieza final: lo que cada caso no alcanzo a limpiar (por una excepcion en el

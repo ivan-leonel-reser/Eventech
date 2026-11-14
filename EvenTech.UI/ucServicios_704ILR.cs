@@ -337,7 +337,8 @@ namespace EvenTech.UI
             FijarLineaBase_704ILR(s_704ILR);
         }
 
-        // Vuelve a leer el catalogo y deja la ficha en alta limpia. La usa la seccion
+        // Vuelve a leer el catalogo y deja la ficha como al abrir la seccion (sin lo que
+        // se hubiera tipeado y con la primera fila cargada). La usa la seccion
         // Maestros al volver a esta pestana: desde la bitacora de cambios se pudo activar
         // una version de un servicio y la grilla mostraria los datos anteriores. La
         // seccion pregunta antes de descartar cambios sin guardar (IVistaConCambios).

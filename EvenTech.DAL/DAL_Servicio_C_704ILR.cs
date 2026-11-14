@@ -39,8 +39,9 @@ namespace EvenTech.DAL
             if (!string.IsNullOrWhiteSpace(f_704ILR.Nombre_704ILR) && f_704ILR.NombreExacto_704ILR)
             {
                 // El nombre elegido de la lista de la pantalla: esa version y no las de un
-                // nombre que lo contenga ("DJ" no trae "DJ y sonido").
-                sb_704ILR.Append("AND c.Nombre = @nombre ");
+                // nombre que lo contenga ("DJ" no trae "DJ y sonido"), comparado en binario
+                // como arma la lista la pantalla ("dj y sonido" no trae "DJ y sonido").
+                sb_704ILR.Append("AND c.Nombre COLLATE Latin1_General_BIN2 = @nombre ");
                 ps_704ILR.Add(new SqlParameter("@nombre", SqlDbType.NVarChar, AnchoNombre_704ILR) { Value = f_704ILR.Nombre_704ILR });
             }
             else if (!string.IsNullOrWhiteSpace(f_704ILR.Nombre_704ILR))

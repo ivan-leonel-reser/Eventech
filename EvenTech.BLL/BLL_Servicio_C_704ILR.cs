@@ -72,7 +72,7 @@ namespace EvenTech.BLL
             {
                 activada_704ILR = DAL_Servicio_C_704ILR.Activar_704ILR(versionId_704ILR, BLL_Bitacora_704ILR.UsuarioActual_704ILR(), out escrita_704ILR);
             }
-            catch (SqlException ex_704ILR) when (ex_704ILR.Number == 2601 || ex_704ILR.Number == 2627)
+            catch (SqlException ex_704ILR) when (BLL_Servicio_704ILR.EsChoqueDeUnicidad_704ILR(ex_704ILR))
             {
                 // Otra sesion guardo al mismo tiempo un servicio con ese nombre.
                 AsentarRechazo_704ILR(version_704ILR, "otra sesion guardo al mismo tiempo un servicio con ese nombre");

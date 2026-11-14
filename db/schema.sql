@@ -4142,10 +4142,11 @@ GO
 --    clave de sesion EvenTech.ActivarVersion) no agrega version: mueve Act a la
 --    version elegida, cuyos datos son los que se acaban de escribir.
 --  * TRG_Servicios_Borrado (INSTEAD OF DELETE): un DELETE no borra la fila,
---    la da de baja (Activo = 0); esa modificacion dispara TRG_Servicios_Cambio,
---    que registra la BAJA (triggers anidados, opcion por defecto del servidor).
+--    la da de baja (Activo = 0) y registra el mismo la version BAJA (no depende
+--    de la opcion "nested triggers" del servidor).
 --  * TRG_Servicios_C_SinBorrado y TRG_Servicios_C_SoloAct resguardan la copia:
---    no se borran versiones y de una version solo cambia Act.
+--    no se borran versiones, de una version solo cambia Act y Act solo lo cambian
+--    los triggers de Servicios.
 -- El usuario llega en la clave de sesion EvenTech.Usuario (la escribe la capa de
 -- datos en la misma conexion); sin ella, el inicio de sesion de Windows/SQL.
 -- ===========================================================================
@@ -4170,7 +4171,9 @@ BEGIN
 END
 GO
 
--- Una sola version vigente por servicio: lo garantiza el motor, no solo los triggers.
+-- A lo sumo una version vigente por servicio: lo garantiza el motor. Que haya
+-- exactamente una, la que coincide con la tabla activa, lo mantienen los triggers,
+-- que son los unicos que cambian Act (TRG_Servicios_C_SoloAct).
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_Servicios_C_Act' AND object_id = OBJECT_ID('dbo.Servicios_C'))
     CREATE UNIQUE INDEX UX_Servicios_C_Act ON dbo.Servicios_C(ServicioId) WHERE Act = 1;
 GO
@@ -4202,6 +4205,10 @@ AS
 BEGIN
     SET NOCOUNT ON;
     IF NOT EXISTS (SELECT 1 FROM inserted) RETURN;
+    -- La baja que hace TRG_Servicios_Borrado la registra ese mismo trigger: asi la
+    -- version BAJA queda igual con la opcion "nested triggers" del servidor encendida
+    -- (este trigger se dispara desde aquel) o apagada (no se dispara).
+    IF TRIGGER_NESTLEVEL(OBJECT_ID(N'dbo.TRG_Servicios_Borrado')) > 0 RETURN;
 
     -- Fecha y hora del cambio, truncadas al segundo (CAST a TIME(0) redondea y a las
     -- 23:59:59,7 dejaria la fecha de hoy con la hora 00:00:00).
@@ -4261,19 +4268,44 @@ INSTEAD OF DELETE
 AS
 BEGIN
     SET NOCOUNT ON;
-    -- El borrado es logico: la fila queda, dada de baja (la BAJA la registra el
-    -- trigger de modificacion). Una fila ya dada de baja no cambia.
+    IF NOT EXISTS (SELECT 1 FROM deleted) RETURN;
+    -- El borrado es logico: la fila queda, dada de baja, y la version BAJA la
+    -- registra este mismo trigger (TRG_Servicios_Cambio no la registra cuando lo
+    -- dispara este). Una fila ya dada de baja no cambia ni agrega version.
+    DECLARE @ahora DATETIME = GETDATE();
+    SET @ahora = DATEADD(MILLISECOND, -DATEPART(MILLISECOND, @ahora), @ahora);
+    DECLARE @usuario NVARCHAR(50) = COALESCE(CAST(SESSION_CONTEXT(N'EvenTech.Usuario') AS NVARCHAR(50)), LEFT(ORIGINAL_LOGIN(), 50));
+
+    DECLARE @bajas TABLE (Id INT NOT NULL PRIMARY KEY);
+    INSERT INTO @bajas (Id)
+    SELECT s.Id FROM dbo.Servicios s JOIN deleted d ON d.Id = s.Id WHERE s.Activo = 1;
+    IF NOT EXISTS (SELECT 1 FROM @bajas) RETURN;
+
     UPDATE s SET Activo = 0
     FROM dbo.Servicios s
-    JOIN deleted d ON d.Id = s.Id
-    WHERE s.Activo = 1;
+    JOIN @bajas b ON b.Id = s.Id;
+
+    UPDATE c SET Act = 0
+    FROM dbo.Servicios_C c
+    JOIN @bajas b ON b.Id = c.ServicioId
+    WHERE c.Act = 1;
+
+    INSERT INTO dbo.Servicios_C (ServicioId, Fecha, Hora, Nombre, Descripcion, Precio, Activo, Act, Operacion, Usuario)
+    SELECT s.Id, CAST(@ahora AS DATE), CAST(@ahora AS TIME(0)), s.Nombre, s.Descripcion, s.Precio, s.Activo, 1, N'BAJA', @usuario
+    FROM dbo.Servicios s
+    JOIN @bajas b ON b.Id = s.Id;
 END
 GO
 
 -- Resguardo de la copia (consigna: "a la tabla copia no se le elimina ningun
 -- registro, solo se le agregan o se modifica Act"): un DELETE sobre
--- Servicios_C se rechaza, y una modificacion que toque otra columna que no sea
--- Act, tambien. Los dos deshacen la instruccion entera.
+-- Servicios_C se rechaza; una modificacion que toque otra columna que no sea
+-- Act, tambien; y Act solo lo cambian los triggers de Servicios (al registrar,
+-- dar de baja o activar una version): un UPDATE directo de Act dejaria un
+-- servicio sin version vigente o con una vigente distinta de la tabla activa.
+-- Los rechazos deshacen la instruccion entera. Borrar la tabla entera (TRUNCATE)
+-- o deshabilitar un trigger son cambios de estructura, reservados al
+-- administrador de la base de datos.
 CREATE OR ALTER TRIGGER dbo.TRG_Servicios_C_SinBorrado
 ON dbo.Servicios_C
 INSTEAD OF DELETE
@@ -4295,6 +4327,10 @@ BEGIN
     IF UPDATE(ServicioId) OR UPDATE(Fecha) OR UPDATE(Hora) OR UPDATE(Nombre) OR UPDATE(Descripcion)
        OR UPDATE(Precio) OR UPDATE(Activo) OR UPDATE(Operacion) OR UPDATE(Usuario)
         THROW 51002, N'En la bitacora de cambios (Servicios_C) solo se modifica Act.', 1;
+    IF UPDATE(Act)
+       AND TRIGGER_NESTLEVEL(OBJECT_ID(N'dbo.TRG_Servicios_Cambio')) = 0
+       AND TRIGGER_NESTLEVEL(OBJECT_ID(N'dbo.TRG_Servicios_Borrado')) = 0
+        THROW 51003, N'Act de la bitacora de cambios (Servicios_C) solo lo cambian los triggers de Servicios: para volver a una version, se la activa desde Maestros.', 1;
 END
 GO
 

@@ -174,8 +174,12 @@ namespace EvenTech.BLL
         // validacion previa con el mismo nombre: el motor rechaza la segunda escritura y
         // aca se informa como nombre duplicado en lugar de propagar la excepcion del motor.
         // 2601 y 2627 son los errores de indice unico y de restriccion unica.
-        private static bool EsChoqueDeUnicidad_704ILR(SqlException ex_704ILR)
-            => ex_704ILR.Number == 2601 || ex_704ILR.Number == 2627;
+        // Solo cuenta el choque con UQ_Servicios_Nombre: un 2601 de otro indice unico
+        // (por ejemplo, el de la version vigente de la bitacora de cambios) no es un
+        // nombre duplicado y se propaga como lo que es.
+        internal static bool EsChoqueDeUnicidad_704ILR(SqlException ex_704ILR)
+            => (ex_704ILR.Number == 2601 || ex_704ILR.Number == 2627)
+               && ex_704ILR.Message.IndexOf("UQ_Servicios_Nombre", StringComparison.OrdinalIgnoreCase) >= 0;
 
         private static void AsentarRechazo_704ILR(string accion_704ILR, string detalle_704ILR)
             => BLL_Bitacora_704ILR.Registrar_704ILR("Servicios", accion_704ILR, CriticidadBitacora_704ILR.Advertencia, detalle_704ILR);
