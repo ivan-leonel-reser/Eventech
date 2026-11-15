@@ -33,6 +33,7 @@ namespace EvenTech.UI
         public const string TemaHistorial_704ILR = "historial";
         public const string TemaClientes_704ILR = "clientes";
         public const string TemaServicios_704ILR = "servicios";
+        public const string TemaBitacoraCambios_704ILR = "bitacora_cambios";
         public const string TemaOperaciones_704ILR = "operaciones";
         public const string TemaAsignarPersonal_704ILR = "asignar_personal";
         public const string TemaCronograma_704ILR = "cronograma";
@@ -52,7 +53,7 @@ namespace EvenTech.UI
         {
             TemaInicio_704ILR, TemaPrimerosPasos_704ILR, TemaReservas_704ILR, TemaDisponibilidad_704ILR,
             TemaServiciosReserva_704ILR, TemaPagos_704ILR, TemaHistorial_704ILR, TemaClientes_704ILR,
-            TemaServicios_704ILR, TemaOperaciones_704ILR, TemaAsignarPersonal_704ILR, TemaCronograma_704ILR,
+            TemaServicios_704ILR, TemaBitacoraCambios_704ILR, TemaOperaciones_704ILR, TemaAsignarPersonal_704ILR, TemaCronograma_704ILR,
             TemaTareas_704ILR, TemaSupervision_704ILR, TemaAgenda_704ILR, TemaEmpleados_704ILR,
             TemaPerfiles_704ILR, TemaAuditoria_704ILR, TemaInformes_704ILR, TemaIdiomas_704ILR,
             TemaConexion_704ILR, TemaProblemas_704ILR

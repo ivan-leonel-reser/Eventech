@@ -308,6 +308,11 @@ namespace EvenTech.BLL
             { "ASG_RESUMEN",                "{0} {1} {2} {3}" },// asignados, confirmados, pendientes, rechazados
             { "ASG_SIN_CUENTA_CONF",        "{0}" },            // empleado sin cuenta vinculada
             { "AUD_RECALC_OK",              "{0} {1}" },        // reservas recalculadas (con sus pagos), inconsistencias
+            { "BCS_CONFIRMA",               "{0} {1} {2}" },    // fecha y hora de la version, servicio (#id)
+            { "BCS_CONFIRMA_DATOS",         "{0} {1} {2}" },    // nombre, precio y estado de la version
+            { "BCS_COUNT",                  "{0}" },            // versiones listadas
+            { "BCS_NOMBRE_DUPLICADO",       "{0}" },            // nombre que ya usa otro servicio
+            { "BCS_OK",                     "{0} {1} {2}" },    // servicio (#id), fecha y hora de la version activada
             { "CONN_ESQUEMA_INCOMPLETO",    "{0} {1}" },        // base, objetos faltantes
             { "COORD_EVENTO",               "{0} {1} {2} {3} {4}" }, // reserva, fecha, salon, cliente, invitados
             { "CRYPTO_CLAVE_INVALIDA",      "{0}" },            // ruta del archivo de clave

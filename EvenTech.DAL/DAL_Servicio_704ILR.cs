@@ -66,28 +66,51 @@ namespace EvenTech.DAL
             }
         }
 
-        public static int Insert_704ILR(BE_Servicio_704ILR s_704ILR)
+        // Alta y modificacion. dbo.Servicios tiene triggers que copian cada cambio a la
+        // tabla copia dbo.Servicios_C (bitacora de cambios, T06.B): el comando deja en la
+        // sesion el usuario de la aplicacion para que el trigger lo registre. El Id nuevo
+        // se lee con SCOPE_IDENTITY(): el motor no admite OUTPUT sin INTO sobre una
+        // tabla con triggers, y el trigger inserta en otra tabla (otro ambito).
+        public static int Insert_704ILR(BE_Servicio_704ILR s_704ILR, string usuario_704ILR)
         {
             using (var cn_704ILR = new DAL_DB_Connection_704ILR())
-            using (var cmd_704ILR = new SqlCommand(
-                "INSERT INTO dbo.Servicios (Nombre, Descripcion, Precio, Activo) " +
-                "OUTPUT INSERTED.Id VALUES (@n, @d, @p, @a)", cn_704ILR.OpenConnection_704ILR()))
             {
-                Bind_704ILR(cmd_704ILR, s_704ILR);
-                return (int)cmd_704ILR.ExecuteScalar();
+                SqlConnection conn_704ILR = cn_704ILR.OpenConnection_704ILR();
+                try
+                {
+                    using (var cmd_704ILR = new SqlCommand(
+                        DAL_Servicio_C_704ILR.PrefijoEscritura_704ILR +
+                        "INSERT INTO dbo.Servicios (Nombre, Descripcion, Precio, Activo) VALUES (@n, @d, @p, @a); " +
+                        "SELECT CAST(SCOPE_IDENTITY() AS INT);", conn_704ILR))
+                    {
+                        Bind_704ILR(cmd_704ILR, s_704ILR);
+                        DAL_Servicio_C_704ILR.AgregarUsuario_704ILR(cmd_704ILR, usuario_704ILR);
+                        return (int)cmd_704ILR.ExecuteScalar();
+                    }
+                }
+                finally { DAL_Servicio_C_704ILR.LimpiarSesion_704ILR(conn_704ILR); }
             }
         }
 
-        public static void Update_704ILR(BE_Servicio_704ILR s_704ILR)
+        public static void Update_704ILR(BE_Servicio_704ILR s_704ILR, string usuario_704ILR)
         {
             using (var cn_704ILR = new DAL_DB_Connection_704ILR())
-            using (var cmd_704ILR = new SqlCommand(
-                "UPDATE dbo.Servicios SET Nombre=@n, Descripcion=@d, Precio=@p, Activo=@a WHERE Id=@id",
-                cn_704ILR.OpenConnection_704ILR()))
             {
-                Bind_704ILR(cmd_704ILR, s_704ILR);
-                cmd_704ILR.Parameters.Add("@id", SqlDbType.Int).Value = s_704ILR.Id_704ILR;
-                cmd_704ILR.ExecuteNonQuery();
+                SqlConnection conn_704ILR = cn_704ILR.OpenConnection_704ILR();
+                try
+                {
+                    using (var cmd_704ILR = new SqlCommand(
+                        DAL_Servicio_C_704ILR.PrefijoEscritura_704ILR +
+                        "UPDATE dbo.Servicios SET Nombre=@n, Descripcion=@d, Precio=@p, Activo=@a WHERE Id=@id",
+                        conn_704ILR))
+                    {
+                        Bind_704ILR(cmd_704ILR, s_704ILR);
+                        cmd_704ILR.Parameters.Add("@id", SqlDbType.Int).Value = s_704ILR.Id_704ILR;
+                        DAL_Servicio_C_704ILR.AgregarUsuario_704ILR(cmd_704ILR, usuario_704ILR);
+                        cmd_704ILR.ExecuteNonQuery();
+                    }
+                }
+                finally { DAL_Servicio_C_704ILR.LimpiarSesion_704ILR(conn_704ILR); }
             }
         }
 

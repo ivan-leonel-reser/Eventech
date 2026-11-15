@@ -76,13 +76,18 @@ Usuario inicial: **admin / admin123** (perfil Administrador, acceso total). Es l
 única cuenta que siembra el script. Los perfiles sí los siembra: son **seis**
 —Administrador, Vendedor, Supervisor (incluye a Vendedor), Gerencial (incluye a
 Supervisor), Coordinador y Empleado—, con sus permisos y las dos inclusiones del
-Composite; el árbol tiene **30 permisos** (7 grupos y 23 asignables, entre ellos los
-de la versión 3.0: `INFORMES_VER`, para el informe de gestión, y `EXCEPCIONES_VER`,
-para el registro de excepciones de Auditoría) y cada idioma, **746 claves de
-traducción**. El script crea **27 tablas**: las veinte de seguridad, reservas,
-auditoría e idiomas, y las siete de la coordinación de eventos (`Especialidades`,
-`Empleados`, `AsignacionesPersonal`, `Cronogramas`, `CronogramaActividades`,
-`Tareas` e `Incidencias`), más la columna `Reservas.EstadoCoordinacion`.
+Composite; el árbol tiene **32 permisos** (7 grupos y 25 asignables, entre ellos los
+de la versión 3.0: `INFORMES_VER`, para el informe de gestión, `EXCEPCIONES_VER`,
+para el registro de excepciones de Auditoría, y `SERVICIOS_CAMBIOS_VER` y
+`SERVICIOS_CAMBIOS_ACTIVAR`, para la bitácora de cambios del catálogo en Maestros) y
+cada idioma, **791 claves de traducción**. El script crea **28 tablas**: las veinte de
+seguridad, reservas, auditoría e idiomas, las siete de la coordinación de eventos
+(`Especialidades`, `Empleados`, `AsignacionesPersonal`, `Cronogramas`,
+`CronogramaActividades`, `Tareas` e `Incidencias`), más la columna
+`Reservas.EstadoCoordinacion`, y la tabla copia `Servicios_C` de la bitácora de cambios
+del catálogo, que escriben los triggers de `Servicios` (cinco triggers en total: ver el
+último bloque del script). Sobre una base anterior, cada servicio recibe su versión
+`INICIAL` vigente.
 
 **Versión de la base.** El asistente de instalación graba en la propia base la versión
 que la creó o la actualizó (propiedad extendida `EvenTech_Version`, sin tabla) y con ella
@@ -126,15 +131,21 @@ email mal escrito), de modo que la ficha del cliente nunca queda trabada.
 
 ## Opción B — Restaurar el snapshot completo (con datos)
 
-`EvenTechDB.bak` es un backup full de la versión 3.0, **generado el 01/11/2026 a las
-12:42** (en una base exclusiva de pruebas, con `refrescar_demo.ps1 -Base EvenTechDemoE3`),
+`EvenTechDB.bak` es un backup full de la versión 3.0, **generado el 14/11/2026 a las
+19:19** (en una base exclusiva de pruebas, con `refrescar_demo.ps1 -Base EvenTechDemoE3`),
 con los
 datos de demostración: 12 clientes (contactos en texto plano), 24 reservas
 repartidas en los tres salones y los cuatro estados (11 CONFIRMADA, 6 COTIZACIÓN,
 5 PENDIENTE y 2 CANCELADA), 95 líneas de servicios contratados, 11 pagos (toda
 CONFIRMADA tiene su adelanto, RN-07), 15 versiones con 17 asientos de historial
-de cambios y 155 asientos de bitácora de esas operaciones. La reserva #4 acumula
+de cambios y 161 asientos de bitácora de esas operaciones. La reserva #4 acumula
 dos modificaciones, para recorrer su historial y sus versiones.
+
+El catálogo tiene 7 servicios y su bitácora de cambios (`Servicios_C`), 11 versiones:
+la inicial de los seis sembrados, dos aumentos de precio (Catering por persona y DJ
+y sonido), un precio cargado por error en Fotografía y video que se corrigió
+activando la versión anterior —su versión vigente no es la última—, y el alta y la
+baja de Mesa dulce. Se recorre en *Maestros → Bitácora de cambios*.
 
 De la coordinación de eventos trae las 9 especialidades, 12 empleados (11 activos,
 cada uno con su cuenta, y 1 dado de baja), 19 asignaciones de personal repartidas

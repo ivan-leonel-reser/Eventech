@@ -904,6 +904,8 @@ try
                         "DISPONIBILIDAD_CONFIRMAR", "AGENDA_CONSULTAR", "EJECUCION_SUPERVISAR",
                         // Entrega 3: informe de gestion (A02) y registro de excepciones (A03).
                         "INFORMES_VER", "EXCEPCIONES_VER",
+                        // Entrega 3: bitacora de cambios del catalogo (T06.B, seccion Maestros).
+                        "SERVICIOS_CAMBIOS_VER", "SERVICIOS_CAMBIOS_ACTIVAR",
                         // Respaldos de la base y resolucion de la alerta de integridad.
                         "RESPALDO_CREAR", "RESPALDO_RESTAURAR" };
     // Solo se recogen las claves de las HOJAS (BE_Permiso): un grupo con el mismo
@@ -923,7 +925,7 @@ try
     // Y al reves: una hoja que ninguna pantalla exige es un permiso que se asigna
     // y no habilita nada.
     var sobran_704ILR = enArbol_704ILR.Where(c_704ILR => !usadas_704ILR.Contains(c_704ILR, StringComparer.OrdinalIgnoreCase)).ToList();
-    Esperar_704ILR("hojas del arbol de permisos", enArbol_704ILR.Count, 25);
+    Esperar_704ILR("hojas del arbol de permisos", enArbol_704ILR.Count, 27);
     Esperar_704ILR("claves de la UI que faltan como hoja del arbol",
         faltan_704ILR.Count == 0 ? "ninguna" : string.Join(", ", faltan_704ILR), "ninguna");
     Esperar_704ILR("hojas del arbol que ninguna pantalla exige",
@@ -1096,6 +1098,11 @@ Caso_704ILR("[25] Base existente pero sin esquema o con esquema incompleto:");
             bool okParcial_704ILR = EvenTech.DAL.DAL_DB_Connection_704ILR.Probar_704ILR(cs_704ILR, out string msgParcial_704ILR);
             Esperar_704ILR("esquema incompleto aceptado", okParcial_704ILR, false);
             Esperar_704ILR("mensaje indica esquema incompleto", (msgParcial_704ILR ?? "").Contains("incompleto"), true);
+            // Los triggers de la bitacora de cambios del catalogo tambien son parte del
+            // contrato: sin ellos el catalogo dejaria de registrar sus versiones.
+            Esperar_704ILR("el diagnostico nombra la tabla copia y los triggers que faltan",
+                (msgParcial_704ILR ?? "").Contains("Servicios_C") && msgParcial_704ILR.Contains("TRG_Servicios_Alta")
+                && msgParcial_704ILR.Contains("TRG_Servicios_C_SoloAct"), true);
             Console.WriteLine($"    diagnostico: {msgParcial_704ILR}");
 
             // Control: la base configurada (esquema completo) si pasa el diagnostico.
@@ -4611,7 +4618,7 @@ try
         .Where(f_704ILR => f_704ILR.IsLiteral && f_704ILR.Name.StartsWith("Tema")).Select(f_704ILR => (string)f_704ILR.GetRawConstantValue()).ToList();
     Esperar_704ILR("cada constante de tema esta en la lista de temas",
         constantes59_704ILR.Where(t_704ILR => !EvenTech.UI.Ayuda_704ILR.Temas_704ILR.Contains(t_704ILR)).Count(), 0);
-    Esperar_704ILR("temas declarados", EvenTech.UI.Ayuda_704ILR.Temas_704ILR.Length, 22);
+    Esperar_704ILR("temas declarados", EvenTech.UI.Ayuda_704ILR.Temas_704ILR.Length, 23);
     if (EvenTech.UI.Ayuda_704ILR.Disponible_704ILR)
     {
         Directory.CreateDirectory(tmp59_704ILR);
@@ -4632,6 +4639,255 @@ catch (Exception ex59_704ILR) { Excepcion_704ILR("[59]", ex59_704ILR); }
 finally { try { if (Directory.Exists(tmp59_704ILR)) Directory.Delete(tmp59_704ILR, true); } catch { } }
 
 // ---------------------------------------------------------------------------
+// [60] T06.B Bitacora de cambios del catalogo con triggers (consigna de la catedra):
+// dbo.Servicios es la tabla activa y dbo.Servicios_C la copia. Esquema (tabla,
+// triggers, indice unico de Act, linea base); alta, modificacion y baja desde la
+// aplicacion y desde una consulta directa (los triggers registran todo, con el
+// usuario); guardar sin cambios no agrega version; un DELETE da de baja; la copia
+// no admite borrados ni cambios fuera de Act; activar una version (Act = 1, sin
+// version nueva, la tabla activa toma sus datos, asiento); ya vigente, inexistente
+// y nombre ocupado; activaciones simultaneas (una sola vigente, sin interbloqueos);
+// filtros por codigo, nombre y fechas; permisos en la capa de negocio. Los dos
+// servicios de prueba quedan dados de baja (el borrado es logico: es su rastro).
+// ---------------------------------------------------------------------------
+Caso_704ILR("[60] T06.B Bitacora de cambios del catalogo (Servicios_C, triggers y Act):");
+int idA60_704ILR = 0, idB60_704ILR = 0;
+try
+{
+    string Texto60_704ILR(string sql_704ILR)
+    {
+        using var cn_704ILR = new EvenTech.DAL.DAL_DB_Connection_704ILR();
+        using var cmd_704ILR = new Microsoft.Data.SqlClient.SqlCommand(sql_704ILR, cn_704ILR.OpenConnection_704ILR());
+        return Convert.ToString(cmd_704ILR.ExecuteScalar());
+    }
+    string Error60_704ILR(string sql_704ILR, params (string nombre_704ILR, object valor_704ILR)[] parametros_704ILR)
+    {
+        try { Ejecutar_704ILR(sql_704ILR, parametros_704ILR); return "sin error"; }
+        catch (Microsoft.Data.SqlClient.SqlException exSql_704ILR) { return exSql_704ILR.Number.ToString(); }
+    }
+
+    // Esquema y linea base.
+    Esperar_704ILR("tabla copia dbo.Servicios_C", Escalar_704ILR("SELECT COUNT(*) FROM sys.tables WHERE name = N'Servicios_C' AND schema_id = SCHEMA_ID(N'dbo')"), 1);
+    Esperar_704ILR("triggers habilitados en dbo.Servicios", Escalar_704ILR(
+        "SELECT COUNT(*) FROM sys.triggers WHERE parent_id = OBJECT_ID(N'dbo.Servicios') AND is_disabled = 0 " +
+        "AND name IN (N'TRG_Servicios_Alta', N'TRG_Servicios_Cambio', N'TRG_Servicios_Borrado')"), 3);
+    Esperar_704ILR("triggers de resguardo en dbo.Servicios_C", Escalar_704ILR(
+        "SELECT COUNT(*) FROM sys.triggers WHERE parent_id = OBJECT_ID(N'dbo.Servicios_C') AND is_disabled = 0 " +
+        "AND name IN (N'TRG_Servicios_C_SinBorrado', N'TRG_Servicios_C_SoloAct')"), 2);
+    Esperar_704ILR("indice unico filtrado de Act", Escalar_704ILR(
+        "SELECT COUNT(*) FROM sys.indexes WHERE name = N'UX_Servicios_C_Act' AND object_id = OBJECT_ID(N'dbo.Servicios_C') AND is_unique = 1 AND has_filter = 1"), 1);
+    Esperar_704ILR("cada servicio tiene exactamente una version vigente", Escalar_704ILR(
+        "SELECT COUNT(*) FROM dbo.Servicios s WHERE (SELECT COUNT(*) FROM dbo.Servicios_C c WHERE c.ServicioId = s.Id AND c.Act = 1) <> 1"), 0);
+    string VigenteDistinta60_704ILR =
+        "SELECT COUNT(*) FROM dbo.Servicios s JOIN dbo.Servicios_C c ON c.ServicioId = s.Id AND c.Act = 1 " +
+        "WHERE NOT EXISTS (SELECT s.Nombre COLLATE Latin1_General_BIN2, s.Descripcion COLLATE Latin1_General_BIN2, s.Precio, s.Activo " +
+        "INTERSECT SELECT c.Nombre COLLATE Latin1_General_BIN2, c.Descripcion COLLATE Latin1_General_BIN2, c.Precio, c.Activo)";
+    Esperar_704ILR("la version vigente coincide con la tabla activa", Escalar_704ILR(VigenteDistinta60_704ILR), 0);
+
+    // Con la sesion del administrador (tiene los dos permisos de la bitacora).
+    Esperar_704ILR("sesion del administrador", BLL_Login_704ILR.Authenticate_704ILR("admin", Encrypt_704ILR.HashValue_704ILR("admin123")).Result_704ILR, LoginResult_704ILR.Success_704ILR);
+    Esperar_704ILR("admin tiene SERVICIOS_CAMBIOS_VER", SessionManager_704ILR.GetInstance_704ILR.TienePermiso_704ILR("SERVICIOS_CAMBIOS_VER"), true);
+    Esperar_704ILR("admin tiene SERVICIOS_CAMBIOS_ACTIVAR", SessionManager_704ILR.GetInstance_704ILR.TienePermiso_704ILR("SERVICIOS_CAMBIOS_ACTIVAR"), true);
+
+    List<EvenTech.BE.BE_Servicio_C_704ILR> V60_704ILR(int id_704ILR) =>
+        BLL_Servicio_C_704ILR.Buscar_704ILR(new EvenTech.BE.FiltrosServicio_C_704ILR { ServicioId_704ILR = id_704ILR });
+    EvenTech.BE.BE_Servicio_704ILR S60_704ILR(int id_704ILR) => BLL_Servicio_704ILR.GetAll_704ILR().Single(x_704ILR => x_704ILR.Id_704ILR == id_704ILR);
+    string Acts60_704ILR(int id_704ILR) => string.Join(",", V60_704ILR(id_704ILR).Select(v_704ILR => v_704ILR.ActNumero_704ILR));
+
+    // Alta: el trigger copia la version nueva, vigente, con el usuario de la sesion.
+    string nombreA60_704ILR = "Servicio smoke " + suf_704ILR;
+    Esperar_704ILR("alta del servicio de prueba", BLL_Servicio_704ILR.Crear_704ILR(new EvenTech.BE.BE_Servicio_704ILR
+        { Nombre_704ILR = nombreA60_704ILR, Descripcion_704ILR = "Version 1", Precio_704ILR = 100m, Activo_704ILR = true }, out idA60_704ILR),
+        ServicioResult_704ILR.Success_704ILR);
+    var v60_704ILR = V60_704ILR(idA60_704ILR);
+    Esperar_704ILR("alta: una version", v60_704ILR.Count, 1);
+    Esperar_704ILR("alta: operacion", v60_704ILR[0].Operacion_704ILR, "ALTA");
+    Esperar_704ILR("alta: Act = 1", v60_704ILR[0].ActNumero_704ILR, 1);
+    Esperar_704ILR("alta: usuario de la sesion", v60_704ILR[0].Usuario_704ILR, "admin");
+    Esperar_704ILR("alta: datos copiados", v60_704ILR[0].Nombre_704ILR + "|" + v60_704ILR[0].Descripcion_704ILR + "|" + v60_704ILR[0].Precio_704ILR.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture),
+        nombreA60_704ILR + "|Version 1|100.00");
+    Esperar_704ILR("alta: fecha y hora del cambio (hoy, al segundo)",
+        Math.Abs((v60_704ILR[0].Fecha_704ILR.Date + v60_704ILR[0].Hora_704ILR - DateTime.Now).TotalMinutes) < 5, true);
+
+    // Modificacion: la version anterior pasa a Act = 0 y la nueva queda vigente.
+    var sA60_704ILR = S60_704ILR(idA60_704ILR);
+    sA60_704ILR.Precio_704ILR = 150m;
+    sA60_704ILR.Descripcion_704ILR = "Version 2";
+    Esperar_704ILR("modificacion desde la aplicacion", BLL_Servicio_704ILR.Actualizar_704ILR(sA60_704ILR), ServicioResult_704ILR.Success_704ILR);
+    v60_704ILR = V60_704ILR(idA60_704ILR);
+    Esperar_704ILR("modificacion: dos versiones, solo la nueva vigente", Acts60_704ILR(idA60_704ILR), "0,1");
+    Esperar_704ILR("modificacion: operacion", v60_704ILR[1].Operacion_704ILR, "MODIFICACION");
+    Esperar_704ILR("modificacion: precio nuevo en la copia", v60_704ILR[1].Precio_704ILR, 150m);
+    int idVersion2_704ILR = v60_704ILR[1].Id_704ILR;
+
+    // Guardar sin cambios no agrega version: lo corta la capa de negocio y, en una
+    // consulta directa con los mismos datos, el trigger.
+    Esperar_704ILR("guardar sin cambios", BLL_Servicio_704ILR.Actualizar_704ILR(S60_704ILR(idA60_704ILR)), ServicioResult_704ILR.Success_704ILR);
+    Ejecutar_704ILR("UPDATE dbo.Servicios SET Precio = Precio, Nombre = Nombre WHERE Id = @id", ("@id", idA60_704ILR));
+    Esperar_704ILR("sin cambios: ninguna version nueva", V60_704ILR(idA60_704ILR).Count, 2);
+
+    // Una diferencia de mayusculas es un cambio (comparacion binaria).
+    Ejecutar_704ILR("UPDATE dbo.Servicios SET Descripcion = N'VERSION 2' WHERE Id = @id", ("@id", idA60_704ILR));
+    Esperar_704ILR("mayusculas: version nueva", V60_704ILR(idA60_704ILR).Count, 3);
+
+    // Cambio fuera de la aplicacion: el trigger lo registra igual, con el inicio de
+    // sesion del motor (no hay usuario de la aplicacion en la sesion).
+    Ejecutar_704ILR("UPDATE dbo.Servicios SET Precio = 175 WHERE Id = @id", ("@id", idA60_704ILR));
+    v60_704ILR = V60_704ILR(idA60_704ILR);
+    Esperar_704ILR("cambio directo: registrado y vigente", v60_704ILR.Last().Precio_704ILR + "|" + v60_704ILR.Last().ActNumero_704ILR, 175.00m + "|1");
+    Esperar_704ILR("cambio directo: usuario = inicio de sesion del motor", v60_704ILR.Last().Usuario_704ILR, Texto60_704ILR("SELECT LEFT(ORIGINAL_LOGIN(), 50)"));
+    Esperar_704ILR("cambio directo: la clave de sesion no quedo en la conexion", Texto60_704ILR("SELECT CAST(SESSION_CONTEXT(N'EvenTech.Usuario') AS NVARCHAR(50))"), "");
+
+    // Baja logica desde la aplicacion (Activo = 0): version BAJA.
+    sA60_704ILR = S60_704ILR(idA60_704ILR);
+    sA60_704ILR.Activo_704ILR = false;
+    Esperar_704ILR("baja desde la aplicacion", BLL_Servicio_704ILR.Actualizar_704ILR(sA60_704ILR), ServicioResult_704ILR.Success_704ILR);
+    v60_704ILR = V60_704ILR(idA60_704ILR);
+    Esperar_704ILR("baja: operacion y estado", v60_704ILR.Last().Operacion_704ILR + "|" + v60_704ILR.Last().Activo_704ILR, "BAJA|False");
+    sA60_704ILR.Activo_704ILR = true;
+    Esperar_704ILR("reactivar desde la aplicacion", BLL_Servicio_704ILR.Actualizar_704ILR(sA60_704ILR), ServicioResult_704ILR.Success_704ILR);
+    Esperar_704ILR("reactivar: modificacion vigente", V60_704ILR(idA60_704ILR).Last().Operacion_704ILR, "MODIFICACION");
+
+    // Un DELETE directo no borra: da de baja (y el trigger de modificacion registra la BAJA).
+    int versionesAntesDelete_704ILR = V60_704ILR(idA60_704ILR).Count;
+    Ejecutar_704ILR("DELETE FROM dbo.Servicios WHERE Id = @id", ("@id", idA60_704ILR));
+    Esperar_704ILR("DELETE directo: la fila sigue en la tabla activa", Escalar_704ILR("SELECT COUNT(*) FROM dbo.Servicios WHERE Id = @id", ("@id", idA60_704ILR)), 1);
+    Esperar_704ILR("DELETE directo: queda dada de baja", Escalar_704ILR("SELECT CAST(Activo AS INT) FROM dbo.Servicios WHERE Id = @id", ("@id", idA60_704ILR)), 0);
+    v60_704ILR = V60_704ILR(idA60_704ILR);
+    Esperar_704ILR("DELETE directo: una version BAJA vigente", v60_704ILR.Count - versionesAntesDelete_704ILR + "|" + v60_704ILR.Last().Operacion_704ILR + "|" + v60_704ILR.Last().ActNumero_704ILR, "1|BAJA|1");
+    Ejecutar_704ILR("DELETE FROM dbo.Servicios WHERE Id = @id", ("@id", idA60_704ILR));
+    Esperar_704ILR("DELETE de un servicio ya dado de baja: ninguna version nueva", V60_704ILR(idA60_704ILR).Count, v60_704ILR.Count);
+
+    // La copia no admite borrados ni cambios fuera de Act (resguardo en la base).
+    Esperar_704ILR("DELETE sobre la copia: rechazado", Error60_704ILR("DELETE FROM dbo.Servicios_C WHERE ServicioId = @id", ("@id", idA60_704ILR)), "51001");
+    Esperar_704ILR("cambiar el precio de una version: rechazado", Error60_704ILR("UPDATE dbo.Servicios_C SET Precio = 1 WHERE Id = @v", ("@v", idVersion2_704ILR)), "51002");
+    Esperar_704ILR("la copia quedo igual", V60_704ILR(idA60_704ILR).Count, v60_704ILR.Count);
+    Esperar_704ILR("dos versiones vigentes: rechazado por el indice", Error60_704ILR("UPDATE dbo.Servicios_C SET Act = 1 WHERE Id = @v", ("@v", idVersion2_704ILR)), "2601");
+    Esperar_704ILR("Act cambiado por fuera (vigente a 0): rechazado", Error60_704ILR("UPDATE dbo.Servicios_C SET Act = 0 WHERE ServicioId = @id AND Act = 1", ("@id", idA60_704ILR)), "51003");
+    Esperar_704ILR("Act de una no vigente, aunque no cambie: rechazado", Error60_704ILR("UPDATE dbo.Servicios_C SET Act = 0 WHERE Id = @v", ("@v", idVersion2_704ILR)), "51003");
+    Esperar_704ILR("sigue habiendo una sola vigente, igual a la tabla activa", Escalar_704ILR(VigenteDistinta60_704ILR) + "|" +
+        V60_704ILR(idA60_704ILR).Count(v_704ILR => v_704ILR.Act_704ILR), "0|1");
+
+    // Activar una version guardada: la tabla activa toma sus datos, la version
+    // pasa a Act = 1 (la unica) y no se agrega otra version.
+    int versionesAntesActivar_704ILR = V60_704ILR(idA60_704ILR).Count;
+    int asientosActivar_704ILR = Asientos_704ILR("Servicios", "Version de servicio activada");
+    var rAct60_704ILR = BLL_Servicio_C_704ILR.Activar_704ILR(idVersion2_704ILR, out EvenTech.BE.BE_Servicio_C_704ILR act60_704ILR);
+    Esperar_704ILR("activar la version 2", rAct60_704ILR, ActivacionVersionResult_704ILR.Success_704ILR);
+    Esperar_704ILR("activar: no agrega version", V60_704ILR(idA60_704ILR).Count, versionesAntesActivar_704ILR);
+    Esperar_704ILR("activar: la elegida es la unica con Act = 1",
+        string.Join(",", V60_704ILR(idA60_704ILR).Where(v_704ILR => v_704ILR.Act_704ILR).Select(v_704ILR => v_704ILR.Id_704ILR)), idVersion2_704ILR.ToString());
+    sA60_704ILR = S60_704ILR(idA60_704ILR);
+    Esperar_704ILR("activar: la tabla activa toma los datos de la version",
+        sA60_704ILR.Descripcion_704ILR + "|" + sA60_704ILR.Precio_704ILR.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) + "|" + sA60_704ILR.Activo_704ILR, "Version 2|150.00|True");
+    Esperar_704ILR("activar: asiento 'Version de servicio activada'", Asientos_704ILR("Servicios", "Version de servicio activada") - asientosActivar_704ILR, 1);
+    Esperar_704ILR("activar: version vigente = tabla activa (todo el catalogo)", Escalar_704ILR(VigenteDistinta60_704ILR), 0);
+    Esperar_704ILR("activar otra vez la misma: ya vigente", BLL_Servicio_C_704ILR.Activar_704ILR(idVersion2_704ILR, out _), ActivacionVersionResult_704ILR.YaVigente_704ILR);
+    Esperar_704ILR("activar una version inexistente", BLL_Servicio_C_704ILR.Activar_704ILR(int.MaxValue, out _), ActivacionVersionResult_704ILR.VersionInexistente_704ILR);
+    Esperar_704ILR("activar con un id invalido", BLL_Servicio_C_704ILR.Activar_704ILR(0, out _), ActivacionVersionResult_704ILR.VersionInexistente_704ILR);
+
+    // Despues de activar, una modificacion vuelve a agregar version vigente.
+    sA60_704ILR.Precio_704ILR = 160m;
+    Esperar_704ILR("modificar despues de activar", BLL_Servicio_704ILR.Actualizar_704ILR(sA60_704ILR), ServicioResult_704ILR.Success_704ILR);
+    v60_704ILR = V60_704ILR(idA60_704ILR);
+    Esperar_704ILR("la version 2 vuelve a Act = 0 y la nueva queda vigente",
+        v60_704ILR.Single(v_704ILR => v_704ILR.Id_704ILR == idVersion2_704ILR).ActNumero_704ILR + "|" + v60_704ILR.Last().ActNumero_704ILR + "|" + v60_704ILR.Last().Precio_704ILR.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture), "0|1|160.00");
+
+    // Nombre ocupado: A pasa a llamarse distinto, B toma el nombre viejo de A y la
+    // version vieja de A ya no se puede activar (UQ_Servicios_Nombre). Se asienta.
+    sA60_704ILR.Nombre_704ILR = nombreA60_704ILR + " bis";
+    Esperar_704ILR("renombrar A", BLL_Servicio_704ILR.Actualizar_704ILR(sA60_704ILR), ServicioResult_704ILR.Success_704ILR);
+    Esperar_704ILR("alta de B con el nombre viejo de A", BLL_Servicio_704ILR.Crear_704ILR(new EvenTech.BE.BE_Servicio_704ILR
+        { Nombre_704ILR = nombreA60_704ILR, Precio_704ILR = 10m, Activo_704ILR = true }, out idB60_704ILR), ServicioResult_704ILR.Success_704ILR);
+    int rechazos60_704ILR = Asientos_704ILR("Servicios", "Activacion de version rechazada");
+    var antesDup60_704ILR = S60_704ILR(idA60_704ILR);
+    Esperar_704ILR("activar una version con nombre ocupado", BLL_Servicio_C_704ILR.Activar_704ILR(idVersion2_704ILR, out _), ActivacionVersionResult_704ILR.NombreDuplicado_704ILR);
+    Esperar_704ILR("nombre ocupado: rechazo asentado", Asientos_704ILR("Servicios", "Activacion de version rechazada") - rechazos60_704ILR, 1);
+    var despuesDup60_704ILR = S60_704ILR(idA60_704ILR);
+    Esperar_704ILR("nombre ocupado: el servicio no cambio", despuesDup60_704ILR.Nombre_704ILR + "|" + despuesDup60_704ILR.Precio_704ILR, antesDup60_704ILR.Nombre_704ILR + "|" + antesDup60_704ILR.Precio_704ILR);
+    Esperar_704ILR("nombre ocupado: la vigente sigue siendo la ultima", V60_704ILR(idA60_704ILR).Last().ActNumero_704ILR, 1);
+
+    // Activaciones simultaneas de dos versiones del mismo servicio: se ordenan (sin
+    // interbloqueos) y al final hay una sola vigente, igual a la tabla activa.
+    v60_704ILR = V60_704ILR(idA60_704ILR);
+    // Las versiones con el nombre viejo de A chocan con B: se usan las de nombre " bis"
+    // (la vigente) y una version nueva con otro precio, para tener dos activables.
+    sA60_704ILR = S60_704ILR(idA60_704ILR);
+    sA60_704ILR.Precio_704ILR = 170m;
+    BLL_Servicio_704ILR.Actualizar_704ILR(sA60_704ILR);
+    v60_704ILR = V60_704ILR(idA60_704ILR);
+    var activables60_704ILR = v60_704ILR.Where(v_704ILR => v_704ILR.Nombre_704ILR == nombreA60_704ILR + " bis").Select(v_704ILR => v_704ILR.Id_704ILR).ToList();
+    Esperar_704ILR("hay dos versiones activables con el nombre nuevo", activables60_704ILR.Count >= 2, true);
+    var resultados60_704ILR = new System.Collections.Concurrent.ConcurrentBag<string>();
+    var tareas60_704ILR = Enumerable.Range(0, 8).Select(i_704ILR => System.Threading.Tasks.Task.Run(() =>
+    {
+        try { resultados60_704ILR.Add(BLL_Servicio_C_704ILR.Activar_704ILR(activables60_704ILR[i_704ILR % 2], out _).ToString()); }
+        catch (Exception exT_704ILR) { resultados60_704ILR.Add(exT_704ILR.GetType().Name + ": " + exT_704ILR.Message); }
+    })).ToArray();
+    System.Threading.Tasks.Task.WaitAll(tareas60_704ILR);
+    Esperar_704ILR("activaciones simultaneas: sin excepciones",
+        resultados60_704ILR.Count(r_704ILR => r_704ILR != "Success_704ILR" && r_704ILR != "YaVigente_704ILR"), 0);
+    foreach (var r_704ILR in resultados60_704ILR.Where(r_704ILR => r_704ILR != "Success_704ILR" && r_704ILR != "YaVigente_704ILR")) Console.WriteLine("   - " + r_704ILR);
+    Esperar_704ILR("activaciones simultaneas: una sola vigente", V60_704ILR(idA60_704ILR).Count(v_704ILR => v_704ILR.Act_704ILR), 1);
+    Esperar_704ILR("activaciones simultaneas: vigente = tabla activa", Escalar_704ILR(VigenteDistinta60_704ILR), 0);
+    Esperar_704ILR("activaciones simultaneas: no agregan versiones", V60_704ILR(idA60_704ILR).Count, v60_704ILR.Count);
+
+    // Filtros de la pantalla: codigo, nombre (contenido) y fechas.
+    var porNombre60_704ILR = BLL_Servicio_C_704ILR.Buscar_704ILR(new EvenTech.BE.FiltrosServicio_C_704ILR { Nombre_704ILR = "smoke " + suf_704ILR });
+    Esperar_704ILR("filtro por nombre: las versiones de A y de B",
+        porNombre60_704ILR.Count, V60_704ILR(idA60_704ILR).Count + V60_704ILR(idB60_704ILR).Count);
+    Esperar_704ILR("filtro por nombre exacto (el de la lista): sin las de ' bis'",
+        BLL_Servicio_C_704ILR.Buscar_704ILR(new EvenTech.BE.FiltrosServicio_C_704ILR { Nombre_704ILR = nombreA60_704ILR, NombreExacto_704ILR = true })
+            .All(v_704ILR => v_704ILR.Nombre_704ILR == nombreA60_704ILR), true);
+    Esperar_704ILR("filtro por nombre exacto: las versiones de B y las de A con ese nombre",
+        BLL_Servicio_C_704ILR.Buscar_704ILR(new EvenTech.BE.FiltrosServicio_C_704ILR { Nombre_704ILR = nombreA60_704ILR, NombreExacto_704ILR = true }).Count,
+        V60_704ILR(idA60_704ILR).Count(v_704ILR => v_704ILR.Nombre_704ILR == nombreA60_704ILR) + V60_704ILR(idB60_704ILR).Count);
+    Esperar_704ILR("filtro por nombre con comodines literales", BLL_Servicio_C_704ILR.Buscar_704ILR(new EvenTech.BE.FiltrosServicio_C_704ILR { Nombre_704ILR = "%smoke_" + suf_704ILR }).Count, 0);
+    Esperar_704ILR("filtro por codigo y fecha de hoy", BLL_Servicio_C_704ILR.Buscar_704ILR(new EvenTech.BE.FiltrosServicio_C_704ILR
+        { ServicioId_704ILR = idB60_704ILR, FechaInicial_704ILR = DateTime.Today.AddDays(-1), FechaFinal_704ILR = DateTime.Today.AddDays(1) }).Count, 1);
+    Esperar_704ILR("filtro por fechas futuras: nada", BLL_Servicio_C_704ILR.Buscar_704ILR(new EvenTech.BE.FiltrosServicio_C_704ILR
+        { ServicioId_704ILR = idA60_704ILR, FechaInicial_704ILR = DateTime.Today.AddDays(2) }).Count, 0);
+    Esperar_704ILR("rango invertido: nada", BLL_Servicio_C_704ILR.Buscar_704ILR(new EvenTech.BE.FiltrosServicio_C_704ILR
+        { FechaInicial_704ILR = DateTime.Today, FechaFinal_704ILR = DateTime.Today.AddDays(-1) }).Count, 0);
+    var orden60_704ILR = V60_704ILR(idA60_704ILR);
+    Esperar_704ILR("orden cronologico", orden60_704ILR.Select(v_704ILR => v_704ILR.Id_704ILR).SequenceEqual(orden60_704ILR.Select(v_704ILR => v_704ILR.Id_704ILR).OrderBy(x_704ILR => x_704ILR)), true);
+
+    // Rastro: los dos servicios de prueba quedan dados de baja (borrado logico).
+    foreach (int id_704ILR in new[] { idA60_704ILR, idB60_704ILR })
+    {
+        var s_704ILR = S60_704ILR(id_704ILR);
+        s_704ILR.Activo_704ILR = false;
+        BLL_Servicio_704ILR.Actualizar_704ILR(s_704ILR);
+    }
+    Esperar_704ILR("servicios de prueba dados de baja", Escalar_704ILR("SELECT COUNT(*) FROM dbo.Servicios WHERE Id IN (@a, @b) AND Activo = 1", ("@a", idA60_704ILR), ("@b", idB60_704ILR)), 0);
+    CerrarSesion_704ILR();
+
+    // Tercera capa: una sesion sin los permisos de la bitacora no consulta ni activa.
+    Esperar_704ILR("sesion del empleado (perfil Empleado)", SesionDelEmpleado_704ILR(), true);
+    string denegadoVer60_704ILR = "sin excepcion", denegadoAct60_704ILR = "sin excepcion";
+    try { BLL_Servicio_C_704ILR.Buscar_704ILR(null); }
+    catch (PermisoDenegadoException_704ILR exP_704ILR) { denegadoVer60_704ILR = exP_704ILR.Clave_704ILR; }
+    try { BLL_Servicio_C_704ILR.Activar_704ILR(idVersion2_704ILR, out _); }
+    catch (PermisoDenegadoException_704ILR exP_704ILR) { denegadoAct60_704ILR = exP_704ILR.Clave_704ILR; }
+    CerrarSesion_704ILR();
+    Esperar_704ILR("consultar sin el permiso", denegadoVer60_704ILR, "SERVICIOS_CAMBIOS_VER");
+    Esperar_704ILR("activar sin el permiso", denegadoAct60_704ILR, "SERVICIOS_CAMBIOS_ACTIVAR");
+    Esperar_704ILR("Vendedor no tiene los permisos de la bitacora", Escalar_704ILR(
+        "SELECT COUNT(*) FROM dbo.PerfilPermiso pp JOIN dbo.Perfiles p ON p.Id = pp.PerfilId JOIN dbo.Permisos pe ON pe.Id = pp.PermisoId " +
+        "WHERE p.Nombre = N'Vendedor' AND pe.Clave IN (N'SERVICIOS_CAMBIOS_VER', N'SERVICIOS_CAMBIOS_ACTIVAR')"), 0);
+    Esperar_704ILR("Administrador tiene los dos permisos", Escalar_704ILR(
+        "SELECT COUNT(*) FROM dbo.PerfilPermiso pp JOIN dbo.Perfiles p ON p.Id = pp.PerfilId JOIN dbo.Permisos pe ON pe.Id = pp.PermisoId " +
+        "WHERE p.Nombre = N'Administrador' AND pe.Clave IN (N'SERVICIOS_CAMBIOS_VER', N'SERVICIOS_CAMBIOS_ACTIVAR')"), 2);
+}
+catch (Exception ex60_704ILR) { Excepcion_704ILR("[60]", ex60_704ILR); CerrarSesion_704ILR(); }
+finally
+{
+    // Si el caso se corto a mitad, los servicios de prueba quedan igual dados de baja
+    // (con el caso completo ya lo estan y la instruccion no cambia nada).
+    if (idA60_704ILR > 0 || idB60_704ILR > 0)
+        try { Ejecutar_704ILR("UPDATE dbo.Servicios SET Activo = 0 WHERE Id IN (@a, @b) AND Activo = 1", ("@a", idA60_704ILR), ("@b", idB60_704ILR)); }
+        catch (Exception exFin60_704ILR) { Console.WriteLine("  [60] limpieza: " + exFin60_704ILR.Message); }
+}
 // [61] Respaldos de la base y las dos salidas de la alerta de integridad. Es la
 // prueba que hace el docente: alterar los datos por fuera del sistema, ver que la
 // verificacion lo delata y resolverlo restaurando un respaldo anterior o
@@ -4807,6 +5063,9 @@ try
     Console.WriteLine($"    HistorialCambios: {Escalar_704ILR("SELECT COUNT(*) FROM dbo.HistorialCambios WHERE Entidad = 'Reserva' AND EntidadId IN (" + ids_704ILR + ")")}");
     Console.WriteLine($"    Bitacora: {Escalar_704ILR("SELECT COUNT(*) FROM dbo.Bitacora WHERE Id > @id", ("@id", bitacoraInicio_704ILR))}");
     Console.WriteLine($"    LoginAuditLog: {Escalar_704ILR("SELECT COUNT(*) FROM dbo.LoginAuditLog WHERE Id > @id", ("@id", auditoriaInicio_704ILR))}");
+    // El catalogo no borra servicios (borrado logico): los de [60] quedan dados de baja, con sus versiones.
+    Console.WriteLine($"    Servicios de prueba dados de baja: {Escalar_704ILR("SELECT COUNT(*) FROM dbo.Servicios WHERE Nombre LIKE @n AND Activo = 0", ("@n", "Servicio smoke " + suf_704ILR + "%"))}" +
+                      $" (versiones en Servicios_C: {Escalar_704ILR("SELECT COUNT(*) FROM dbo.Servicios_C c JOIN dbo.Servicios s ON s.Id = c.ServicioId WHERE s.Nombre LIKE @n", ("@n", "Servicio smoke " + suf_704ILR + "%"))})");
 }
 catch (Exception exLimpieza_704ILR) { Excepcion_704ILR("[limpieza]", exLimpieza_704ILR); }
 

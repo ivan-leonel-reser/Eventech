@@ -64,7 +64,9 @@ namespace EvenTech.BLL
                 ? detalle_704ILR.Substring(0, MaxDetalle_704ILR - 3) + "..."
                 : detalle_704ILR;
 
-        private static string UsuarioActual_704ILR()
+        // Usuario de la sesion ("Sistema" sin sesion). Tambien lo usa el catalogo de
+        // servicios para que los triggers de la bitacora de cambios lo registren.
+        internal static string UsuarioActual_704ILR()
         {
             try
             {
