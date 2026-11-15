@@ -91,7 +91,7 @@ namespace EvenTech.UI
         private static readonly string[] PermisosClientes_704ILR  = { "CLIENTES_GESTION" };
         private static readonly string[] PermisosServicios_704ILR = { "SERVICIOS_GESTION" };
         private static readonly string[] PermisosPerfiles_704ILR  = { "PERFILES_GESTION" };
-        private static readonly string[] PermisosAuditoria_704ILR = { "BITACORA_VER", "AUDIT_LOGIN_VER", "INTEGRIDAD_RECALC", "EXCEPCIONES_VER" };
+        private static readonly string[] PermisosAuditoria_704ILR = { "BITACORA_VER", "AUDIT_LOGIN_VER", "INTEGRIDAD_RECALC", "EXCEPCIONES_VER", "RESPALDO_CREAR", "RESPALDO_RESTAURAR" };
         // Proceso 2. Operaciones reune los pasos del coordinador y la supervision de la
         // ejecucion; Mi agenda es la vista del empleado sobre sus propios turnos.
         private static readonly string[] PermisosOperaciones_704ILR = { "PERSONAL_ASIGNAR", "CRONOGRAMA_GESTION", "TAREAS_ASIGNAR", "EJECUCION_SUPERVISAR" };

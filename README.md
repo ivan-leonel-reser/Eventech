@@ -242,7 +242,7 @@ viven en ella, y cada acción vuelve a exigir el suyo al ejecutarse.
 | Empleados | Ficha del personal, su especialidad y la cuenta con la que responde | `EMPLEADOS_GESTION` |
 | Informes | Informe de gestión del período (reservas por estado, cobranza, ocupación de los salones, operaciones por vencer, eventos) y su exportación a PDF | `INFORMES_VER` |
 | Perfiles | Perfiles, permisos y asignación a usuarios | `PERFILES_GESTION` |
-| Auditoría | Bitácora, auditoría de acceso, registro de excepciones y línea base de integridad | `BITACORA_VER`, `AUDIT_LOGIN_VER`, `EXCEPCIONES_VER`, `INTEGRIDAD_RECALC` |
+| Auditoría | Bitácora, auditoría de acceso, registro de excepciones, respaldos de la base (crear y restaurar) y línea base de integridad | `BITACORA_VER`, `AUDIT_LOGIN_VER`, `EXCEPCIONES_VER`, `RESPALDO_CREAR`, `RESPALDO_RESTAURAR`, `INTEGRIDAD_RECALC` |
 | Ayuda | Manual de usuario (también con **F1** desde cualquier pantalla) | (sin restricción) |
 
 La gestión de idiomas (`IDIOMAS_GESTION`) se abre desde el selector de idioma del
@@ -289,6 +289,14 @@ independiente del estado comercial: `SIN_ASIGNAR` (sin personal), `EN_COORDINACI
   cada cobro guardan el horizontal en la misma transacción y recalculan el
   vertical; se verifican al arrancar, antes del login, y delatan una fila
   alterada, agregada o quitada por fuera del sistema.
+- Con datos alterados el sistema queda bloqueado: al arrancar avisa qué encontró y
+  solo ingresa una cuenta con permiso para resolverlo, que elige entre **restaurar un
+  respaldo** tomado antes de la alteración (`RESPALDO_RESTAURAR`; antes se respalda la
+  base actual y, si el respaldo elegido no sirve, la base vuelve a como estaba) o
+  **recalcular los dígitos verificadores** (`INTEGRIDAD_RECALC`). Los respaldos se crean
+  desde Auditoría y viven en `%ProgramData%\EvenTech\respaldos`, con permiso para la
+  cuenta del servicio de SQL Server. Para probarlo, `herramientas\PruebaIntegridad.ps1`
+  altera la base por fuera del sistema (ver [herramientas/README.md](herramientas/README.md)).
 - Permisos por perfil con **denegar por defecto** y triple control: la sección se
   oculta, la pantalla vuelve a exigir el permiso al ejecutar la acción y la capa de
   negocio lo exige otra vez a la sesión abierta antes de escribir (un rechazo ahí
@@ -322,9 +330,10 @@ de la sesión). La tercera versión suma el control de cambios reunido en un sol
 recorrido (historial, versiones, restauración con y sin permiso, integridad), el
 informe de gestión y su PDF, el registro serializado de excepciones (ida y vuelta,
 caracteres especiales, archivos dañados, lotes, retención) y los temas de la ayuda en
-línea. Son 59 casos numerados `[1]` a `[59]`, más un bloque `[limpieza]` y un
-`[cierre]` que vuelve a verificar la integridad de toda la base al terminar: 61 casos y
-1047 verificaciones en total.
+línea, y los respaldos con las dos salidas de la alerta de integridad (alterar la base
+por fuera, restaurar el respaldo y recalcular). Son 60 casos numerados `[1]` a `[59]` y
+`[61]`, más un bloque `[limpieza]` y un `[cierre]` que vuelve a verificar la integridad
+de toda la base al terminar: 62 casos y 1074 verificaciones en total.
 
 ```bat
 dotnet run --project EvenTech.SmokeTest
@@ -369,6 +378,7 @@ la fecha del día, sobre un salón que esté libre hoy.
 | `instalador/scripts/` | Guiones del asistente: instancia, base de datos y conexión |
 | `instalador/construir.ps1` | Publica la aplicación y compila el instalador |
 | `instalador/README.md` | Alcance, pasos y construcción del instalador |
+| `herramientas/PruebaIntegridad.ps1` | Prueba de los dígitos verificadores: altera la base por fuera del sistema (con respaldo previo) |
 | `EvenTech.UI/Ayuda/` | Ayuda en línea: páginas HTML, proyecto de HTML Help y el manual compilado `EvenTech.chm` |
 | `Directory.Build.props` | Versión de la entrega, común a todos los proyectos |
 | `Directory.Build.targets` | Agrega a cada ensamblado el commit del que salió el código |

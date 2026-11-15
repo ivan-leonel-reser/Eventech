@@ -21,6 +21,7 @@ namespace EvenTech.UI
         private readonly TabPage _tabBitacora_704ILR;   // null si el usuario no tiene BITACORA_VER
         private readonly TabPage _tabLogin_704ILR;      // null si el usuario no tiene AUDIT_LOGIN_VER
         private readonly TabPage _tabExcepciones_704ILR; // null si el usuario no tiene EXCEPCIONES_VER (A03)
+        private readonly TabPage _tabRespaldos_704ILR;   // null sin RESPALDO_CREAR ni RESPALDO_RESTAURAR
         private readonly AppButton_704ILR _btnRecalc_704ILR;   // null si el usuario no tiene permiso
         private readonly Label _lblSinConsulta_704ILR;   // solo cuando no hay ninguna pestana
 
@@ -51,6 +52,16 @@ namespace EvenTech.UI
                 _tabExcepciones_704ILR = new TabPage { BackColor = Theme_704ILR.BgContent_704ILR, Padding = new Padding(0, Theme_704ILR.SpaceSm_704ILR, 0, 0), UseVisualStyleBackColor = true };
                 _tabExcepciones_704ILR.Controls.Add(new ucExcepciones_704ILR { Dock = DockStyle.Fill });
                 _tabs_704ILR.TabPages.Add(_tabExcepciones_704ILR);
+            }
+            // Respaldos de la base: crearlos y restaurar uno (con cualquiera de los dos permisos;
+            // cada accion pide el suyo).
+            if (Permisos_704ILR.TieneAlguno_704ILR(BLL_Respaldo_704ILR.PermisoCrear_704ILR, BLL_Respaldo_704ILR.PermisoRestaurar_704ILR))
+            {
+                _tabRespaldos_704ILR = new TabPage { BackColor = Theme_704ILR.BgContent_704ILR, Padding = new Padding(0, Theme_704ILR.SpaceSm_704ILR, 0, 0), UseVisualStyleBackColor = true };
+                var respaldos_704ILR = new ucRespaldos_704ILR { Dock = DockStyle.Fill };
+                respaldos_704ILR.Restaurado_704ILR += (s_704ILR, r_704ILR) => ReiniciarConLaBaseRestaurada_704ILR();
+                _tabRespaldos_704ILR.Controls.Add(respaldos_704ILR);
+                _tabs_704ILR.TabPages.Add(_tabRespaldos_704ILR);
             }
             Controls.Add(_tabs_704ILR);
             // La seccion tambien se abre con solo INTEGRIDAD_RECALC (el recalculo de
@@ -120,6 +131,15 @@ namespace EvenTech.UI
             }
         }
 
+        // Restaurado un respaldo, la base es otra: cuentas, permisos e idiomas se vuelven a
+        // leer desde cero, como al cambiar la conexion (el aviso ya lo dio ucRespaldos).
+        private static void ReiniciarConLaBaseRestaurada_704ILR()
+        {
+            try { BLL_Login_704ILR.Logout_704ILR(); } catch { /* la aplicacion se reinicia igual */ }
+            Application.Restart();
+            Environment.Exit(0);
+        }
+
         // Devuelve la traduccion de 'clave' o, si falta, el texto por defecto dado.
         private static string T_704ILR(string clave_704ILR, string defecto_704ILR)
         {
@@ -132,6 +152,7 @@ namespace EvenTech.UI
             if (_tabBitacora_704ILR != null) _tabBitacora_704ILR.Text = T_704ILR("AUD_TAB_BITACORA", "Bitácora general");
             if (_tabLogin_704ILR != null) _tabLogin_704ILR.Text = T_704ILR("AUD_TAB_LOGIN", "Auditoría de login");
             if (_tabExcepciones_704ILR != null) _tabExcepciones_704ILR.Text = T_704ILR("AUD_TAB_EXCEPCIONES", "Registro de excepciones");
+            if (_tabRespaldos_704ILR != null) _tabRespaldos_704ILR.Text = T_704ILR("AUD_TAB_RESPALDOS", "Respaldos");
             if (_btnRecalc_704ILR != null) _btnRecalc_704ILR.Text = T_704ILR("AUD_RECALC_BTN", "Recalcular línea base");
             if (_lblSinConsulta_704ILR != null)
                 _lblSinConsulta_704ILR.Text = T_704ILR("AUD_SIN_CONSULTA", "El perfil no tiene permisos de consulta de auditoría.");

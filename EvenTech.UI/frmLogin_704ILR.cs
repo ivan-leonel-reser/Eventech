@@ -1,6 +1,7 @@
 using System;
 using System.Drawing;
 using System.Windows.Forms;
+using EvenTech.BE;
 using EvenTech.BLL;
 using EvenTech.Services;
 
@@ -285,6 +286,14 @@ namespace EvenTech.UI
                     // Si la carga de idiomas del arranque fallo, se reintenta antes de armar
                     // la ventana principal: la base acaba de responder a la autenticacion.
                     Program_704ILR.ReintentarIdiomas_704ILR("al entrar a la ventana principal");
+                    // Con los datos alterados por fuera del sistema no se opera: se resuelve
+                    // antes (restaurar un respaldo o recalcular), o no se ingresa.
+                    if (!IntegridadResuelta_704ILR())
+                    {
+                        try { BLL_Login_704ILR.Logout_704ILR(); } catch { /* la pantalla vuelve al ingreso igual */ }
+                        RestablecerPantalla_704ILR();
+                        break;
+                    }
                     Hide();
                     using (var main_704ILR = new frmMain_704ILR()) main_704ILR.ShowDialog();
                     RestablecerPantalla_704ILR();
@@ -306,6 +315,54 @@ namespace EvenTech.UI
                     SetError_704ILR(() => T_704ILR("LOGIN_INACTIVA", "La cuenta está inactiva. Contactate con un administrador."));
                     break;
             }
+        }
+
+        // Verificacion de integridad al ingresar (la del arranque puede haber quedado vieja:
+        // la aplicacion pudo quedar abierta en esta pantalla). Con inconsistencias, solo
+        // entra quien puede resolverlas, y despues de resolverlas: restaurar un respaldo
+        // (la aplicacion se reinicia con la base restaurada) o recalcular la linea base.
+        // Una verificacion que no puede correr no bloquea el ingreso: ya se aviso al
+        // arrancar y quedo asentado (mismo criterio que Program_704ILR).
+        private bool IntegridadResuelta_704ILR()
+        {
+            ResultadoIntegridad_704ILR integridad_704ILR;
+            try { integridad_704ILR = BLL_Integridad_704ILR.Verificar_704ILR(); }
+            catch (Exception ex_704ILR)
+            {
+                BLL_Bitacora_704ILR.RegistrarExcepcion_704ILR(ex_704ILR, "Integridad", "Verificacion al ingresar");
+                return true;
+            }
+            if (integridad_704ILR.Ok_704ILR) return true;
+
+            if (!Permisos_704ILR.TieneAlguno_704ILR("INTEGRIDAD_RECALC", BLL_Respaldo_704ILR.PermisoRestaurar_704ILR))
+            {
+                BLL_Bitacora_704ILR.Registrar_704ILR("Seguridad", "Ingreso bloqueado por integridad", CriticidadBitacora_704ILR.Advertencia,
+                    $"Cuenta sin permiso para resolverlo | {integridad_704ILR.Inconsistencias_704ILR.Count} inconsistencia(s)");
+                MessageBox.Show(this,
+                    T_704ILR("ALERT_BLOQUEADO", "El sistema no está disponible: se detectaron datos alterados por fuera del sistema. Avise a un administrador: hasta que lo resuelva, solo puede ingresar un usuario con permiso para restaurar un respaldo o recalcular los dígitos verificadores."),
+                    "EvenTech", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return false;
+            }
+
+            frmAlertaIntegridad_704ILR.Salida_704ILR salida_704ILR;
+            using (var alerta_704ILR = new frmAlertaIntegridad_704ILR(integridad_704ILR.Inconsistencias_704ILR, resolver_704ILR: true))
+            {
+                alerta_704ILR.ShowDialog(this);
+                salida_704ILR = alerta_704ILR.Resultado_704ILR;
+            }
+            if (salida_704ILR == frmAlertaIntegridad_704ILR.Salida_704ILR.Restaurada_704ILR)
+            {
+                // La base es otra (la del respaldo): cuentas, permisos e idiomas se vuelven
+                // a leer desde cero, como al cambiar la conexion.
+                try { BLL_Login_704ILR.Logout_704ILR(); } catch { }
+                Application.Restart();
+                Environment.Exit(0);
+            }
+            if (salida_704ILR == frmAlertaIntegridad_704ILR.Salida_704ILR.Recalculada_704ILR) return true;
+
+            BLL_Bitacora_704ILR.Registrar_704ILR("Seguridad", "Ingreso bloqueado por integridad", CriticidadBitacora_704ILR.Advertencia,
+                $"Se salio sin resolverlo | {integridad_704ILR.Inconsistencias_704ILR.Count} inconsistencia(s)");
+            return false;
         }
 
         // Deja la pantalla lista para el proximo ingreso al volver de la ventana principal

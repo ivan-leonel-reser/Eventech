@@ -301,6 +301,7 @@ namespace EvenTech.BLL
             { "ALERT_NO_VERIFICADA",        "{0}" },            // causa de la falla de la verificacion
             { "ALERT_PAGO_DVH_FALTANTE",    "{0} {1}" },        // numero de pago sin DV horizontal, numero de su reserva
             { "ALERT_PAGO_DVH_NO_COINCIDE", "{0} {1}" },        // numero de pago con el DV horizontal alterado, numero de su reserva
+            { "ALERT_RECALC_PENDIENTE",     "{0}" },            // inconsistencias que el recalculo no corrige
             { "APP_COMMIT",                 "{0}" },            // los siete primeros caracteres del commit
             { "APP_VERSION",                "{0}" },            // version del sistema ("3.0.0")
             { "ASG_QUITAR_CONF",            "{0}" },            // empleado que se quita del equipo
@@ -336,6 +337,15 @@ namespace EvenTech.BLL
             { "OPE_AVANCE_INCIDENCIAS",     "{0} {1}" },        // incidencias, abiertas
             { "OPE_AVANCE_PERSONAL",        "{0} {1} {2} {3}" },// asignados, confirmados, pendientes, rechazados
             { "OPE_AVANCE_TAREAS",          "{0}" },            // tareas asignadas
+            { "RSP_BASE_NO_REPUESTA",       "{0}" },            // respaldo de la base anterior a la restauracion
+            { "RSP_CARPETA",                "{0}" },            // carpeta de respaldos
+            { "RSP_CONFIRMA",               "{0}" },            // fecha del respaldo que se restaura
+            { "RSP_CONTEO",                 "{0}" },            // respaldos listados
+            { "RSP_CREADO",                 "{0} {1}" },        // archivo del respaldo, tamano
+            { "RSP_ERR_CARPETA",            "{0}" },            // carpeta de respaldos
+            { "RSP_ERR_REMOTA",             "{0}" },            // equipo de la instancia de SQL Server
+            { "RSP_RESTAURADO",             "{0}" },            // fecha del respaldo restaurado
+            { "RSP_RESTAURADO_NOTA",        "{0}" },            // archivo del respaldo de la base anterior
             { "SUP_FUERA_FECHA",            "{0} {1}" },        // RN-13: fecha del evento, fecha de hoy
             { "SUP_RESUMEN",                "{0} {1}" },        // incidencias, abiertas
             { "TAR_QUITAR_CONF",            "{0}" },            // empleado de la tarea que se quita

@@ -903,7 +903,9 @@ try
                         "EMPLEADOS_GESTION", "PERSONAL_ASIGNAR", "CRONOGRAMA_GESTION", "TAREAS_ASIGNAR",
                         "DISPONIBILIDAD_CONFIRMAR", "AGENDA_CONSULTAR", "EJECUCION_SUPERVISAR",
                         // Entrega 3: informe de gestion (A02) y registro de excepciones (A03).
-                        "INFORMES_VER", "EXCEPCIONES_VER" };
+                        "INFORMES_VER", "EXCEPCIONES_VER",
+                        // Respaldos de la base y resolucion de la alerta de integridad.
+                        "RESPALDO_CREAR", "RESPALDO_RESTAURAR" };
     // Solo se recogen las claves de las HOJAS (BE_Permiso): un grupo con el mismo
     // nombre no cuenta, porque no habilita nada por si mismo.
     var enArbol_704ILR = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -921,7 +923,7 @@ try
     // Y al reves: una hoja que ninguna pantalla exige es un permiso que se asigna
     // y no habilita nada.
     var sobran_704ILR = enArbol_704ILR.Where(c_704ILR => !usadas_704ILR.Contains(c_704ILR, StringComparer.OrdinalIgnoreCase)).ToList();
-    Esperar_704ILR("hojas del arbol de permisos", enArbol_704ILR.Count, 23);
+    Esperar_704ILR("hojas del arbol de permisos", enArbol_704ILR.Count, 25);
     Esperar_704ILR("claves de la UI que faltan como hoja del arbol",
         faltan_704ILR.Count == 0 ? "ninguna" : string.Join(", ", faltan_704ILR), "ninguna");
     Esperar_704ILR("hojas del arbol que ninguna pantalla exige",
@@ -4628,6 +4630,108 @@ try
 }
 catch (Exception ex59_704ILR) { Excepcion_704ILR("[59]", ex59_704ILR); }
 finally { try { if (Directory.Exists(tmp59_704ILR)) Directory.Delete(tmp59_704ILR, true); } catch { } }
+
+// ---------------------------------------------------------------------------
+// [61] Respaldos de la base y las dos salidas de la alerta de integridad. Es la
+// prueba que hace el docente: alterar los datos por fuera del sistema, ver que la
+// verificacion lo delata y resolverlo restaurando un respaldo anterior o
+// recalculando los digitos verificadores. El caso se limpia solo: toma un respaldo
+// al empezar y termina restaurandolo, asi que la base queda como la encontro. Los
+// archivos que deja en la carpeta de respaldos se borran al final.
+// ---------------------------------------------------------------------------
+Caso_704ILR("[61] Respaldos de la base y resolucion de la alerta de integridad (restaurar o recalcular):");
+var archivos61_704ILR = new List<string>();
+string respaldo61_704ILR = null;
+try
+{
+    int reserva61_704ILR = Escalar_704ILR("SELECT ISNULL(MIN(Id), 0) FROM dbo.Reservas WHERE Dvh IS NOT NULL AND Estado IN (N'COTIZACION', N'PENDIENTE', N'CONFIRMADA')");
+    int pago61_704ILR = Escalar_704ILR("SELECT ISNULL(MIN(Id), 0) FROM dbo.Pagos WHERE Dvh IS NOT NULL");
+    if (reserva61_704ILR == 0 || pago61_704ILR == 0)
+    {
+        Omitir_704ILR("[61]", "la base no tiene una reserva y un pago con digito verificador");
+    }
+    else
+    {
+        bool AlDia61_704ILR() => BLL_Integridad_704ILR.Verificar_704ILR().Ok_704ILR;
+        int MontoCentavos61_704ILR() => Escalar_704ILR("SELECT CAST(Monto * 100 AS INT) FROM dbo.Reservas WHERE Id = @id", ("@id", reserva61_704ILR));
+        int Pagos61_704ILR() => Escalar_704ILR("SELECT COUNT(*) FROM dbo.Pagos");
+
+        Esperar_704ILR("integridad antes de la prueba", AlDia61_704ILR(), true);
+        int montoOriginal61_704ILR = MontoCentavos61_704ILR();
+        int pagosOriginales61_704ILR = Pagos61_704ILR();
+
+        // Respaldo a pedido: queda en la carpeta del sistema, legible, con su motivo.
+        int creadosAntes61_704ILR = Asientos_704ILR("Respaldos", "Respaldo creado");
+        var r61_704ILR = BLL_Respaldo_704ILR.Crear_704ILR();
+        respaldo61_704ILR = r61_704ILR.Ruta_704ILR;
+        archivos61_704ILR.Add(respaldo61_704ILR);
+        Esperar_704ILR("el respaldo quedo en la carpeta de respaldos",
+            string.Equals(Path.GetDirectoryName(respaldo61_704ILR), BLL_Respaldo_704ILR.Carpeta_704ILR, StringComparison.OrdinalIgnoreCase) && File.Exists(respaldo61_704ILR), true);
+        Esperar_704ILR("el respaldo se puede leer", r61_704ILR.Legible_704ILR, true);
+        Esperar_704ILR("motivo del respaldo", BLL_Respaldo_704ILR.MotivoDe_704ILR(r61_704ILR), (EvenTech.BE.MotivoRespaldo_704ILR?)EvenTech.BE.MotivoRespaldo_704ILR.MANUAL);
+        Esperar_704ILR("base de origen del respaldo", r61_704ILR.BaseOrigen_704ILR, ConfiguracionConexion_704ILR.BaseDatosActual_704ILR);
+        Esperar_704ILR("el listado lo incluye", BLL_Respaldo_704ILR.Listar_704ILR().Any(x_704ILR => string.Equals(x_704ILR.Ruta_704ILR, respaldo61_704ILR, StringComparison.OrdinalIgnoreCase)), true);
+        Esperar_704ILR("asiento 'Respaldo creado'", Asientos_704ILR("Respaldos", "Respaldo creado"), creadosAntes61_704ILR + 1);
+
+        // Alteracion por fuera del sistema: el monto de una reserva (DV horizontal) y un
+        // pago borrado (DV vertical de Pagos).
+        Ejecutar_704ILR("UPDATE dbo.Reservas SET Monto = Monto + 1000 WHERE Id = @id", ("@id", reserva61_704ILR));
+        Ejecutar_704ILR("DELETE FROM dbo.Pagos WHERE Id = @id", ("@id", pago61_704ILR));
+        var alterada61_704ILR = BLL_Integridad_704ILR.Verificar_704ILR();
+        Esperar_704ILR("alterada: la verificacion nombra a la reserva",
+            alterada61_704ILR.Inconsistencias_704ILR.Any(i_704ILR => i_704ILR.StartsWith($"Reserva #{reserva61_704ILR}: DV horizontal no coincide")), true);
+        Esperar_704ILR("alterada: la verificacion informa el DV vertical de Pagos",
+            alterada61_704ILR.Inconsistencias_704ILR.Any(i_704ILR => i_704ILR.StartsWith("DV vertical de Pagos")), true);
+
+        // Salida 1: restaurar el respaldo tomado antes de la alteracion.
+        var rest61_704ILR = BLL_Respaldo_704ILR.Restaurar_704ILR(respaldo61_704ILR);
+        if (!string.IsNullOrEmpty(rest61_704ILR.RespaldoPrevio_704ILR)) archivos61_704ILR.Add(rest61_704ILR.RespaldoPrevio_704ILR);
+        Esperar_704ILR("restauracion", rest61_704ILR.Resultado_704ILR, EvenTech.BE.RestauracionResult_704ILR.Restaurada_704ILR);
+        Esperar_704ILR("antes de restaurar se respaldo la base alterada",
+            !string.IsNullOrEmpty(rest61_704ILR.RespaldoPrevio_704ILR) && File.Exists(rest61_704ILR.RespaldoPrevio_704ILR), true);
+        var previo61_704ILR = BLL_Respaldo_704ILR.Listar_704ILR().FirstOrDefault(x_704ILR => string.Equals(x_704ILR.Ruta_704ILR, rest61_704ILR.RespaldoPrevio_704ILR, StringComparison.OrdinalIgnoreCase));
+        Esperar_704ILR("motivo del respaldo previo", BLL_Respaldo_704ILR.MotivoDe_704ILR(previo61_704ILR), (EvenTech.BE.MotivoRespaldo_704ILR?)EvenTech.BE.MotivoRespaldo_704ILR.ANTES_DE_RESTAURAR);
+        Esperar_704ILR("restaurada: integridad al dia", AlDia61_704ILR(), true);
+        Esperar_704ILR("restaurada: el monto volvio", MontoCentavos61_704ILR(), montoOriginal61_704ILR);
+        Esperar_704ILR("restaurada: el pago borrado volvio", Pagos61_704ILR(), pagosOriginales61_704ILR);
+        Esperar_704ILR("asiento 'Respaldo restaurado' en la base restaurada", Asientos_704ILR("Respaldos", "Respaldo restaurado") >= 1, true);
+
+        // Salida 2: recalcular la linea base con los datos alterados.
+        Ejecutar_704ILR("UPDATE dbo.Reservas SET Monto = Monto + 1000 WHERE Id = @id", ("@id", reserva61_704ILR));
+        Esperar_704ILR("alterada otra vez: la verificacion lo delata", AlDia61_704ILR(), false);
+        BLL_Integridad_704ILR.RecalcularTodo_704ILR();
+        Esperar_704ILR("recalculada: integridad al dia", AlDia61_704ILR(), true);
+        Esperar_704ILR("recalculada: el monto alterado paso a ser la referencia", MontoCentavos61_704ILR(), montoOriginal61_704ILR + 100000);
+
+        // Un archivo que no es un respaldo no se restaura y la base no se toca.
+        string falso61_704ILR = Path.Combine(Path.GetTempPath(), "eventech_no_es_respaldo_" + suf_704ILR + ".bak");
+        File.WriteAllText(falso61_704ILR, "esto no es un respaldo");
+        try
+        {
+            var rechazo61_704ILR = BLL_Respaldo_704ILR.Restaurar_704ILR(falso61_704ILR);
+            Esperar_704ILR("archivo que no es un respaldo", rechazo61_704ILR.Resultado_704ILR, EvenTech.BE.RestauracionResult_704ILR.ArchivoInvalido_704ILR);
+            Esperar_704ILR("rechazado: no se tomo respaldo previo", string.IsNullOrEmpty(rechazo61_704ILR.RespaldoPrevio_704ILR), true);
+            Esperar_704ILR("rechazado: no quedo copia en la carpeta",
+                File.Exists(Path.Combine(BLL_Respaldo_704ILR.Carpeta_704ILR, Path.GetFileName(falso61_704ILR))), false);
+            Esperar_704ILR("rechazado: la base sigue igual", MontoCentavos61_704ILR(), montoOriginal61_704ILR + 100000);
+        }
+        finally { try { File.Delete(falso61_704ILR); } catch { } }
+
+        // La base vuelve a como estaba al empezar el caso.
+        var final61_704ILR = BLL_Respaldo_704ILR.Restaurar_704ILR(respaldo61_704ILR);
+        if (!string.IsNullOrEmpty(final61_704ILR.RespaldoPrevio_704ILR)) archivos61_704ILR.Add(final61_704ILR.RespaldoPrevio_704ILR);
+        Esperar_704ILR("restauracion final", final61_704ILR.Resultado_704ILR, EvenTech.BE.RestauracionResult_704ILR.Restaurada_704ILR);
+        Esperar_704ILR("al final: el monto original", MontoCentavos61_704ILR(), montoOriginal61_704ILR);
+        Esperar_704ILR("al final: integridad al dia", AlDia61_704ILR(), true);
+    }
+}
+catch (Exception ex61_704ILR) { Excepcion_704ILR("[61]", ex61_704ILR); }
+finally
+{
+    foreach (string a61_704ILR in archivos61_704ILR)
+        try { if (File.Exists(a61_704ILR)) File.Delete(a61_704ILR); } catch { }
+}
+Esperar_704ILR("[61] sin archivos de la prueba en la carpeta de respaldos", archivos61_704ILR.Count(File.Exists), 0);
 
 // ---------------------------------------------------------------------------
 // Limpieza final: lo que cada caso no alcanzo a limpiar (por una excepcion en el

@@ -3914,6 +3914,136 @@ GROUP BY i.Id, t.Clave;   -- una sola fila por idioma+clave: una clave repetida 
                           -- bloque de arriba no puede romper UQ_Traducciones.
 GO
 
+-- ===========================================================================
+-- Entrega 3: respaldos de la base y resolucion de la alerta de integridad. Cuando
+-- la verificacion de los digitos verificadores encuentra datos alterados por fuera
+-- del sistema, solo ingresa quien puede resolverlo, y despues de resolverlo:
+-- restaurar un respaldo tomado antes de la alteracion (RESPALDO_RESTAURAR) o
+-- recalcular la linea base (INTEGRIDAD_RECALC, que ya existia).
+--  * RESPALDO_CREAR y RESPALDO_RESTAURAR (grupo Auditoria): los recibe el
+--    Administrador (acceso total).
+--  Idempotente y en una transaccion, como el bloque de la version 3.0.
+-- ===========================================================================
+BEGIN TRY
+BEGIN TRANSACTION;
+
+DECLARE @gAuditR INT = (SELECT TOP 1 Id FROM dbo.Permisos WHERE Nombre = N'Auditoria' AND EsGrupo = 1);
+
+IF NOT EXISTS (SELECT 1 FROM dbo.Permisos WHERE Clave = N'RESPALDO_CREAR')
+    INSERT INTO dbo.Permisos (Nombre, Descripcion, EsGrupo, Clave, PermisoPadreId)
+        VALUES (N'Crear Respaldos', N'Respaldar la base de datos del sistema', 0, N'RESPALDO_CREAR', @gAuditR);
+IF NOT EXISTS (SELECT 1 FROM dbo.Permisos WHERE Clave = N'RESPALDO_RESTAURAR')
+    INSERT INTO dbo.Permisos (Nombre, Descripcion, EsGrupo, Clave, PermisoPadreId)
+        VALUES (N'Restaurar Respaldos', N'Volver la base de datos a un respaldo (resuelve la alerta de integridad)', 0, N'RESPALDO_RESTAURAR', @gAuditR);
+
+-- Acceso total del Administrador: se le asigna todo permiso que le falte.
+INSERT INTO dbo.PerfilPermiso (PerfilId, PermisoId)
+SELECT p.Id, pe.Id
+FROM dbo.Perfiles p
+CROSS JOIN dbo.Permisos pe
+WHERE p.Nombre = N'Administrador'
+  AND NOT EXISTS (SELECT 1 FROM dbo.PerfilPermiso pp
+                  WHERE pp.PerfilId = p.Id AND pp.PermisoId = pe.Id);
+
+COMMIT TRANSACTION;
+END TRY
+BEGIN CATCH
+    IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+    THROW;
+END CATCH
+GO
+
+-- ---------------------------------------------------------------------------
+-- Entrega 3: traducciones ES/EN/PT de los respaldos (pestana de Auditoria y dialogo
+-- de restauracion), de la alerta de integridad con sus dos salidas y del bloqueo del
+-- ingreso, de los permisos nuevos y de lo que se asienta en la bitacora. Inserta solo
+-- lo que falte. Va antes de la copia a los idiomas agregados por el usuario.
+-- ---------------------------------------------------------------------------
+;WITH Txt(Codigo, Clave, Texto) AS (
+    SELECT * FROM (VALUES
+        -- Arbol de permisos
+        (N'ES', N'PERM_RESPALDO_CREAR', N'Crear respaldos'), (N'EN', N'PERM_RESPALDO_CREAR', N'Create backups'), (N'PT', N'PERM_RESPALDO_CREAR', N'Criar backups'),
+        (N'ES', N'PERM_RESPALDO_RESTAURAR', N'Restaurar respaldos'), (N'EN', N'PERM_RESPALDO_RESTAURAR', N'Restore backups'), (N'PT', N'PERM_RESPALDO_RESTAURAR', N'Restaurar backups'),
+        -- Bitacora: modulo y acciones nuevos
+        (N'ES', N'MOD_RESPALDOS', N'Respaldos'), (N'EN', N'MOD_RESPALDOS', N'Backups'), (N'PT', N'MOD_RESPALDOS', N'Backups'),
+        (N'ES', N'BACC_RESPALDO_CREADO', N'Respaldo creado'), (N'EN', N'BACC_RESPALDO_CREADO', N'Backup created'), (N'PT', N'BACC_RESPALDO_CREADO', N'Backup criado'),
+        (N'ES', N'BACC_RESPALDO_RESTAURADO', N'Respaldo restaurado'), (N'EN', N'BACC_RESPALDO_RESTAURADO', N'Backup restored'), (N'PT', N'BACC_RESPALDO_RESTAURADO', N'Backup restaurado'),
+        (N'ES', N'BACC_INGRESO_BLOQUEADO_POR_INTEGRIDAD', N'Ingreso bloqueado por integridad'), (N'EN', N'BACC_INGRESO_BLOQUEADO_POR_INTEGRIDAD', N'Login blocked by the integrity check'), (N'PT', N'BACC_INGRESO_BLOQUEADO_POR_INTEGRIDAD', N'Acesso bloqueado pela integridade'),
+        -- Alerta de integridad: aviso al iniciar y resolucion al ingresar
+        (N'ES', N'ALERT_HINT_BLOQUEO', N'La verificación de dígitos verificadores encontró datos alterados por fuera del sistema. Hasta que se resuelva, solo puede ingresar un usuario con permiso para restaurar un respaldo o recalcular los dígitos verificadores.'),
+        (N'EN', N'ALERT_HINT_BLOQUEO', N'The check-digit verification found data altered outside the system. Until it is resolved, only a user allowed to restore a backup or recalculate the check digits can log in.'),
+        (N'PT', N'ALERT_HINT_BLOQUEO', N'A verificação de dígitos verificadores encontrou dados alterados fora do sistema. Até que se resolva, só pode entrar um usuário com permissão para restaurar um backup ou recalcular os dígitos verificadores.'),
+        (N'ES', N'ALERT_HINT_RESOLVER', N'Restaurar un respaldo tomado antes de la alteración devuelve los datos a ese momento. Recalcular los dígitos verificadores toma los datos actuales como la nueva referencia: solo si se comprobó que son correctos.'),
+        (N'EN', N'ALERT_HINT_RESOLVER', N'Restoring a backup taken before the alteration returns the data to that moment. Recalculating the check digits takes the current data as the new reference: only if it was verified that it is correct.'),
+        (N'PT', N'ALERT_HINT_RESOLVER', N'Restaurar um backup feito antes da alteração devolve os dados àquele momento. Recalcular os dígitos verificadores toma os dados atuais como a nova referência: só se foi comprovado que estão corretos.'),
+        (N'ES', N'ALERT_BTN_INGRESAR', N'Continuar al ingreso'), (N'EN', N'ALERT_BTN_INGRESAR', N'Continue to login'), (N'PT', N'ALERT_BTN_INGRESAR', N'Continuar para o acesso'),
+        (N'ES', N'ALERT_BTN_RESTAURAR', N'Restaurar un respaldo...'), (N'EN', N'ALERT_BTN_RESTAURAR', N'Restore a backup...'), (N'PT', N'ALERT_BTN_RESTAURAR', N'Restaurar um backup...'),
+        (N'ES', N'ALERT_BTN_RECALCULAR', N'Recalcular dígitos verificadores'), (N'EN', N'ALERT_BTN_RECALCULAR', N'Recalculate check digits'), (N'PT', N'ALERT_BTN_RECALCULAR', N'Recalcular dígitos verificadores'),
+        (N'ES', N'ALERT_BTN_SALIR', N'Salir'), (N'EN', N'ALERT_BTN_SALIR', N'Exit'), (N'PT', N'ALERT_BTN_SALIR', N'Sair'),
+        (N'ES', N'ALERT_RECALC_CONFIRMA', N'¿Recalcular los dígitos verificadores con los datos tal como están ahora?'), (N'EN', N'ALERT_RECALC_CONFIRMA', N'Recalculate the check digits with the data as it is now?'), (N'PT', N'ALERT_RECALC_CONFIRMA', N'Recalcular os dígitos verificadores com os dados como estão agora?'),
+        (N'ES', N'ALERT_RECALC_NOTA', N'Los datos actuales, incluidos los que se modificaron por fuera del sistema, pasan a ser la referencia de integridad. Hacerlo solo si se comprobó que son correctos; si no, restaurar un respaldo.'),
+        (N'EN', N'ALERT_RECALC_NOTA', N'The current data, including what was modified outside the system, becomes the integrity reference. Do it only if it was verified that they are correct; otherwise, restore a backup.'),
+        (N'PT', N'ALERT_RECALC_NOTA', N'Os dados atuais, incluídos os que foram modificados fora do sistema, passam a ser a referência de integridade. Fazer isso só se foi comprovado que estão corretos; se não, restaurar um backup.'),
+        (N'ES', N'ALERT_RECALC_OK', N'Se recalcularon los dígitos verificadores: la verificación ya no encuentra inconsistencias.'), (N'EN', N'ALERT_RECALC_OK', N'The check digits were recalculated: the verification no longer finds inconsistencies.'), (N'PT', N'ALERT_RECALC_OK', N'Os dígitos verificadores foram recalculados: a verificação já não encontra inconsistências.'),
+        (N'ES', N'ALERT_RECALC_PENDIENTE', N'Se recalcularon los dígitos verificadores, pero quedan {0} inconsistencia(s) que el recálculo no corrige (un estado de reserva que no existe en la tabla de estados). Para resolverlas, restaure un respaldo.'),
+        (N'EN', N'ALERT_RECALC_PENDIENTE', N'The check digits were recalculated, but {0} inconsistency(ies) remain that recalculation does not fix (a reservation status that does not exist in the status table). To resolve them, restore a backup.'),
+        (N'PT', N'ALERT_RECALC_PENDIENTE', N'Os dígitos verificadores foram recalculados, mas restam {0} inconsistência(s) que o recálculo não corrige (um estado de reserva que não existe na tabela de estados). Para resolvê-las, restaure um backup.'),
+        (N'ES', N'ALERT_BLOQUEADO', N'El sistema no está disponible: se detectaron datos alterados por fuera del sistema. Avise a un administrador: hasta que lo resuelva, solo puede ingresar un usuario con permiso para restaurar un respaldo o recalcular los dígitos verificadores.'),
+        (N'EN', N'ALERT_BLOQUEADO', N'The system is not available: data altered outside the system was detected. Notify an administrator: until it is resolved, only a user allowed to restore a backup or recalculate the check digits can log in.'),
+        (N'PT', N'ALERT_BLOQUEADO', N'O sistema não está disponível: foram detectados dados alterados fora do sistema. Avise um administrador: até que se resolva, só pode entrar um usuário com permissão para restaurar um backup ou recalcular os dígitos verificadores.'),
+        -- Respaldos (pestana de Auditoria y dialogo de restauracion)
+        (N'ES', N'AUD_TAB_RESPALDOS', N'Respaldos'), (N'EN', N'AUD_TAB_RESPALDOS', N'Backups'), (N'PT', N'AUD_TAB_RESPALDOS', N'Backups'),
+        (N'ES', N'RSP_TITULO', N'Respaldos de la base de datos'), (N'EN', N'RSP_TITULO', N'Database backups'), (N'PT', N'RSP_TITULO', N'Backups do banco de dados'),
+        (N'ES', N'RSP_DLG_TITULO', N'EvenTech - Restaurar un respaldo'), (N'EN', N'RSP_DLG_TITULO', N'EvenTech - Restore a backup'), (N'PT', N'RSP_DLG_TITULO', N'EvenTech - Restaurar um backup'),
+        (N'ES', N'RSP_BTN_CREAR', N'Crear respaldo'), (N'EN', N'RSP_BTN_CREAR', N'Create backup'), (N'PT', N'RSP_BTN_CREAR', N'Criar backup'),
+        (N'ES', N'RSP_BTN_RESTAURAR', N'Restaurar el respaldo elegido'), (N'EN', N'RSP_BTN_RESTAURAR', N'Restore the selected backup'), (N'PT', N'RSP_BTN_RESTAURAR', N'Restaurar o backup escolhido'),
+        (N'ES', N'RSP_BTN_AGREGAR', N'Buscar otro archivo...'), (N'EN', N'RSP_BTN_AGREGAR', N'Find another file...'), (N'PT', N'RSP_BTN_AGREGAR', N'Procurar outro arquivo...'),
+        (N'ES', N'RSP_BTN_ACTUALIZAR', N'Actualizar'), (N'EN', N'RSP_BTN_ACTUALIZAR', N'Refresh'), (N'PT', N'RSP_BTN_ACTUALIZAR', N'Atualizar'),
+        (N'ES', N'RSP_CARPETA', N'Carpeta de respaldos: {0}'), (N'EN', N'RSP_CARPETA', N'Backup folder: {0}'), (N'PT', N'RSP_CARPETA', N'Pasta de backups: {0}'),
+        (N'ES', N'RSP_SIN_RESPALDOS', N'Todavía no hay respaldos en la carpeta. Con «Buscar otro archivo...» se puede agregar uno.'), (N'EN', N'RSP_SIN_RESPALDOS', N'There are no backups in the folder yet. Use "Find another file..." to add one.'), (N'PT', N'RSP_SIN_RESPALDOS', N'Ainda não há backups na pasta. Com «Procurar outro arquivo...» é possível adicionar um.'),
+        (N'ES', N'RSP_CONTEO', N'{0} respaldo(s). Se restaura el elegido; antes se guarda un respaldo de la base actual.'), (N'EN', N'RSP_CONTEO', N'{0} backup(s). The selected one is restored; a backup of the current database is saved first.'), (N'PT', N'RSP_CONTEO', N'{0} backup(s). Restaura-se o escolhido; antes é feito um backup do banco atual.'),
+        (N'ES', N'RSP_COL_MOTIVO', N'Motivo'), (N'EN', N'RSP_COL_MOTIVO', N'Reason'), (N'PT', N'RSP_COL_MOTIVO', N'Motivo'),
+        (N'ES', N'RSP_COL_BASE', N'Base de origen'), (N'EN', N'RSP_COL_BASE', N'Source database'), (N'PT', N'RSP_COL_BASE', N'Banco de origem'),
+        (N'ES', N'RSP_COL_TAMANIO', N'Tamaño'), (N'EN', N'RSP_COL_TAMANIO', N'Size'), (N'PT', N'RSP_COL_TAMANIO', N'Tamanho'),
+        (N'ES', N'RSP_COL_ARCHIVO', N'Archivo'), (N'EN', N'RSP_COL_ARCHIVO', N'File'), (N'PT', N'RSP_COL_ARCHIVO', N'Arquivo'),
+        (N'ES', N'RSP_ILEGIBLE', N'(no se puede leer: no es un respaldo de base de datos)'), (N'EN', N'RSP_ILEGIBLE', N'(unreadable: not a database backup)'), (N'PT', N'RSP_ILEGIBLE', N'(ilegível: não é um backup de banco de dados)'),
+        (N'ES', N'RSP_MOTIVO_MANUAL', N'Respaldo hecho desde el sistema'), (N'EN', N'RSP_MOTIVO_MANUAL', N'Backup made from the system'), (N'PT', N'RSP_MOTIVO_MANUAL', N'Backup feito pelo sistema'),
+        (N'ES', N'RSP_MOTIVO_ANTES_DE_RESTAURAR', N'Automático, antes de restaurar otro respaldo'), (N'EN', N'RSP_MOTIVO_ANTES_DE_RESTAURAR', N'Automatic, before restoring another backup'), (N'PT', N'RSP_MOTIVO_ANTES_DE_RESTAURAR', N'Automático, antes de restaurar outro backup'),
+        (N'ES', N'RSP_MOTIVO_ANTES_DE_ALTERAR', N'Antes de alterar los datos (prueba de integridad)'), (N'EN', N'RSP_MOTIVO_ANTES_DE_ALTERAR', N'Before altering the data (integrity test)'), (N'PT', N'RSP_MOTIVO_ANTES_DE_ALTERAR', N'Antes de alterar os dados (teste de integridade)'),
+        (N'ES', N'RSP_MOTIVO_EXTERNO', N'Respaldo agregado desde otra carpeta'), (N'EN', N'RSP_MOTIVO_EXTERNO', N'Backup added from another folder'), (N'PT', N'RSP_MOTIVO_EXTERNO', N'Backup adicionado de outra pasta'),
+        (N'ES', N'RSP_FILTRO', N'Respaldo de SQL Server (*.bak)'), (N'EN', N'RSP_FILTRO', N'SQL Server backup (*.bak)'), (N'PT', N'RSP_FILTRO', N'Backup do SQL Server (*.bak)'),
+        (N'ES', N'RSP_CREADO', N'Respaldo creado: {0} ({1}).'), (N'EN', N'RSP_CREADO', N'Backup created: {0} ({1}).'), (N'PT', N'RSP_CREADO', N'Backup criado: {0} ({1}).'),
+        (N'ES', N'RSP_NO_ES_RESPALDO', N'El archivo elegido no es un respaldo de base de datos que se pueda restaurar.'), (N'EN', N'RSP_NO_ES_RESPALDO', N'The chosen file is not a database backup that can be restored.'), (N'PT', N'RSP_NO_ES_RESPALDO', N'O arquivo escolhido não é um backup de banco de dados que possa ser restaurado.'),
+        (N'ES', N'RSP_CONFIRMA', N'¿Restaurar el respaldo del {0}?'), (N'EN', N'RSP_CONFIRMA', N'Restore the backup from {0}?'), (N'PT', N'RSP_CONFIRMA', N'Restaurar o backup de {0}?'),
+        (N'ES', N'RSP_CONFIRMA_NOTA', N'Todos los datos de la base pasan a ser los de ese momento: lo registrado después se pierde. Antes se guarda un respaldo de la base actual, y el sistema se reinicia al terminar.'),
+        (N'EN', N'RSP_CONFIRMA_NOTA', N'All the data in the database becomes that of that moment: what was recorded afterwards is lost. A backup of the current database is saved first, and the system restarts when it finishes.'),
+        (N'PT', N'RSP_CONFIRMA_NOTA', N'Todos os dados do banco passam a ser os daquele momento: o que foi registrado depois se perde. Antes é feito um backup do banco atual, e o sistema é reiniciado ao terminar.'),
+        (N'ES', N'RSP_RESTAURADO', N'La base de datos volvió al respaldo del {0}.'), (N'EN', N'RSP_RESTAURADO', N'The database went back to the backup from {0}.'), (N'PT', N'RSP_RESTAURADO', N'O banco de dados voltou ao backup de {0}.'),
+        (N'ES', N'RSP_RESTAURADO_NOTA', N'La base que había antes quedó guardada en el respaldo {0}. El sistema se reinicia para trabajar con los datos restaurados.'), (N'EN', N'RSP_RESTAURADO_NOTA', N'The previous database was saved in the backup {0}. The system restarts to work with the restored data.'), (N'PT', N'RSP_RESTAURADO_NOTA', N'O banco que havia antes ficou salvo no backup {0}. O sistema é reiniciado para trabalhar com os dados restaurados.'),
+        (N'ES', N'RSP_ERR_ARCHIVO', N'El archivo no es un respaldo completo de base de datos que se pueda restaurar.'), (N'EN', N'RSP_ERR_ARCHIVO', N'The file is not a full database backup that can be restored.'), (N'PT', N'RSP_ERR_ARCHIVO', N'O arquivo não é um backup completo de banco de dados que possa ser restaurado.'),
+        (N'ES', N'RSP_ERR_VERSION', N'El respaldo lo generó una versión de SQL Server posterior a la de esta instancia: no se puede restaurar acá.'), (N'EN', N'RSP_ERR_VERSION', N'The backup was created by a later version of SQL Server than this instance: it cannot be restored here.'), (N'PT', N'RSP_ERR_VERSION', N'O backup foi gerado por uma versão do SQL Server posterior à desta instância: não pode ser restaurado aqui.'),
+        (N'ES', N'RSP_ERR_SIN_PREVIO', N'No se pudo guardar el respaldo de la base actual, así que no se restauró nada: la base sigue como estaba.'), (N'EN', N'RSP_ERR_SIN_PREVIO', N'The backup of the current database could not be saved, so nothing was restored: the database is unchanged.'), (N'PT', N'RSP_ERR_SIN_PREVIO', N'Não foi possível salvar o backup do banco atual, então nada foi restaurado: o banco continua como estava.'),
+        (N'ES', N'RSP_ERR_NO_ES_DEL_SISTEMA', N'El respaldo no tiene la base de datos de esta versión del sistema.'), (N'EN', N'RSP_ERR_NO_ES_DEL_SISTEMA', N'The backup does not contain the database of this version of the system.'), (N'PT', N'RSP_ERR_NO_ES_DEL_SISTEMA', N'O backup não tem o banco de dados desta versão do sistema.'),
+        (N'ES', N'RSP_ERR_FALLIDA', N'SQL Server no pudo restaurar el respaldo.'), (N'EN', N'RSP_ERR_FALLIDA', N'SQL Server could not restore the backup.'), (N'PT', N'RSP_ERR_FALLIDA', N'O SQL Server não conseguiu restaurar o backup.'),
+        (N'ES', N'RSP_BASE_REPUESTA', N'La base volvió a como estaba antes de intentarlo.'), (N'EN', N'RSP_BASE_REPUESTA', N'The database went back to how it was before the attempt.'), (N'PT', N'RSP_BASE_REPUESTA', N'O banco voltou a como estava antes da tentativa.'),
+        (N'ES', N'RSP_BASE_NO_REPUESTA', N'ATENCIÓN: la base no pudo volver sola a como estaba. El respaldo de la base anterior quedó en {0}.'), (N'EN', N'RSP_BASE_NO_REPUESTA', N'WARNING: the database could not go back to how it was by itself. The backup of the previous database is in {0}.'), (N'PT', N'RSP_BASE_NO_REPUESTA', N'ATENÇÃO: o banco não conseguiu voltar sozinho a como estava. O backup do banco anterior ficou em {0}.'),
+        (N'ES', N'RSP_DETALLE', N'Detalle informado por SQL Server:'), (N'EN', N'RSP_DETALLE', N'Detail reported by SQL Server:'), (N'PT', N'RSP_DETALLE', N'Detalhe informado pelo SQL Server:'),
+        (N'ES', N'RSP_ERR_REMOTA', N'La instancia de SQL Server está en otro equipo ({0}): los respaldos se hacen desde ese equipo.'), (N'EN', N'RSP_ERR_REMOTA', N'The SQL Server instance is on another computer ({0}): backups are made from that computer.'), (N'PT', N'RSP_ERR_REMOTA', N'A instância do SQL Server está em outro computador ({0}): os backups são feitos a partir desse computador.'),
+        (N'ES', N'RSP_ERR_CARPETA', N'No se pudo usar la carpeta de respaldos ({0}).'), (N'EN', N'RSP_ERR_CARPETA', N'The backup folder ({0}) could not be used.'), (N'PT', N'RSP_ERR_CARPETA', N'Não foi possível usar a pasta de backups ({0}).'),
+        (N'ES', N'RSP_ERR_SQL', N'SQL Server no pudo completar el respaldo.'), (N'EN', N'RSP_ERR_SQL', N'SQL Server could not complete the backup.'), (N'PT', N'RSP_ERR_SQL', N'O SQL Server não conseguiu concluir o backup.')
+    ) AS v(Codigo, Clave, Texto)
+)
+INSERT INTO dbo.Traducciones (IdiomaId, Clave, Texto)
+SELECT i.Id, t.Clave, MIN(t.Texto)
+FROM Txt t
+JOIN dbo.Idiomas i ON i.Codigo = t.Codigo
+WHERE NOT EXISTS (
+    SELECT 1 FROM dbo.Traducciones x WHERE x.IdiomaId = i.Id AND x.Clave = t.Clave
+)
+GROUP BY i.Id, t.Clave;   -- una sola fila por idioma+clave: una clave repetida en el
+                          -- bloque de arriba no puede romper UQ_Traducciones.
+GO
+
 -- ---------------------------------------------------------------------------
 -- Idiomas agregados desde Gestion de Idiomas. Al crearlos, la aplicacion les
 -- copia todas las claves del espanol; las claves que el script suma despues solo
