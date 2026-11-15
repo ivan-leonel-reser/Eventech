@@ -25,15 +25,17 @@ organizada en cinco capas y sin frameworks de persistencia de terceros.
 El sistema se instala con el asistente `EvenTech_Instalador_v3.0.exe`, pensado para
 el usuario final: lleva adentro todo lo que el sistema necesita. Si el equipo no tiene
 SQL Server, instala **SQL Server Express** (incluido en el instalador, previa aceptación
-de su licencia); después copia la aplicación —con .NET 8 incluido—, crea la base de
-datos con los datos de demostración y deja configurada la conexión. El equipo solo
+de su licencia); después crea la base de datos con los datos de demostración, copia la
+aplicación —con .NET 8 incluido— y deja configurada la conexión. El equipo solo
 necesita Windows 10 (versión 1803 o posterior) u 11 de 64 bits; no hacen falta SQL
-Server, `sqlcmd` ni .NET instalados de antemano.
+Server, `sqlcmd` ni .NET instalados de antemano, y **no hace falta ser administrador**:
+la aplicación se instala en la carpeta de programas del usuario y Windows pide la
+autorización de un administrador solo si hay que instalar SQL Server.
 
-Sobre una instalación anterior (o una instancia que ya tiene la base) el mismo
-asistente **reinstala**: muestra la versión instalada y la nueva, respalda la base y la
-actualiza conservando los datos (o, si se elige, la reemplaza por la de demostración),
-y si algo falla la devuelve al respaldo.
+Sobre una instalación anterior (la 2.1 o posterior, o una instancia que ya tiene la
+base) el mismo asistente **avisa que ya hay una versión y la actualiza**: muestra la
+versión instalada y la nueva, respalda la base y la actualiza conservando los datos (o,
+si se elige, la reemplaza por la de demostración), y si algo falla la devuelve al respaldo.
 
 El instalador se genera con `instalador\construir.ps1`. Su alcance, sus pasos y sus
 decisiones de diseño están en **[instalador/README.md](instalador/README.md)**; el
@@ -75,7 +77,7 @@ git archive --format=zip -9 --prefix=EvenTech/ -o EvenTech.zip <commit> -- . ":(
 |---|---|
 | Sistema operativo | Windows 10 (x64) |
 | Runtime | .NET 8 Desktop Runtime (el instalador lo lleva incluido) |
-| Motor de base de datos | SQL Server Express 2019 (MSSQL15); el instalador incluye SQL Server 2022 Express y lo instala si el equipo no tiene ninguno |
+| Motor de base de datos | SQL Server Express 2019 (MSSQL15) para restaurar el respaldo; 2012 o superior con `schema.sql`. El instalador incluye SQL Server 2022 Express y lo instala si el equipo no tiene ninguno |
 | Herramienta de línea de comandos | `sqlcmd` (ver nota) |
 | Para compilar | .NET 8 SDK |
 

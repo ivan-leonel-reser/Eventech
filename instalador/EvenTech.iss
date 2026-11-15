@@ -9,6 +9,9 @@
 ;
 ;  Reinstalacion, cuando el equipo ya tiene una version anterior (la reconoce por el
 ;  identificador del producto, AppId) o la instancia elegida ya tiene la base:
+;    - avisa que hay una version instalada y va directo a la base de la instalacion
+;      previa (no vuelve a pedir la carpeta ni la instancia, salvo que la instancia ya
+;      no responda);
 ;    - muestra lo que esta (version instalada, version y contenido de la base) y lo
 ;      que viene (la version nueva y sus novedades);
 ;    - por defecto conserva los datos: respalda la base y le aplica el esquema nuevo
@@ -24,7 +27,16 @@
 ;
 ;  Quien instala es el usuario final: no necesita tener nada instalado (ni .NET ni SQL
 ;  Server), no se le pide ninguna herramienta de linea de comandos ni escribir una
-;  cadena de conexion.
+;  cadena de conexion. Y puede no ser administrador del equipo (las PC compartidas de
+;  una sala, por ejemplo): el asistente NO pide permisos de administrador. La aplicacion
+;  se instala en la carpeta de programas del usuario (%LOCALAPPDATA%\Programs\EvenTech)
+;  y todo lo que genera va a carpetas de datos con permiso de escritura. El unico paso
+;  que necesita a un administrador es instalar SQL Server Express: solo para ese paso
+;  Windows pide la autorizacion (UAC).
+;
+;  Para una base que no se puede crear restaurando el respaldo (motor anterior a SQL
+;  Server 2019) se usa el guion del esquema; y si el administrador de SQL Server preparo
+;  una base vacia para quien no puede crear bases, se la carga.
 ;
 ;  Se compila con Inno Setup 6 por medio de construir.ps1, que antes publica la
 ;  aplicacion en la carpeta "publicado". Este archivo esta guardado como UTF-8 con
@@ -73,6 +85,8 @@ AppMutex={#Mutex_704ILR},Global\{#Mutex_704ILR}
 VersionInfoVersion={#Mayor_704ILR}.{#Menor_704ILR}.{#Revision_704ILR}.{#Compilacion_704ILR}
 VersionInfoProductName={#Nombre_704ILR}
 VersionInfoDescription=Instalador de {#Nombre_704ILR}
+; Sin permisos de administrador, {autopf} es la carpeta de programas del usuario
+; (%LOCALAPPDATA%\Programs), donde siempre puede escribir.
 DefaultDirName={autopf}\{#Nombre_704ILR}
 DefaultGroupName={#Nombre_704ILR}
 UninstallDisplayName={#Nombre_704ILR} {#Version_704ILR}
@@ -85,7 +99,10 @@ DisableWelcomePage=no
 DisableDirPage=auto
 DisableProgramGroupPage=yes
 ShowLanguageDialog=no
-PrivilegesRequired=admin
+; El asistente corre con los permisos del usuario: no pide ser administrador. La
+; instalacion queda registrada en el perfil del usuario (HKEY_CURRENT_USER), igual que la
+; version 2.1, y por ahi la reconoce la reinstalacion.
+PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0
@@ -103,7 +120,7 @@ OutputBaseFilename=EvenTech_Instalador_v{#Version_704ILR}
 Name: "es"; MessagesFile: "compiler:Languages\Spanish.isl"
 
 [Messages]
-es.WelcomeLabel2=Este asistente instalará [name/ver] en este equipo: copia la aplicación, crea o actualiza la base de datos del sistema en la instancia de SQL Server que se elija y deja configurada la conexión.%n%nSe recomienda cerrar las demás aplicaciones antes de continuar.
+es.WelcomeLabel2=Este asistente instalará [name/ver] para el usuario de Windows que lo ejecuta, sin pedir permisos de administrador: copia la aplicación, crea o actualiza la base de datos del sistema en la instancia de SQL Server que se elija y deja configurada la conexión.%n%nSe recomienda cerrar las demás aplicaciones antes de continuar.
 es.FinishedLabel=La instalación de [name] finalizó: la aplicación quedó instalada, su base de datos creada y la conexión configurada.%n%nPara el primer ingreso se utiliza el usuario admin con la contraseña admin123.
 es.FinishedLabelNoIcons=La instalación de [name] finalizó: la aplicación quedó instalada, su base de datos creada y la conexión configurada.%n%nPara el primer ingreso se utiliza el usuario admin con la contraseña admin123.
 es.ConfirmUninstall=¿Desea quitar %1 de este equipo?%n%nLa base de datos EvenTechDB no se elimina: sus datos se conservan en SQL Server. Tampoco se eliminan SQL Server, la clave de cifrado ni el registro de excepciones del equipo.
@@ -115,15 +132,17 @@ es.InstanciaDescripcion=¿En qué instancia está o se crea la base de datos del
 es.InstanciaIntro=El asistente detectó las instancias de SQL Server instaladas en este equipo. Seleccione de la lista aquella en la que se creará la base de datos %1 (o la que ya la tiene), o escriba su nombre.
 es.InstanciaEtiqueta=&Instancia de SQL Server:
 es.InstanciaNota=Si la instancia ya tiene la base %1, el paso siguiente permite conservar sus datos y actualizarla. La conexión utiliza la autenticación integrada de Windows: no se solicita usuario ni contraseña.
-es.InstanciaNinguna=No se detectó ninguna instancia de SQL Server en este equipo. %1 requiere SQL Server Express 2019 o superior: se lo puede instalar y volver a ejecutar este asistente, o escribir el nombre de la instancia si ya está instalada.
+es.InstanciaNinguna=No se detectó ninguna instancia de SQL Server en este equipo. %1 requiere SQL Server (Express, por ejemplo): se lo puede instalar y volver a ejecutar este asistente, o escribir el nombre de la instancia si ya está instalada.
 es.InstanciaNingunaConMotor=No se detectó ninguna instancia de SQL Server en este equipo. %1 guarda sus datos en SQL Server Express, el motor de base de datos gratuito de Microsoft, que viene incluido en este instalador: para instalarlo basta con aceptar su licencia y presionar Siguiente.
 es.InstanciaEnlace=Descargar SQL Server Express desde el sitio de Microsoft
 es.InstanciaVacia=Debe seleccionar o escribir una instancia de SQL Server.
 es.InstanciaInvalida=El nombre de la instancia no puede contener comillas.
-es.BienvenidaConMotor=Este asistente instalará %1 %2 en este equipo con todo lo que necesita para funcionar: si el equipo no tiene SQL Server, instala SQL Server Express (incluido en este instalador); después copia la aplicación, crea la base de datos del sistema y deja configurada la conexión.%n%nSe recomienda cerrar las demás aplicaciones antes de continuar.
+es.BienvenidaConMotor=Este asistente instalará %1 %2 para el usuario de Windows que lo ejecuta, con todo lo que necesita para funcionar: si el equipo no tiene SQL Server, instala SQL Server Express (incluido en este instalador); después crea la base de datos del sistema, copia la aplicación y deja configurada la conexión.%n%nNo hace falta ser administrador del equipo: Windows pide esa autorización solo si hay que instalar SQL Server.%n%nSe recomienda cerrar las demás aplicaciones antes de continuar.
+es.CarpetaSinPermiso=El usuario de Windows no tiene permiso para escribir en la carpeta:%n%n%1%n%nElija una carpeta propia del usuario (la propuesta por el asistente siempre lo es).
+es.InstalacionComun=Este equipo tiene %1 %2 instalado para todos los usuarios, en la carpeta%n%3.%n%nEsta versión se instala para cada usuario, sin permisos de administrador, así que no puede reemplazar esa instalación. Desinstale %1 %2 desde Configuración > Aplicaciones (la base de datos y la conexión se conservan) y vuelva a ejecutar este asistente: va a encontrar la base y la va a actualizar conservando sus datos.
 es.MotorIncluido=Instalar SQL Server Express en la instancia «%1»
 es.MotorIncluidoNueva=Instalar SQL Server Express en una instancia nueva, «%1»
-es.MotorNota=La instalación del motor demora varios minutos (habitualmente entre 5 y 15) y necesita al menos 6 GB libres en el disco del sistema. La conexión utiliza la autenticación integrada de Windows: no se solicita usuario ni contraseña.
+es.MotorNota=La instalación del motor demora varios minutos (habitualmente entre 5 y 15) y necesita al menos 6 GB libres en el disco del sistema. Es el único paso que necesita a un administrador del equipo: Windows le pide la autorización. La conexión utiliza la autenticación integrada de Windows: no se solicita usuario ni contraseña.
 es.MotorLicencia=Acepto los términos de licencia de Microsoft SQL Server Express
 es.MotorLicenciaEnlace=Leer los términos de licencia de SQL Server
 es.MotorFaltaLicencia=Para instalar SQL Server Express hay que aceptar los términos de licencia de Microsoft.
@@ -134,6 +153,7 @@ es.MotorProgresoTexto=Instalando SQL Server Express en la instancia %1...
 es.MotorProgresoNota=Puede demorar varios minutos (habitualmente entre 5 y 15). No apague el equipo.
 es.MotorSinNetFramework=Para instalar SQL Server Express, Windows necesita .NET Framework 4.7.2 o posterior, que viene incluido en Windows 10 versión 1803 y posteriores.%n%nActualice Windows con Windows Update y vuelva a ejecutar este asistente.
 es.MotorSinEspacio=Para instalar SQL Server Express hacen falta al menos 6 GB libres en el disco del sistema (%1), y quedan %2 GB.%n%nLibere espacio y vuelva a intentar.
+es.MotorSinAutorizacion=No se instaló SQL Server Express: instalarlo necesita la autorización de un administrador del equipo, y Windows no la recibió.%n%nSi el equipo ya tiene SQL Server, desmarque la opción y elija su instancia; si no, un administrador tiene que aceptar la autorización (o instalar SQL Server Express) y después se vuelve a ejecutar este asistente.
 es.MotorFallo=La instalación de SQL Server Express terminó con el código %1 y la instancia no quedó disponible.%n%nEl detalle quedó en el registro de la instalación de SQL Server (%2).
 es.MotorReinicioPrevio=No se pudo instalar SQL Server Express porque Windows tiene un reinicio pendiente (por ejemplo, de una actualización). Reinicie el equipo y vuelva a ejecutar este asistente.%n%nEl instalador de SQL Server terminó con el código %1; el detalle quedó en %2.
 es.MotorReinicio=SQL Server Express quedó instalado, pero Windows pide reiniciar el equipo antes de usarlo. Reinicie el equipo y vuelva a ejecutar este asistente.
@@ -143,8 +163,9 @@ es.MemoMotor=Motor de base de datos:
 es.MemoMotorInstalado=SQL Server Express, instalado por este asistente en la instancia %1
 es.ErrSinConexion=No se pudo establecer la conexión con la instancia «%1».%n%nVerifique que el nombre esté bien escrito y que el servicio de SQL Server esté iniciado.
 es.ErrInstanciaRemota=La instancia «%1» pertenece a otro equipo (%2).%n%nEste asistente trabaja con una instancia de SQL Server instalada en este mismo equipo.
-es.ErrVersionAnterior=La instancia «%1» es %2.%n%nEl sistema requiere SQL Server 2019 o superior.
-es.ErrSinPermiso=El usuario de Windows %2 no tiene permiso para crear ni restaurar bases de datos en la instancia «%1».%n%nEjecute el asistente con un usuario que sea administrador de esa instancia de SQL Server.
+es.ErrVersionAnterior=La instancia «%1» es %2.%n%nEl sistema requiere SQL Server 2012 o superior.
+es.ErrSinPermiso=El usuario de Windows %2 no tiene permiso para crear bases de datos en la instancia «%1».%n%nHay dos salidas: ejecutar el asistente con un usuario que sea administrador de esa instancia de SQL Server, o pedirle a ese administrador que cree una base vacía llamada EvenTechDB y le dé a este usuario el rol de propietario (db_owner): el asistente le carga las tablas.
+es.ErrSinPermisoBase=El usuario de Windows %2 no puede actualizar la base de datos %3 de la instancia «%1»: para respaldarla y actualizarla hay que ser su propietario (db_owner) o administrador de la instancia.%n%nEjecute el asistente con un usuario que tenga ese permiso.
 es.ErrBaseExistente=La instancia «%1» ya tiene una base de datos %2, creada entre la comprobación y la creación. Vuelva atrás para elegir qué hacer con ella.
 es.ErrBaseAjena=La instancia «%1» tiene una base de datos %2 que no es del sistema.%n%nElija otra instancia: el asistente no modifica esa base.
 es.ErrBaseMasNueva=La base de datos %2 de la instancia «%1» es de la versión %3, posterior a la que instala este asistente (%4).%n%nUse el instalador de esa versión o de una posterior.
@@ -167,7 +188,7 @@ es.ProgresoTexto=Creando la base de datos %1 en la instancia %2...
 es.ProgresoActualizar=Respaldando la base de datos %1 y actualizándola a la versión %2...
 es.ProgresoReemplazar=Respaldando la base de datos %1 y reemplazándola por la de demostración...
 es.ProgresoNota=Esta operación puede demorar unos segundos.
-es.BienvenidaActualizacion=Este equipo tiene instalado %1 %2. El asistente lo actualizará a la versión %3: reemplaza la aplicación y actualiza la base de datos conservando sus datos (antes guarda un respaldo).%n%nCierre el sistema en todos los equipos antes de continuar.
+es.BienvenidaActualizacion=Ya hay una versión de %1 instalada en este equipo: la %2. El asistente la actualizará a la versión %3: reemplaza la aplicación en la misma carpeta y actualiza la base de datos conservando todos sus datos (antes guarda un respaldo).%n%nCierre el sistema en todos los equipos antes de continuar.
 es.BaseTitulo=Actualización de la base de datos
 es.BaseDescripcion=Lo que está instalado y lo que viene con la versión nueva.
 es.BaseInstalado=Instalado en este equipo: %1 %2, en %3.
@@ -178,10 +199,13 @@ es.OpcionConservar=&Conservar los datos y actualizar la base a la versión %1 (r
 es.OpcionConservarNota=Antes de actualizar se guarda un respaldo completo de la base en la carpeta de respaldos de SQL Server y, si algo falla, la base vuelve a ese respaldo. Se conservan las cuentas, los datos, la conexión configurada y la clave de cifrado de los contactos.
 es.OpcionReemplazar=&Reemplazar la base por la de demostración
 es.OpcionReemplazarNota=Antes de reemplazarla se guarda un respaldo completo de la base actual: sus datos dejan de estar en uso y quedan solo en ese respaldo.
+es.OpcionReemplazarNoDisponible=No disponible con esta versión de SQL Server: el respaldo de demostración requiere SQL Server 2019 o superior.
 es.ConfirmarReemplazo=La base de datos %1 se va a reemplazar por la de demostración. Los datos actuales quedarán solo en el respaldo que se guarda antes.%n%n¿Continuar?
 es.MemoBase=Base de datos:
 es.MemoInstancia=Instancia: %1 - %2
 es.MemoNombre=Base: %1 (se crea con los datos de demostración)
+es.MemoEsquema=Base: %1 (se crea con el guion del esquema, sin los datos de demostración: la versión de SQL Server no puede leer el respaldo)
+es.MemoVacia=Base: %1 (ya existe y está vacía: se le cargan las tablas y los datos iniciales, sin los datos de demostración)
 es.MemoConservar=Base: %1, se conserva y se actualiza de la versión %2 a la %3 (con respaldo previo)
 es.MemoReemplazar=Base: %1, se reemplaza por la de demostración (con respaldo previo de la actual)
 es.MemoActualizacion=Actualización:
@@ -231,6 +255,14 @@ const
   LicenciaDelMotor_704ILR = 'https://aka.ms/useterms';
   GuionBase_704ILR = 'BaseDeDatos.ps1';
   GuionConexion_704ILR = 'Conexion.ps1';
+  GuionEsquema_704ILR = 'schema.sql';
+  // Como se crea la base en una instalacion inicial (lo decide el diagnostico de la
+  // instancia; ver BaseDeDatos.ps1).
+  ModoRespaldo_704ILR = 'RESPALDO';
+  ModoEsquema_704ILR = 'ESQUEMA';
+  ModoVacia_704ILR = 'VACIA';
+  // Windows: la autorizacion de administrador (UAC) se cancelo.
+  ErrorCancelado_704ILR = 1223;
   // Operacion sobre la base que decidio el asistente.
   OpCrear_704ILR = 'CREAR';
   OpActualizar_704ILR = 'ACTUALIZAR';
@@ -258,11 +290,19 @@ var
   PaginaProgreso_704ILR, PaginaMotor_704ILR: TOutputProgressWizardPage;
   InstanciaElegida_704ILR: String;
   MotorDetectado_704ILR: String;
-  // Instalacion previa del sistema en este equipo (vacio: no hay).
+  // Instalacion previa del sistema para este usuario (vacio: no hay) y, aparte, una
+  // instalacion para todos los usuarios del equipo (la version 2.0 se instalaba asi).
   VersionPrevia_704ILR, CarpetaPrevia_704ILR: String;
+  VersionComun_704ILR, CarpetaComun_704ILR: String;
   // La instancia elegida ya tiene la base: su version y su contenido.
   BaseExiste_704ILR: Boolean;
   VersionBase_704ILR, CuentasBase_704ILR, ClientesBase_704ILR, ReservasBase_704ILR: String;
+  // Instalacion inicial: como se crea la base. Reemplazo: el motor puede leer el respaldo.
+  ModoBase_704ILR: String;
+  ReemplazoPosible_704ILR: Boolean;
+  // Reinstalacion: la instancia de la instalacion previa ya se comprobo (y la pagina de la
+  // instancia se saltea) o no respondio (y se la muestra).
+  PreviaComprobada_704ILR, PreviaFallida_704ILR: Boolean;
   Operacion_704ILR: String;
   // Fecha de creacion de la base que creo ESTA ejecucion. Vacia: no se creo ninguna.
   MarcaDeLaBase_704ILR: String;
@@ -308,16 +348,23 @@ begin
   Result := Mayor_704ILR * 1000 + Menor_704ILR;
 end;
 
-// Version y carpeta de la instalacion previa, leidas de la clave de desinstalacion.
+// Version y carpeta de la instalacion previa, leidas de la clave de desinstalacion. La
+// del usuario (2.1 y posteriores, sin administrador) esta en HKEY_CURRENT_USER; la de
+// una instalacion para todos los usuarios (2.0, con administrador), en HKEY_LOCAL_MACHINE.
 procedure LeerInstalacionPrevia_704ILR;
 begin
   VersionPrevia_704ILR := '';
   CarpetaPrevia_704ILR := '';
-  if IsWin64 and RegQueryStringValue(HKLM64, ClaveDesinstalacion_704ILR, 'DisplayVersion', VersionPrevia_704ILR) then
-    RegQueryStringValue(HKLM64, ClaveDesinstalacion_704ILR, 'InstallLocation', CarpetaPrevia_704ILR)
-  else if RegQueryStringValue(HKLM32, ClaveDesinstalacion_704ILR, 'DisplayVersion', VersionPrevia_704ILR) then
-    RegQueryStringValue(HKLM32, ClaveDesinstalacion_704ILR, 'InstallLocation', CarpetaPrevia_704ILR);
+  VersionComun_704ILR := '';
+  CarpetaComun_704ILR := '';
+  if RegQueryStringValue(HKCU, ClaveDesinstalacion_704ILR, 'DisplayVersion', VersionPrevia_704ILR) then
+    RegQueryStringValue(HKCU, ClaveDesinstalacion_704ILR, 'InstallLocation', CarpetaPrevia_704ILR);
   CarpetaPrevia_704ILR := RemoveBackslashUnlessRoot(CarpetaPrevia_704ILR);
+  if IsWin64 and RegQueryStringValue(HKLM64, ClaveDesinstalacion_704ILR, 'DisplayVersion', VersionComun_704ILR) then
+    RegQueryStringValue(HKLM64, ClaveDesinstalacion_704ILR, 'InstallLocation', CarpetaComun_704ILR)
+  else if RegQueryStringValue(HKLM32, ClaveDesinstalacion_704ILR, 'DisplayVersion', VersionComun_704ILR) then
+    RegQueryStringValue(HKLM32, ClaveDesinstalacion_704ILR, 'InstallLocation', CarpetaComun_704ILR);
+  CarpetaComun_704ILR := RemoveBackslashUnlessRoot(CarpetaComun_704ILR);
 end;
 
 function EsActualizacion_704ILR: Boolean;
@@ -455,7 +502,8 @@ end;
 // Ejecuta un guion de PowerShell y carga en Resultado las lineas CLAVE=valor que deja.
 // Devuelve el codigo de salida del guion (0 correcto) o -1 si no se lo pudo ejecutar.
 // Carpeta: donde esta el guion y donde deja su resultado. ComoUsuarioOriginal: con la
-// cuenta de quien inicio la instalacion en lugar de la elevada.
+// cuenta de quien inicio la instalacion (es la misma, salvo que se haya ejecutado el
+// asistente "como administrador" con otra cuenta).
 function EjecutarGuion_704ILR(Carpeta_704ILR, Guion_704ILR, Argumentos_704ILR: String;
   ComoUsuarioOriginal_704ILR: Boolean; Resultado_704ILR: TStrings): Integer;
 var
@@ -501,41 +549,47 @@ begin
   Result := '-Accion_704ILR ' + Accion_704ILR + ' -Instancia_704ILR "' + Instancia_704ILR + '" -VersionNueva_704ILR "{#Version_704ILR}"';
 end;
 
-// Lo que corre con la cuenta de quien inicio la instalacion no puede leer la carpeta
-// temporal del asistente (solo la leen los administradores): los guiones se copian a una
-// carpeta de apoyo, que se borra despues.
-function PrepararCarpetaDeApoyo_704ILR: String;
+// Carpeta de apoyo en los datos de programas del equipo (%ProgramData%\EvenTech), donde
+// cualquier usuario puede escribir: ahi se deja lo que tiene que leer otra cuenta (el
+// respaldo de demostracion, que lee el servicio de SQL Server; los guiones que corren con
+// la cuenta de quien inicio la instalacion). Lleva la hora en el nombre: si quedara una
+// de otra ejecucion u otro usuario, no se la toca. Vacia si no se la pudo crear.
+function CrearCarpetaDeApoyo_704ILR: String;
 begin
-  Result := ExpandConstant('{commonappdata}\{#Nombre_704ILR}\instalacion');
-  ForceDirectories(Result);
-  FileCopy(ExpandConstant('{tmp}\') + GuionConexion_704ILR, AddBackslash(Result) + GuionConexion_704ILR, False);
-  FileCopy(ExpandConstant('{tmp}\') + GuionBase_704ILR, AddBackslash(Result) + GuionBase_704ILR, False);
+  Result := ExpandConstant('{commonappdata}\{#Nombre_704ILR}\instalacion_') +
+    GetDateTimeString('yyyymmddhhnnss', #0, #0);
+  if not ForceDirectories(Result) then
+  begin
+    Log('No se pudo crear la carpeta de apoyo ' + Result);
+    Result := '';
+  end;
 end;
 
 procedure QuitarCarpetaDeApoyo_704ILR(Apoyo_704ILR: String);
 begin
+  if Apoyo_704ILR = '' then Exit;
   DelTree(Apoyo_704ILR, True, True, True);
   // La carpeta superior se quita solo si quedo vacia (la aplicacion guarda ahi su
-  // clave de cifrado y el registro de excepciones).
+  // clave de cifrado, sus respaldos y el registro de excepciones).
   RemoveDir(ExtractFileDir(Apoyo_704ILR));
 end;
 
 // Cuentas de Windows que administran la instancia que se crea, entre comillas y separadas
 // por un espacio, como las pide el instalador de SQL Server: el grupo de administradores
 // del equipo (con su nombre en el idioma de Windows) y quien inicio la instalacion, que
-// es quien va a usar el sistema (la cuenta elevada, si es otra, la agrega el parametro
-// /ADDCURRENTUSERASSQLADMIN). Vacio si no se las pudo averiguar.
+// es quien va a usar el sistema (si un administrador autoriza la instalacion con su
+// propia cuenta, esa la agrega el parametro /ADDCURRENTUSERASSQLADMIN). Vacio si no se
+// las pudo averiguar.
 function CuentasAdministradoras_704ILR(Instancia_704ILR: String): String;
 var
-  Apoyo_704ILR, Administradores_704ILR, Usuario_704ILR: String;
+  Administradores_704ILR, Usuario_704ILR: String;
   Resultado_704ILR: TStringList;
 begin
   Result := '';
-  Apoyo_704ILR := PrepararCarpetaDeApoyo_704ILR;
   Resultado_704ILR := TStringList.Create;
   try
-    if EjecutarGuion_704ILR(Apoyo_704ILR, GuionBase_704ILR,
-         '-Accion_704ILR Cuentas -Instancia_704ILR "' + Instancia_704ILR + '"', True, Resultado_704ILR) = 0 then
+    if EjecutarGuion_704ILR(ExpandConstant('{tmp}'), GuionBase_704ILR,
+         '-Accion_704ILR Cuentas -Instancia_704ILR "' + Instancia_704ILR + '"', False, Resultado_704ILR) = 0 then
     begin
       Administradores_704ILR := Valor_704ILR(Resultado_704ILR, 'ADMINISTRADORES');
       Usuario_704ILR := Valor_704ILR(Resultado_704ILR, 'USUARIO');
@@ -545,7 +599,6 @@ begin
     end;
   finally
     Resultado_704ILR.Free;
-    QuitarCarpetaDeApoyo_704ILR(Apoyo_704ILR);
   end;
 end;
 
@@ -563,6 +616,8 @@ begin
     Result := FmtMessage(CustomMessage('ErrVersionAnterior'), [Instancia_704ILR, Detalle_704ILR])
   else if Codigo_704ILR = 'SIN_PERMISO' then
     Result := FmtMessage(CustomMessage('ErrSinPermiso'), [Instancia_704ILR, Detalle_704ILR])
+  else if Codigo_704ILR = 'SIN_PERMISO_BASE' then
+    Result := FmtMessage(CustomMessage('ErrSinPermisoBase'), [Instancia_704ILR, Detalle_704ILR, BaseDeDatos_704ILR])
   else if Codigo_704ILR = 'BASE_AJENA' then
     Result := FmtMessage(CustomMessage('ErrBaseAjena'), [Instancia_704ILR, BaseDeDatos_704ILR])
   else if Codigo_704ILR = 'BASE_MAS_NUEVA' then
@@ -592,8 +647,17 @@ begin
     if Result then
     begin
       MotorDetectado_704ILR := Valor_704ILR(Resultado_704ILR, 'MOTOR');
+      ModoBase_704ILR := Valor_704ILR(Resultado_704ILR, 'MODO');
+      ReemplazoPosible_704ILR := Valor_704ILR(Resultado_704ILR, 'REEMPLAZO') = '1';
       BaseExiste_704ILR := Valor_704ILR(Resultado_704ILR, 'BASE_EXISTE') = '1';
       VersionBase_704ILR := Valor_704ILR(Resultado_704ILR, 'VERSION_BASE');
+      // Una base sin la marca de version (la de la 2.1, por ejemplo) se reconoce por su
+      // esquema, que es el mismo en toda una version mayor: si la aplicacion instalada es
+      // de esa misma version mayor, se informa la de la aplicacion.
+      if (Valor_704ILR(Resultado_704ILR, 'VERSION_DEDUCIDA') = '1') and EsActualizacion_704ILR and
+         (NumeroDeVersion_704ILR(VersionPrevia_704ILR) div 1000 = NumeroDeVersion_704ILR(VersionBase_704ILR) div 1000) and
+         (NumeroDeVersion_704ILR(VersionPrevia_704ILR) > NumeroDeVersion_704ILR(VersionBase_704ILR)) then
+        VersionBase_704ILR := VersionPrevia_704ILR;
       CuentasBase_704ILR := Valor_704ILR(Resultado_704ILR, 'CUENTAS');
       ClientesBase_704ILR := Valor_704ILR(Resultado_704ILR, 'CLIENTES');
       ReservasBase_704ILR := Valor_704ILR(Resultado_704ILR, 'RESERVAS');
@@ -614,8 +678,10 @@ end;
 // Instala SQL Server Express en modo silencioso, con los parametros documentados por
 // Microsoft para una instalacion desde la linea de comandos (los mismos que usa su propio
 // instalador basico: solo el motor, sin conexiones de red, sin buscar actualizaciones).
-// Antes comprueba los requisitos que se pueden ver desde aca. Devuelve '' si la
-// instancia quedo disponible, o el mensaje para quien instala.
+// El asistente corre sin permisos de administrador: el instalador de SQL Server se lanza
+// pidiendo la elevacion a Windows (UAC), que es el unico paso que la necesita. Antes
+// comprueba los requisitos que se pueden ver desde aca. Devuelve '' si la instancia
+// quedo disponible, o el mensaje para quien instala.
 function InstalarMotor_704ILR(Instancia_704ILR: String): String;
 var
   Programa_704ILR, Parametros_704ILR, Cuentas_704ILR, Mensaje_704ILR: String;
@@ -623,7 +689,7 @@ var
   NetFramework_704ILR: Cardinal;
   Libre_704ILR, Total_704ILR: Int64;
   Instancias_704ILR: TStringList;
-  Registrada_704ILR: Boolean;
+  Registrada_704ILR, Lanzado_704ILR: Boolean;
 begin
   Result := '';
   if not RegQueryDWordValue(HKLM, 'SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full', 'Release', NetFramework_704ILR) or
@@ -643,6 +709,7 @@ begin
   PaginaMotor_704ILR.SetProgress(0, 100);
   PaginaMotor_704ILR.ProgressBar.Style := npbstMarquee;
   PaginaMotor_704ILR.Show;
+  Lanzado_704ILR := False;
   try
     Cuentas_704ILR := CuentasAdministradoras_704ILR('localhost\' + Instancia_704ILR);
     Programa_704ILR := MediosDelMotor_704ILR;
@@ -669,9 +736,32 @@ begin
     Parametros_704ILR := Parametros_704ILR + ' /SQLSVCSTARTUPTYPE=Automatic /TCPENABLED=0 /NPENABLED=0' +
       ' /UPDATEENABLED=False /IACCEPTSQLSERVERLICENSETERMS /SUPPRESSPRIVACYSTATEMENTNOTICE';
     Log('Instalacion de SQL Server Express: ' + Programa_704ILR + ' ' + Parametros_704ILR);
-    if not FileExists(Programa_704ILR) or
-       not Exec(Programa_704ILR, Parametros_704ILR, ExtractFileDir(Programa_704ILR), SW_HIDE, ewWaitUntilTerminated, Codigo_704ILR) then
-      Codigo_704ILR := -1;
+    Codigo_704ILR := -1;
+    if FileExists(Programa_704ILR) then
+    begin
+#ifdef ForzarElevacion_704ILR
+      // Solo en la variante de prueba (construir.ps1 nunca lo define): aunque la consola de
+      // las pruebas ya este elevada, se recorre el camino que pide la elevacion a Windows.
+      if False then
+#else
+      if IsAdmin then
+#endif
+        // El asistente ya corre elevado (se lo ejecuto "como administrador"): no hay que pedir nada.
+        Lanzado_704ILR := Exec(Programa_704ILR, Parametros_704ILR, ExtractFileDir(Programa_704ILR), SW_HIDE, ewWaitUntilTerminated, Codigo_704ILR)
+      else
+        // Windows pide la autorizacion de un administrador solo para este programa.
+        Lanzado_704ILR := ShellExec('runas', Programa_704ILR, Parametros_704ILR, ExtractFileDir(Programa_704ILR), SW_HIDE, ewWaitUntilTerminated, Codigo_704ILR);
+      if not Lanzado_704ILR then
+      begin
+        Log('No se pudo lanzar el instalador de SQL Server Express: ' + IntToStr(Codigo_704ILR) + ' ' + SysErrorMessage(Codigo_704ILR));
+        if Codigo_704ILR = ErrorCancelado_704ILR then
+        begin
+          Result := CustomMessage('MotorSinAutorizacion');
+          Exit;
+        end;
+        Codigo_704ILR := -1;
+      end;
+    end;
     Log('SQL Server Express termino con el codigo ' + IntToStr(Codigo_704ILR));
   finally
     PaginaMotor_704ILR.Hide;
@@ -915,6 +1005,16 @@ begin
       CuentasBase_704ILR, ClientesBase_704ILR, ReservasBase_704ILR]) + #13#10#13#10 +
     FmtMessage(CustomMessage('BaseNueva'), ['{#Nombre_704ILR}', '{#Version_704ILR}']);
   LblResumenBase_704ILR.Caption := Texto_704ILR;
+  // Un motor anterior a SQL Server 2019 no puede leer el respaldo de demostracion.
+  RadioReemplazar_704ILR.Enabled := ReemplazoPosible_704ILR;
+  if ReemplazoPosible_704ILR then
+    NotaReemplazar_704ILR.Caption := CustomMessage('OpcionReemplazarNota')
+  else
+  begin
+    NotaReemplazar_704ILR.Caption := CustomMessage('OpcionReemplazarNoDisponible');
+    RadioReemplazar_704ILR.Checked := False;
+    RadioConservar_704ILR.Checked := True;
+  end;
   // El resumen mide lo que mide su texto (cuentas, clientes, ruta de la instalacion): las
   // opciones se ubican debajo, para que el texto nunca quede montado sobre ellas.
   LblResumenBase_704ILR.AdjustHeight;
@@ -926,7 +1026,8 @@ begin
   NotaReemplazar_704ILR.Top := RadioReemplazar_704ILR.Top + RadioReemplazar_704ILR.Height + ScaleY(3);
 end;
 
-// No se instala una version anterior sobre una posterior.
+// No se instala una version anterior sobre una posterior. Y una instalacion para todos
+// los usuarios (la 2.0) no se puede reemplazar sin ser administrador: se explica que hacer.
 function InitializeSetup: Boolean;
 begin
   Result := True;
@@ -936,13 +1037,18 @@ begin
     SuppressibleMsgBox(FmtMessage(CustomMessage('ErrDegradacion'), ['{#Nombre_704ILR}', VersionPrevia_704ILR, '{#Version_704ILR}']),
       mbError, MB_OK, IDOK);
     Result := False;
+  end
+  else if not EsActualizacion_704ILR and (VersionComun_704ILR <> '') then
+  begin
+    SuppressibleMsgBox(FmtMessage(CustomMessage('InstalacionComun'), ['{#Nombre_704ILR}', VersionComun_704ILR, CarpetaComun_704ILR]),
+      mbError, MB_OK, IDOK);
+    Result := False;
   end;
 end;
 
 procedure InitializeWizard;
 begin
-  // Los guiones se extraen una sola vez a la carpeta temporal del asistente, que
-  // solo pueden leer los administradores: de ahi los ejecuta la cuenta elevada.
+  // Los guiones se extraen una sola vez a la carpeta temporal del asistente.
   ExtractTemporaryFile(GuionBase_704ILR);
   ExtractTemporaryFile(GuionConexion_704ILR);
 
@@ -961,9 +1067,41 @@ begin
     CustomMessage('MotorProgresoTitulo'), CustomMessage('MotorProgresoDescripcion'));
 end;
 
+// En una reinstalacion la instancia es la de la instalacion previa: si responde y tiene la
+// base, la pagina de la instancia no se muestra y el asistente pasa directo a lo que esta
+// y lo que viene. Si no responde (o se pidio otra con /INSTANCIA=), se la muestra.
+function ComprobarInstanciaPrevia_704ILR: Boolean;
+var
+  Previa_704ILR, Mensaje_704ILR: String;
+begin
+  Result := PreviaComprobada_704ILR;
+  if Result or PreviaFallida_704ILR then Exit;
+  Previa_704ILR := GetPreviousData('Instancia', '');
+  if not EsActualizacion_704ILR or (Previa_704ILR = '') or (ExpandConstant('{param:INSTANCIA|}') <> '') then
+  begin
+    PreviaFallida_704ILR := True;
+    Exit;
+  end;
+  Result := DiagnosticarInstancia_704ILR(Previa_704ILR, Mensaje_704ILR) and BaseExiste_704ILR;
+  if Result then
+  begin
+    InstanciaElegida_704ILR := Previa_704ILR;
+    if RadioReemplazar_704ILR.Checked then Operacion_704ILR := OpReemplazar_704ILR else Operacion_704ILR := OpActualizar_704ILR;
+    PreviaComprobada_704ILR := True;
+  end
+  else
+  begin
+    Log('La instancia de la instalacion previa no sirve para actualizar: ' + Mensaje_704ILR);
+    PreviaFallida_704ILR := True;
+  end;
+end;
+
 function ShouldSkipPage(PageID: Integer): Boolean;
 begin
-  Result := (PageID = PaginaBase_704ILR.ID) and not BaseExiste_704ILR;
+  if PageID = PaginaInstancia_704ILR.ID then
+    Result := ComprobarInstanciaPrevia_704ILR
+  else
+    Result := (PageID = PaginaBase_704ILR.ID) and not BaseExiste_704ILR;
 end;
 
 procedure CurPageChanged(CurPageID: Integer);
@@ -988,11 +1126,37 @@ begin
   end;
 end;
 
+// La carpeta de destino tiene que admitir escritura con los permisos del usuario (una
+// carpeta de Archivos de programa, por ejemplo, no la admite sin ser administrador). Se
+// prueba escribiendo un archivo; lo que se creo para la prueba se quita.
+function CarpetaEscribible_704ILR(Carpeta_704ILR: String): Boolean;
+var
+  Existia_704ILR: Boolean;
+  Prueba_704ILR: String;
+begin
+  Existia_704ILR := DirExists(Carpeta_704ILR);
+  Result := ForceDirectories(Carpeta_704ILR);
+  if not Result then Exit;
+  Prueba_704ILR := AddBackslash(Carpeta_704ILR) + 'eventech_prueba_de_escritura.tmp';
+  Result := SaveStringToFile(Prueba_704ILR, 'EvenTech', False);
+  DeleteFile(Prueba_704ILR);
+  if not Existia_704ILR then RemoveDir(Carpeta_704ILR);
+end;
+
 function NextButtonClick(CurPageID: Integer): Boolean;
 var
   Instancia_704ILR, Mensaje_704ILR: String;
 begin
   Result := True;
+  if CurPageID = wpSelectDir then
+  begin
+    if not CarpetaEscribible_704ILR(WizardDirValue) then
+    begin
+      SuppressibleMsgBox(FmtMessage(CustomMessage('CarpetaSinPermiso'), [WizardDirValue]), mbError, MB_OK, IDOK);
+      Result := False;
+    end;
+    Exit;
+  end;
   if CurPageID = PaginaBase_704ILR.ID then
   begin
     if RadioReemplazar_704ILR.Checked then
@@ -1091,6 +1255,10 @@ begin
     Result := Result + FmtMessage(CustomMessage('MemoConservar'), [BaseDeDatos_704ILR, VersionBase_704ILR, '{#Version_704ILR}'])
   else if Operacion_704ILR = OpReemplazar_704ILR then
     Result := Result + FmtMessage(CustomMessage('MemoReemplazar'), [BaseDeDatos_704ILR])
+  else if ModoBase_704ILR = ModoEsquema_704ILR then
+    Result := Result + FmtMessage(CustomMessage('MemoEsquema'), [BaseDeDatos_704ILR])
+  else if ModoBase_704ILR = ModoVacia_704ILR then
+    Result := Result + FmtMessage(CustomMessage('MemoVacia'), [BaseDeDatos_704ILR])
   else
     Result := Result + FmtMessage(CustomMessage('MemoNombre'), [BaseDeDatos_704ILR]);
   if MemoTasksInfo <> '' then Result := Result + NewLine + NewLine + MemoTasksInfo;
@@ -1116,12 +1284,28 @@ end;
 
 // La base se prepara ANTES de copiar la aplicacion: es el paso que depende del entorno
 // y, si falla, los archivos instalados no se tocan y se puede volver atras.
+// El respaldo de demostracion lo lee la cuenta del servicio de SQL Server, que no puede
+// entrar a la carpeta temporal del usuario: se lo deja en la carpeta de apoyo (ver
+// CrearCarpetaDeApoyo_704ILR). Devuelve su ruta; Apoyo queda con la carpeta creada.
+function RespaldoDeDemostracion_704ILR(var Apoyo_704ILR: String): String;
+begin
+  ExtractTemporaryFile(BaseDeDatos_704ILR + '.bak');
+  Result := ExpandConstant('{tmp}\') + BaseDeDatos_704ILR + '.bak';
+  Apoyo_704ILR := CrearCarpetaDeApoyo_704ILR;
+  if (Apoyo_704ILR <> '') and FileCopy(Result, AddBackslash(Apoyo_704ILR) + BaseDeDatos_704ILR + '.bak', False) then
+  begin
+    DeleteFile(Result);
+    Result := AddBackslash(Apoyo_704ILR) + BaseDeDatos_704ILR + '.bak';
+  end;
+end;
+
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
   Resultado_704ILR: TStringList;
-  Respaldo_704ILR, Esquema_704ILR, Codigo_704ILR: String;
+  Respaldo_704ILR, Esquema_704ILR, Codigo_704ILR, Apoyo_704ILR, Accion_704ILR: String;
 begin
   Result := '';
+  Apoyo_704ILR := '';
   // Si un intento anterior de esta misma ejecucion ya preparo la base, no se repite; y si
   // despues se eligio otra instancia u otra opcion, no se la prepara de nuevo encima.
   if (MarcaDeLaBase_704ILR <> '') or BaseModificada_704ILR then
@@ -1167,10 +1351,27 @@ begin
           Result := MensajeDeFalla_704ILR(FmtMessage(CustomMessage('ErrActualizacion'), [BaseDeDatos_704ILR, InstanciaElegida_704ILR]), Resultado_704ILR);
       end;
     end
+    else if (ModoBase_704ILR = ModoEsquema_704ILR) or (ModoBase_704ILR = ModoVacia_704ILR) then
+    begin
+      // Instalacion inicial sin el respaldo: la base se crea (o se carga, si ya existe
+      // vacia) con el guion del esquema, sin los datos de demostracion.
+      if ModoBase_704ILR = ModoEsquema_704ILR then Accion_704ILR := 'Crear' else Accion_704ILR := 'Cargar';
+      if EjecutarGuion_704ILR(ExpandConstant('{tmp}'), GuionBase_704ILR,
+           ArgumentosBase_704ILR(Accion_704ILR, InstanciaElegida_704ILR) + ' -Esquema_704ILR "' + Esquema_704ILR + '"',
+           False, Resultado_704ILR) = 0 then
+      begin
+        MarcaDeLaBase_704ILR := Valor_704ILR(Resultado_704ILR, 'MARCA');
+        OperacionDeLaBase_704ILR := Operacion_704ILR;
+        InstanciaDeLaBase_704ILR := InstanciaElegida_704ILR;
+      end
+      else if Valor_704ILR(Resultado_704ILR, 'CODIGO') = 'BASE_EXISTENTE' then
+        Result := FmtMessage(CustomMessage('ErrBaseExistente'), [InstanciaElegida_704ILR, BaseDeDatos_704ILR])
+      else
+        Result := MensajeDeFalla_704ILR(FmtMessage(CustomMessage('ErrRestauracion'), [BaseDeDatos_704ILR, InstanciaElegida_704ILR]), Resultado_704ILR);
+    end
     else
     begin
-      ExtractTemporaryFile(BaseDeDatos_704ILR + '.bak');
-      Respaldo_704ILR := ExpandConstant('{tmp}\') + BaseDeDatos_704ILR + '.bak';
+      Respaldo_704ILR := RespaldoDeDemostracion_704ILR(Apoyo_704ILR);
       if Operacion_704ILR = OpReemplazar_704ILR then
       begin
         if EjecutarGuion_704ILR(ExpandConstant('{tmp}'), GuionBase_704ILR,
@@ -1210,29 +1411,36 @@ begin
     DeleteFile(Esquema_704ILR);
   finally
     Resultado_704ILR.Free;
+    QuitarCarpetaDeApoyo_704ILR(Apoyo_704ILR);
     PaginaProgreso_704ILR.Hide;
   end;
 end;
 
 // Con la aplicacion ya copiada: se guarda la conexion en el perfil de quien inicio la
-// instalacion y se comprueba, con esa misma cuenta, que pueda abrir la base. Las dos
-// cosas corren sin elevacion, desde la carpeta de apoyo.
+// instalacion y se comprueba, con esa misma cuenta, que pueda abrir la base. Si el
+// asistente se ejecuto "como administrador" con otra cuenta, esa cuenta no puede leer
+// la carpeta temporal del asistente: los guiones se copian a la carpeta de apoyo.
 // En una actualizacion la conexion que ya apunta a la misma instancia se conserva.
 procedure ConfigurarConexion_704ILR;
 var
   Resultado_704ILR: TStringList;
-  Apoyo_704ILR, Detalle_704ILR, Aviso_704ILR, Conservar_704ILR: String;
+  Apoyo_704ILR, Carpeta_704ILR, Detalle_704ILR, Aviso_704ILR, Conservar_704ILR: String;
 begin
-  Apoyo_704ILR := PrepararCarpetaDeApoyo_704ILR;
+  Apoyo_704ILR := CrearCarpetaDeApoyo_704ILR;
+  Carpeta_704ILR := ExpandConstant('{tmp}');
+  if (Apoyo_704ILR <> '') and
+     FileCopy(ExpandConstant('{tmp}\') + GuionConexion_704ILR, AddBackslash(Apoyo_704ILR) + GuionConexion_704ILR, False) and
+     FileCopy(ExpandConstant('{tmp}\') + GuionBase_704ILR, AddBackslash(Apoyo_704ILR) + GuionBase_704ILR, False) then
+    Carpeta_704ILR := Apoyo_704ILR;
   Resultado_704ILR := TStringList.Create;
   try
     Conservar_704ILR := '';
     if Operacion_704ILR = OpActualizar_704ILR then Conservar_704ILR := ' -Conservar_704ILR';
     Aviso_704ILR := '';
-    if EjecutarGuion_704ILR(Apoyo_704ILR, GuionConexion_704ILR,
+    if EjecutarGuion_704ILR(Carpeta_704ILR, GuionConexion_704ILR,
          '-Instancia_704ILR "' + InstanciaElegida_704ILR + '"' + Conservar_704ILR, True, Resultado_704ILR) <> 0 then
       Aviso_704ILR := FmtMessage(CustomMessage('AvisoConexion'), ['{#Nombre_704ILR}', InstanciaElegida_704ILR])
-    else if EjecutarGuion_704ILR(Apoyo_704ILR, GuionBase_704ILR,
+    else if EjecutarGuion_704ILR(Carpeta_704ILR, GuionBase_704ILR,
          '-Accion_704ILR Verificar -Instancia_704ILR "' + InstanciaElegida_704ILR + '"', True, Resultado_704ILR) <> 0 then
       Aviso_704ILR := FmtMessage(CustomMessage('AvisoAcceso'), [BaseDeDatos_704ILR]);
 
