@@ -172,6 +172,16 @@
 	</OBJECT>
 
 <LI> <OBJECT type="text/sitemap">
+	<param name="Name" value="Respaldos">
+	<param name="Local" value="auditoria.htm">
+	</OBJECT>
+
+<LI> <OBJECT type="text/sitemap">
+	<param name="Name" value="Restaurar un respaldo">
+	<param name="Local" value="auditoria.htm">
+	</OBJECT>
+
+<LI> <OBJECT type="text/sitemap">
 	<param name="Name" value="Restaurar versión">
 	<param name="Local" value="historial.htm">
 	</OBJECT>
