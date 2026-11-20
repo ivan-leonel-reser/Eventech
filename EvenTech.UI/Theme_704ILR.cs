@@ -169,5 +169,6 @@ namespace EvenTech.UI
         // Entrega 3.
         public static readonly string IcoInforme_704ILR     = Glyph_704ILR(0xE9F9); // ReportDocument (informes)
         public static readonly string IcoAyuda_704ILR       = Glyph_704ILR(0xE897); // Help (ayuda en linea)
+        public static readonly string IcoAyudaApartado_704ILR = Glyph_704ILR(0xE9CE); // Unknown: circulo con "?" (ayuda de un apartado)
     }
 }

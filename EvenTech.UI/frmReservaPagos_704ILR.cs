@@ -123,6 +123,10 @@ namespace EvenTech.UI
             _txtObs_704ILR.Enabled = puedeRegistrar_704ILR;
             btnRegistrar_704ILR.Enabled = puedeRegistrar_704ILR;
             alta_704ILR.Controls.Add(_cboMetodo_704ILR); alta_704ILR.Controls.Add(_numMonto_704ILR); alta_704ILR.Controls.Add(_txtObs_704ILR); alta_704ILR.Controls.Add(btnRegistrar_704ILR); alta_704ILR.Controls.Add(btnQuitar_704ILR);
+            // Ayuda en linea (D02): F1 en la fila de alta abre el apartado del registro de un
+            // cobro; sobre Quitar, el de la anulacion.
+            Ayuda_704ILR.Zona_704ILR(alta_704ILR, Ayuda_704ILR.ApartadoPagosRegistrar_704ILR);
+            Ayuda_704ILR.Zona_704ILR(btnQuitar_704ILR, Ayuda_704ILR.ApartadoPagosAnular_704ILR);
 
             // --- Grilla ---
             var card_704ILR = new CardPanel_704ILR { Dock = DockStyle.Fill, Margin = new Padding(0, 0, 0, Theme_704ILR.SpaceMd_704ILR), Padding = new Padding(Theme_704ILR.SpaceSm_704ILR) };

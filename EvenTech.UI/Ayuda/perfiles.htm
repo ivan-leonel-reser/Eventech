@@ -3,9 +3,12 @@
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <title>Perfiles, permisos y cuentas</title><link rel="stylesheet" type="text/css" href="estilo.css"></head><body>
 <div class="cabecera"><div class="marca">EVENTECH</div><h1>Perfiles, permisos y cuentas</h1></div><div class="cuerpo">
-<p>La sección <b>Perfiles</b> es del administrador del sistema.</p>
-<ul><li><b>Nuevo perfil</b> crea un perfil; los permisos se marcan en el árbol y se guardan con <b>Guardar permisos</b>. Un perfil puede incluir a otros perfiles y suma sus permisos.</li><li>En la lista de cuentas se asigna el perfil de cada usuario y se guarda con <b>Guardar asignaciones</b>; también se desbloquea una cuenta bloqueada.</li><li>Los cambios rigen desde el próximo ingreso del usuario.</li></ul>
+<p>La sección <b>Perfiles</b> es del administrador del sistema. Los cambios rigen desde el próximo ingreso del usuario.</p>
+<h2 id="permisos">Perfiles y permisos</h2>
+<ul><li><b>Nuevo perfil</b> crea un perfil.</li><li>Se elige el perfil en <b>Perfil:</b>, se marcan los permisos en el árbol y se guardan con <b>Guardar permisos</b>. Marcar un grupo incluye a sus hijos.</li><li>Un perfil puede incluir a otros perfiles (<b>Perfiles incluidos</b>) y suma sus permisos; los que llegan así se ven como «(heredado)».</li></ul>
 <table><tr><th>Perfil de fábrica</th><th>Para quién</th></tr><tr><td>Administrador</td><td>Acceso total.</td></tr><tr class="cebra"><td>Vendedor</td><td>Reservas, clientes, disponibilidad y cobros.</td></tr><tr><td>Supervisor</td><td>Lo del Vendedor más auditoría, anulación de pagos y supervisión de la ejecución.</td></tr><tr class="cebra"><td>Gerencial</td><td>Lo del Supervisor más la línea base de integridad y el informe de gestión.</td></tr><tr><td>Coordinador</td><td>Empleados, personal, cronograma y tareas de los eventos.</td></tr><tr class="cebra"><td>Empleado</td><td>Mi agenda: confirmar turnos y consultar tareas.</td></tr></table>
+<h2 id="cuentas">Cuentas de usuario</h2>
+<ul><li>En <b>Asignar perfil a usuarios</b> se elige el perfil de cada cuenta y se guarda con <b>Guardar asignaciones</b>.</li><li><b>Desbloquear</b> habilita de nuevo una cuenta bloqueada por intentos fallidos.</li></ul>
 <div class="nota">Siempre tiene que quedar al menos una cuenta con la gestión de perfiles: el sistema no deja guardar un cambio que la quite.</div>
-<p class="pie"><a href="inicio.htm">Índice de la ayuda</a> · F1 abre la ayuda de la pantalla en uso.</p>
+<p class="pie"><a href="inicio.htm">Índice de la ayuda</a> · El botón ? de cada ventana abre la ayuda de esa pantalla; F1, la de la parte que tiene el cursor.</p>
 </div></body></html>

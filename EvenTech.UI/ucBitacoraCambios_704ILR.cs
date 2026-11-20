@@ -148,6 +148,8 @@ namespace EvenTech.UI
 
             flow_704ILR.Controls.AddRange(new Control[] { fCodigo_704ILR, fNombre_704ILR, fInicial_704ILR, fFinal_704ILR, _btnAplicar_704ILR, _btnLimpiar_704ILR });
             cardFiltros_704ILR.Controls.Add(flow_704ILR);
+            // Ayuda en linea (D02): el "?" de los filtros abre el apartado "Buscar".
+            Ayuda_704ILR.JuntoA_704ILR(Ayuda_704ILR.RotuloDeCampo_704ILR(fCodigo_704ILR), Ayuda_704ILR.ApartadoBitacoraCambiosBuscar_704ILR, cardFiltros_704ILR);
 
             // ---------------- Estado (conteo / aviso) ----------------
             var pnlEstado_704ILR = new FlowLayoutPanel
@@ -214,6 +216,11 @@ namespace EvenTech.UI
             _btnActivar_704ILR.Visible = Permisos_704ILR.Tiene_704ILR(BLL_Servicio_C_704ILR.PermisoActivar_704ILR);
             acciones_704ILR.Controls.Add(_btnSalir_704ILR);
             acciones_704ILR.Controls.Add(_btnActivar_704ILR);
+            // Ayuda (D02): junto a Activar, el "?" del apartado "Volver a una version anterior"
+            // (solo para quien puede activar: sin el boton, el apartado no corresponde).
+            if (_btnActivar_704ILR.Visible)
+                acciones_704ILR.Controls.Add(new BotonAyuda_704ILR(Ayuda_704ILR.ApartadoBitacoraCambiosActivar_704ILR) { Margin = new Padding(0, 10, Theme_704ILR.SpaceSm_704ILR, 0) });
+            Ayuda_704ILR.Zona_704ILR(acciones_704ILR, Ayuda_704ILR.ApartadoBitacoraCambiosActivar_704ILR);
 
             root_704ILR.Controls.Add(lblTitle_704ILR, 0, 0);
             root_704ILR.Controls.Add(cardFiltros_704ILR, 0, 1);

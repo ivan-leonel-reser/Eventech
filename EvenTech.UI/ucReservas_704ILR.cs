@@ -533,6 +533,15 @@ namespace EvenTech.UI
             actions_704ILR.Controls.Add(_btnComprobante_704ILR, 0, 2);
             actions_704ILR.Controls.Add(docRow_704ILR, 0, 3);
 
+            // Ayuda en linea (D02): el "?" junto a cada parte abre la guia en el apartado que
+            // la explica, y F1 con el foco en esa parte abre el mismo apartado.
+            Ayuda_704ILR.JuntoA_704ILR(_lblFormTitle_704ILR, Ayuda_704ILR.ApartadoReservasGenerar_704ILR, fields_704ILR);
+            Ayuda_704ILR.JuntoA_704ILR(Ayuda_704ILR.RotuloDeCampo_704ILR(fldEstado_704ILR), Ayuda_704ILR.ApartadoReservasEstados_704ILR, fldEstado_704ILR);
+            Ayuda_704ILR.JuntoA_704ILR(Ayuda_704ILR.RotuloDeCampo_704ILR(fldServicios_704ILR), Ayuda_704ILR.TemaServiciosReserva_704ILR, fldServicios_704ILR);
+            Ayuda_704ILR.Zona_704ILR(_btnGuardar_704ILR, Ayuda_704ILR.ApartadoReservasGenerar_704ILR);
+            foreach (Control documentacion_704ILR in new Control[] { secondary_704ILR, _btnComprobante_704ILR, docRow_704ILR })
+                Ayuda_704ILR.Zona_704ILR(documentacion_704ILR, Ayuda_704ILR.ApartadoReservasDocumentacion_704ILR);
+
             layout_704ILR.Controls.Add(_lblFormTitle_704ILR, 0, 0);
             layout_704ILR.Controls.Add(fields_704ILR, 0, 1);
             layout_704ILR.Controls.Add(actions_704ILR, 0, 2);

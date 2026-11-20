@@ -3902,6 +3902,9 @@ GO
         (N'ES', N'AYU_TT_MENU_AYUDA', N'Manual de usuario. F1 abre la ayuda de la pantalla en uso.'), (N'EN', N'AYU_TT_MENU_AYUDA', N'User manual. F1 opens the help for the current screen.'), (N'PT', N'AYU_TT_MENU_AYUDA', N'Manual do usuário. F1 abre a ajuda da tela em uso.'),
         (N'ES', N'AYU_TT_VERSION', N'Versión del sistema y commit del que se compiló. Clic: Acerca de.'), (N'EN', N'AYU_TT_VERSION', N'System version and the commit it was built from. Click: About.'), (N'PT', N'AYU_TT_VERSION', N'Versão do sistema e commit do qual foi compilado. Clique: Sobre.'),
         (N'ES', N'AYU_TT_INF_GENERAR', N'Calcula el informe del período elegido.'), (N'EN', N'AYU_TT_INF_GENERAR', N'Calculates the report for the chosen period.'), (N'PT', N'AYU_TT_INF_GENERAR', N'Calcula o relatório do período escolhido.'),
+        -- Botones "?" de la ayuda: el de la barra de titulo (la pantalla) y el de cada apartado.
+        (N'ES', N'AYU_TT_PANTALLA', N'Ayuda de esta pantalla (F1).'), (N'EN', N'AYU_TT_PANTALLA', N'Help for this screen (F1).'), (N'PT', N'AYU_TT_PANTALLA', N'Ajuda desta tela (F1).'),
+        (N'ES', N'AYU_TT_APARTADO', N'Ayuda sobre esta parte de la pantalla.'), (N'EN', N'AYU_TT_APARTADO', N'Help about this part of the screen.'), (N'PT', N'AYU_TT_APARTADO', N'Ajuda sobre esta parte da tela.'),
         (N'ES', N'AYU_TT_INF_EXPORTAR', N'Guarda el informe generado como documento PDF.'), (N'EN', N'AYU_TT_INF_EXPORTAR', N'Saves the generated report as a PDF document.'), (N'PT', N'AYU_TT_INF_EXPORTAR', N'Salva o relatório gerado como documento PDF.')
     ) AS v(Codigo, Clave, Texto)
 )

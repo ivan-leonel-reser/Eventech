@@ -14,8 +14,21 @@ namespace EvenTech.UI
     // tenga el permiso INTEGRIDAD_RECALC (el perfil Administrador lo trae).
     public class ucAuditoriaHub_704ILR : UserControl, IObservadorIdioma_704ILR, IAyudaContextual_704ILR
     {
-        // Tema de la ayuda en linea de esta seccion (F1).
-        public string TemaAyuda_704ILR => Ayuda_704ILR.TemaAuditoria_704ILR;
+        // Ayuda en linea de esta seccion (el "?" de la barra y F1): el apartado de la pestana
+        // elegida; sin pestanas, el tema de la auditoria.
+        public string TemaAyuda_704ILR
+        {
+            get
+            {
+                TabPage tab_704ILR = _tabs_704ILR?.SelectedTab;
+                if (tab_704ILR == null) return Ayuda_704ILR.TemaAuditoria_704ILR;
+                if (tab_704ILR == _tabBitacora_704ILR) return Ayuda_704ILR.ApartadoAuditoriaBitacora_704ILR;
+                if (tab_704ILR == _tabLogin_704ILR) return Ayuda_704ILR.ApartadoAuditoriaLogin_704ILR;
+                if (tab_704ILR == _tabExcepciones_704ILR) return Ayuda_704ILR.ApartadoAuditoriaExcepciones_704ILR;
+                if (tab_704ILR == _tabRespaldos_704ILR) return Ayuda_704ILR.ApartadoAuditoriaRespaldos_704ILR;
+                return Ayuda_704ILR.TemaAuditoria_704ILR;
+            }
+        }
 
         private readonly TabControl _tabs_704ILR;
         private readonly TabPage _tabBitacora_704ILR;   // null si el usuario no tiene BITACORA_VER
@@ -89,6 +102,12 @@ namespace EvenTech.UI
                                                 toolbar_704ILR.Height - _btnRecalc_704ILR.Height - Theme_704ILR.SpaceSm_704ILR);
                 _btnRecalc_704ILR.Click += (s_704ILR, e_704ILR) => RecalcularLineaBase_704ILR();
                 toolbar_704ILR.Controls.Add(_btnRecalc_704ILR);
+                // Ayuda en linea (D02): a la izquierda del boton, el "?" de la linea base.
+                var ayudaRecalc_704ILR = new BotonAyuda_704ILR(Ayuda_704ILR.ApartadoAuditoriaLineaBase_704ILR) { Anchor = AnchorStyles.Right | AnchorStyles.Bottom };
+                ayudaRecalc_704ILR.Location = new Point(_btnRecalc_704ILR.Left - ayudaRecalc_704ILR.Width - Theme_704ILR.SpaceSm_704ILR,
+                                                        _btnRecalc_704ILR.Top + (_btnRecalc_704ILR.Height - ayudaRecalc_704ILR.Height) / 2);
+                toolbar_704ILR.Controls.Add(ayudaRecalc_704ILR);
+                Ayuda_704ILR.Zona_704ILR(toolbar_704ILR, Ayuda_704ILR.ApartadoAuditoriaLineaBase_704ILR);
                 Controls.Add(toolbar_704ILR);
             }
 

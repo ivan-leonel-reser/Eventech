@@ -176,6 +176,9 @@ namespace EvenTech.UI
             actions_704ILR.Controls.Add(_btnGuardar_704ILR, 0, 0);
             actions_704ILR.Controls.Add(_lblOk_704ILR, 0, 1);
 
+            // Ayuda en linea (D02): el "?" junto al titulo de la ficha abre la guia en el
+            // apartado del alta y la modificacion; F1 con el foco en la ficha, tambien.
+            Ayuda_704ILR.JuntoA_704ILR(_lblFormTitle_704ILR, Ayuda_704ILR.ApartadoServiciosAlta_704ILR, card_704ILR);
             layout_704ILR.Controls.Add(_lblFormTitle_704ILR, 0, 0);
             layout_704ILR.Controls.Add(fields_704ILR, 0, 1);
             layout_704ILR.Controls.Add(actions_704ILR, 0, 2);

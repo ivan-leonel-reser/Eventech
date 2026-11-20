@@ -78,6 +78,9 @@ namespace EvenTech.UI
 
             header_704ILR.Controls.Add(lblTitle_704ILR, 0, 0);
             header_704ILR.Controls.Add(_lblCount_704ILR, 1, 0);
+            // Ayuda en linea (D02): junto a la lista de eventos, el apartado de los estados de
+            // coordinacion; junto al detalle, el del evento elegido.
+            Ayuda_704ILR.JuntoA_704ILR(_lblCount_704ILR, Ayuda_704ILR.ApartadoOperacionesEstados_704ILR);
             header_704ILR.Controls.Add(_lblError_704ILR, 0, 1);
             header_704ILR.SetColumnSpan(_lblError_704ILR, 3);
             return header_704ILR;
@@ -107,6 +110,7 @@ namespace EvenTech.UI
             Coord_704ILR.SinOrden_704ILR(_grid_704ILR);
             _grid_704ILR.SelectionChanged += (s_704ILR, e_704ILR) => { if (!_pintando_704ILR) MostrarDetalle_704ILR(); };
             card_704ILR.Controls.Add(_grid_704ILR);
+            Ayuda_704ILR.Zona_704ILR(card_704ILR, Ayuda_704ILR.ApartadoOperacionesEstados_704ILR);
             return card_704ILR;
         }
 
@@ -121,6 +125,7 @@ namespace EvenTech.UI
 
             _lblDetalleTitulo_704ILR = Ui_704ILR.Title_704ILR("");
             _lblDetalleTitulo_704ILR.Margin = new Padding(0, 0, 0, Theme_704ILR.SpaceSm_704ILR);
+            Ayuda_704ILR.JuntoA_704ILR(_lblDetalleTitulo_704ILR, Ayuda_704ILR.ApartadoOperacionesEvento_704ILR, card_704ILR);
 
             // Repaso de lo contratado y avance de la coordinacion. Tres bloques de texto
             // apilados dentro de un panel con desplazamiento: una reserva con muchos

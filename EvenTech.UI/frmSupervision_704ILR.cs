@@ -50,9 +50,10 @@ namespace EvenTech.UI
             root_704ILR.RowStyles.Add(new RowStyle(SizeType.AutoSize));     // pie
 
             // --- Acciones de ejecucion ---
-            var ejecucion_704ILR = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, AutoSize = true, BackColor = Color.Transparent, Margin = new Padding(0, 0, 0, Theme_704ILR.SpaceMd_704ILR) };
+            var ejecucion_704ILR = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 4, RowCount = 1, AutoSize = true, BackColor = Color.Transparent, Margin = new Padding(0, 0, 0, Theme_704ILR.SpaceMd_704ILR) };
             ejecucion_704ILR.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
             ejecucion_704ILR.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            ejecucion_704ILR.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize)); // ayuda
             ejecucion_704ILR.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             _btnIniciar_704ILR = Boton_704ILR(T_704ILR("SUP_INICIAR", "Iniciar ejecución"), Theme_704ILR.IcoIniciar_704ILR, 180);
             _btnIniciar_704ILR.Margin = new Padding(0, 0, Theme_704ILR.SpaceSm_704ILR, 0);
@@ -63,7 +64,11 @@ namespace EvenTech.UI
             _lblAviso_704ILR = new Label { AutoSize = true, Font = Theme_704ILR.FontSmall_704ILR, ForeColor = Theme_704ILR.Warning_704ILR, BackColor = Color.Transparent, Anchor = AnchorStyles.Left, Margin = new Padding(0), MaximumSize = new Size(800, 0) };
             ejecucion_704ILR.Controls.Add(_btnIniciar_704ILR, 0, 0);
             ejecucion_704ILR.Controls.Add(_btnCerrarEvento_704ILR, 1, 0);
-            ejecucion_704ILR.Controls.Add(_lblAviso_704ILR, 2, 0);
+            // Ayuda en linea (D02): despues de los botones, el "?" del apartado de la ejecucion.
+            ejecucion_704ILR.Controls.Add(new BotonAyuda_704ILR(Ayuda_704ILR.ApartadoSupervisionEjecucion_704ILR)
+                { Anchor = AnchorStyles.Left, Margin = new Padding(0, 0, Theme_704ILR.SpaceMd_704ILR, 0) }, 2, 0);
+            ejecucion_704ILR.Controls.Add(_lblAviso_704ILR, 3, 0);
+            Ayuda_704ILR.Zona_704ILR(ejecucion_704ILR, Ayuda_704ILR.ApartadoSupervisionEjecucion_704ILR);
 
             // --- Cuerpo: el plan a la izquierda, las incidencias a la derecha ---
             var body_704ILR = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, BackColor = Color.Transparent, Margin = new Padding(0, 0, 0, Theme_704ILR.SpaceMd_704ILR) };
@@ -201,7 +206,10 @@ namespace EvenTech.UI
             _btnResolver_704ILR.Anchor = AnchorStyles.Right; _btnResolver_704ILR.Margin = new Padding(0, Theme_704ILR.SpaceSm_704ILR, 0, 0);
             _btnResolver_704ILR.Click += (s_704ILR, e_704ILR) => Ejecutar_704ILR(Resolver_704ILR, "Resolver incidencia");
 
-            panel_704ILR.Controls.Add(Subtitulo_704ILR(T_704ILR("SUP_INCIDENCIAS", "Incidencias")), 0, 0);
+            // Ayuda en linea (D02): el "?" del subtitulo abre el apartado de las incidencias.
+            var lblIncidencias_704ILR = Subtitulo_704ILR(T_704ILR("SUP_INCIDENCIAS", "Incidencias"));
+            Ayuda_704ILR.JuntoA_704ILR(lblIncidencias_704ILR, Ayuda_704ILR.ApartadoSupervisionIncidencias_704ILR, panel_704ILR);
+            panel_704ILR.Controls.Add(lblIncidencias_704ILR, 0, 0);
             panel_704ILR.Controls.Add(alta_704ILR, 0, 1);
             panel_704ILR.Controls.Add(alta2_704ILR, 0, 2);
             panel_704ILR.Controls.Add(Tarjeta_704ILR(_gridIncidencias_704ILR, 0), 0, 3);

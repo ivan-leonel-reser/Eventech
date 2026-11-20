@@ -44,7 +44,7 @@ namespace EvenTech.UI
         }
 
         // Tema de la ayuda en linea de esta pantalla (F1).
-        public string TemaAyuda_704ILR => Ayuda_704ILR.TemaAuditoria_704ILR;
+        public string TemaAyuda_704ILR => Ayuda_704ILR.ApartadoAuditoriaExcepciones_704ILR;
 
         private void BuildUi_704ILR()
         {

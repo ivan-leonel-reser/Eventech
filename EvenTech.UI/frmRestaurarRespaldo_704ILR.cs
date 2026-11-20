@@ -9,7 +9,7 @@ namespace EvenTech.UI
     // Devuelve OK si se restauro un respaldo; el resultado queda en Resultado_704ILR.
     public class frmRestaurarRespaldo_704ILR : FormBase_704ILR
     {
-        protected override string TemaAyuda_704ILR => Ayuda_704ILR.TemaProblemas_704ILR;
+        protected override string TemaAyuda_704ILR => Ayuda_704ILR.ApartadoAuditoriaRespaldos_704ILR;
 
         public ResultadoRestauracion_704ILR Resultado_704ILR { get; private set; }
 

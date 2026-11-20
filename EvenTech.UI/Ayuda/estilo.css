@@ -4,6 +4,7 @@ body { font-family: Segoe UI, Arial, sans-serif; font-size: 10pt; color: #212529
 .cabecera h1 { margin: 2px 0 0 0; font-size: 15pt; font-weight: 600; }
 .cuerpo { padding: 6px 18px 18px 18px; }
 h2 { color: #9D7035; font-size: 11.5pt; margin: 16px 0 6px 0; border-bottom: 1px solid #DFE3E9; padding-bottom: 2px; }
+h2:target { background: #F6F1E4; border-left: 4px solid #9D7035; padding: 3px 6px; }
 p { margin: 6px 0; line-height: 140%; }
 ol, ul { margin: 4px 0 8px 22px; padding: 0; }
 li { margin: 3px 0; line-height: 140%; }

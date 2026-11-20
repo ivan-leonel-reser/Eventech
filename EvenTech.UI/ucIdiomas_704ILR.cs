@@ -100,6 +100,8 @@ namespace EvenTech.UI
             var lblNuevo_704ILR = Ui_704ILR.H2_704ILR("Nuevo idioma");
             lblNuevo_704ILR.Tag = "T:IDI_NUEVO";
             lblNuevo_704ILR.Margin = new Padding(0, 0, 0, Theme_704ILR.SpaceSm_704ILR);
+            // Ayuda en linea (D02): el "?" del alta de un idioma abre su apartado.
+            Ayuda_704ILR.JuntoA_704ILR(lblNuevo_704ILR, Ayuda_704ILR.ApartadoIdiomasCrear_704ILR, inner_704ILR);
 
             // Fila horizontal: campo codigo + campo nombre + boton crear.
             var fila_704ILR = new FlowLayoutPanel
@@ -163,6 +165,8 @@ namespace EvenTech.UI
             lblEditar_704ILR.Tag = "T:IDI_IDIOMA";
             lblEditar_704ILR.Margin = new Padding(0, 6, Theme_704ILR.SpaceMd_704ILR, 0);
             lblEditar_704ILR.AutoSize = true;
+            // Ayuda en linea (D02): el "?" del editor abre el apartado de las traducciones.
+            Ayuda_704ILR.JuntoA_704ILR(lblEditar_704ILR, Ayuda_704ILR.ApartadoIdiomasTraducir_704ILR, fila_704ILR);
 
             _cboIdioma_704ILR = Ui_704ILR.Combo_704ILR();
             _cboIdioma_704ILR.Width = 240;

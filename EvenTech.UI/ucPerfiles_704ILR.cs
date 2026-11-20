@@ -232,6 +232,8 @@ namespace EvenTech.UI
             _btnNuevoPerfil_704ILR.Tag = "T:PERF_NUEVO"; _btnNuevoPerfil_704ILR.Size = new Size(150, 30); _btnNuevoPerfil_704ILR.Anchor = AnchorStyles.Right; _btnNuevoPerfil_704ILR.Margin = new Padding(0);
             _btnNuevoPerfil_704ILR.Click += (s_704ILR, e_704ILR) => NuevoPerfil_704ILR();
             fila_704ILR.Controls.Add(lblPerfil_704ILR, 0, 0); fila_704ILR.Controls.Add(_cboPerfil_704ILR, 1, 0); fila_704ILR.Controls.Add(_btnNuevoPerfil_704ILR, 2, 0);
+            // Ayuda en linea (D02): el "?" del perfil abre el apartado de perfiles y permisos.
+            Ayuda_704ILR.JuntoA_704ILR(lblPerfil_704ILR, Ayuda_704ILR.ApartadoPerfilesPermisos_704ILR, card_704ILR);
 
             var lblHint_704ILR = new Label
             {
@@ -291,6 +293,8 @@ namespace EvenTech.UI
             _lblAsigTitulo_704ILR = Ui_704ILR.H2_704ILR("Asignar perfil a usuarios");
             _lblAsigTitulo_704ILR.Tag = "T:PERF_ASIGNAR_TITULO";
             _lblAsigTitulo_704ILR.Margin = new Padding(0, 0, 0, Theme_704ILR.SpaceMd_704ILR);
+            // Ayuda en linea (D02): el "?" de la asignacion abre el apartado de las cuentas.
+            Ayuda_704ILR.JuntoA_704ILR(_lblAsigTitulo_704ILR, Ayuda_704ILR.ApartadoPerfilesCuentas_704ILR, card_704ILR);
 
             _gridUsuarios_704ILR = new DataGridView { Dock = DockStyle.Fill };
             UiGrid_704ILR.Style_704ILR(_gridUsuarios_704ILR, editable_704ILR: true);

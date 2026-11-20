@@ -26,7 +26,7 @@ namespace EvenTech.UI
         public enum Salida_704ILR { Ninguna_704ILR, Recalculada_704ILR, Restaurada_704ILR }
 
         // Tema de la ayuda en linea de esta ventana (F1).
-        protected override string TemaAyuda_704ILR => Ayuda_704ILR.TemaProblemas_704ILR;
+        protected override string TemaAyuda_704ILR => Ayuda_704ILR.ApartadoProblemasIntegridad_704ILR;
 
         // La verificacion devuelve cada inconsistencia como texto en castellano (es
         // tambien el detalle que queda asentado en bitacora). La pantalla reconoce

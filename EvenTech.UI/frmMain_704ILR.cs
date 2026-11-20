@@ -247,12 +247,12 @@ namespace EvenTech.UI
             var topGrid_704ILR = new TableLayoutPanel
             {
                 Dock = DockStyle.Fill,
-                ColumnCount = 5,
+                ColumnCount = 6,
                 RowCount = 1,
                 BackColor = Color.Transparent
             };
             topGrid_704ILR.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); // titulo
-            for (int i_704ILR = 0; i_704ILR < 4; i_704ILR++) topGrid_704ILR.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            for (int i_704ILR = 0; i_704ILR < 5; i_704ILR++) topGrid_704ILR.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
             topGrid_704ILR.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             EnableDrag_704ILR(topGrid_704ILR);
 
@@ -274,6 +274,13 @@ namespace EvenTech.UI
             _btnLogout_704ILR.Margin = new Padding(0, 0, Theme_704ILR.SpaceMd_704ILR, 0);
             _btnLogout_704ILR.Click += (s_704ILR, e_704ILR) => DoLogout_704ILR();
 
+            // Ayuda de la pantalla en uso (D02): el "?" de la barra, como en cada dialogo.
+            // Abre el tema de la seccion abierta (o de su pestana); F1 abre el apartado de la
+            // parte que tiene el foco.
+            var btnAyuda_704ILR = CrearBotonAyudaBarra_704ILR();
+            btnAyuda_704ILR.Dock = DockStyle.Fill;
+            btnAyuda_704ILR.Margin = new Padding(0);
+
             var btnMin_704ILR = WindowButton_704ILR(Theme_704ILR.IcoMinimize_704ILR, (s_704ILR, e_704ILR) => WindowState = FormWindowState.Minimized);
             btnMin_704ILR.Dock = DockStyle.Fill;
             btnMin_704ILR.Margin = new Padding(0);
@@ -290,9 +297,10 @@ namespace EvenTech.UI
 
             topGrid_704ILR.Controls.Add(_lblPageTitle_704ILR, 0, 0);
             topGrid_704ILR.Controls.Add(_btnLogout_704ILR, 1, 0);
-            topGrid_704ILR.Controls.Add(btnMin_704ILR, 2, 0);
-            topGrid_704ILR.Controls.Add(btnMax_704ILR, 3, 0);
-            topGrid_704ILR.Controls.Add(btnClose_704ILR, 4, 0);
+            topGrid_704ILR.Controls.Add(btnAyuda_704ILR, 2, 0);
+            topGrid_704ILR.Controls.Add(btnMin_704ILR, 3, 0);
+            topGrid_704ILR.Controls.Add(btnMax_704ILR, 4, 0);
+            topGrid_704ILR.Controls.Add(btnClose_704ILR, 5, 0);
             pnlTop_704ILR.Controls.Add(topGrid_704ILR);
 
             // ---------------- Pie (footer) con selector de idioma a la derecha ----------------
@@ -576,15 +584,17 @@ namespace EvenTech.UI
             Ayuda_704ILR.Describir_704ILR(_tip_704ILR, _lblVersion_704ILR, "AYU_TT_VERSION", "Versión del sistema y commit del que se compiló. Clic: Acerca de.");
         }
 
-        // F1 en la ventana principal: el tema de la seccion abierta (cada vista declara el
-        // suyo); en la portada, el de los primeros pasos.
+        // Ayuda de la ventana principal (el "?" de la barra): el tema de la seccion abierta
+        // (cada vista declara el suyo; las de pestanas, el de la pestana elegida); en la
+        // portada, el apartado de la ventana principal. F1 parte de aca y baja al apartado
+        // de la parte que tiene el foco.
         protected override string TemaAyuda_704ILR
         {
             get
             {
                 foreach (Control c_704ILR in _pnlContent_704ILR.Controls)
                     if (c_704ILR is IAyudaContextual_704ILR a_704ILR) return a_704ILR.TemaAyuda_704ILR;
-                return Ayuda_704ILR.TemaPrimerosPasos_704ILR;
+                return Ayuda_704ILR.ApartadoVentanaPrincipal_704ILR;
             }
         }
 

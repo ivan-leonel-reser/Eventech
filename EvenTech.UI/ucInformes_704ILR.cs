@@ -94,7 +94,12 @@ namespace EvenTech.UI
             _btnExportar_704ILR.Enabled = false;
             _btnExportar_704ILR.Click += (s_704ILR, e_704ILR) => ExportarPdf_704ILR();
             flow_704ILR.Controls.AddRange(new Control[] { fDesde_704ILR, fHasta_704ILR, _btnGenerar_704ILR, _btnExportar_704ILR });
+            // Ayuda en linea (D02): el "?" del periodo abre el apartado "Generar el informe" y
+            // el que sigue a Exportar, el de la exportacion a PDF.
+            flow_704ILR.Controls.Add(new BotonAyuda_704ILR(Ayuda_704ILR.ApartadoInformesExportar_704ILR) { Margin = new Padding(Theme_704ILR.SpaceSm_704ILR, 25, 0, 0) });
             card_704ILR.Controls.Add(flow_704ILR);
+            Ayuda_704ILR.JuntoA_704ILR(Ayuda_704ILR.RotuloDeCampo_704ILR(fDesde_704ILR), Ayuda_704ILR.ApartadoInformesGenerar_704ILR, card_704ILR);
+            Ayuda_704ILR.Zona_704ILR(_btnExportar_704ILR, Ayuda_704ILR.ApartadoInformesExportar_704ILR);
 
             _lblEstado_704ILR = new Label
             {
@@ -130,6 +135,8 @@ namespace EvenTech.UI
             _tabVencer_704ILR = Pestania_704ILR(_gVencer_704ILR);
             _tabEventos_704ILR = Pestania_704ILR(_gEventos_704ILR);
             _tabs_704ILR.TabPages.AddRange(new[] { _tabEstados_704ILR, _tabSalones_704ILR, _tabVencer_704ILR, _tabEventos_704ILR });
+            Ayuda_704ILR.Zona_704ILR(_tabs_704ILR, Ayuda_704ILR.ApartadoInformesContenido_704ILR);
+            Ayuda_704ILR.Zona_704ILR(kpis_704ILR, Ayuda_704ILR.ApartadoInformesContenido_704ILR);
 
             root_704ILR.Controls.Add(lblTitle_704ILR, 0, 0);
             root_704ILR.Controls.Add(card_704ILR, 0, 1);

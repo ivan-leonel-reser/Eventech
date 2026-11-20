@@ -3,13 +3,18 @@
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <title>Auditoría</title><link rel="stylesheet" type="text/css" href="estilo.css"></head><body>
 <div class="cabecera"><div class="marca">EVENTECH</div><h1>Auditoría</h1></div><div class="cuerpo">
-<p>La sección <b>Auditoría</b> reúne, en pestañas, lo que el perfil permite consultar.</p>
-<ul><li><b>Bitácora general</b>: cada operación relevante y cada rechazo de una regla, con fecha, usuario, módulo, acción, criticidad y detalle; se filtra por usuario, fechas, módulo y criticidad.</li><li><b>Auditoría de login</b>: ingresos, salidas e intentos fallidos, con el equipo de origen.</li><li><b>Registro de excepciones</b>: las fallas técnicas del sistema, guardadas en este equipo como archivos XML aunque la base de datos no responda.</li><li><b>Respaldos</b>: crear un respaldo de la base de datos y restaurar uno (perfil Administrador).</li><li><b>Recalcular línea base</b>: después de corregir datos alterados, vuelve a calcular los dígitos verificadores de reservas y pagos (perfiles Administrador y Gerencial).</li></ul>
-<h2>Respaldos</h2>
+<p>La sección <b>Auditoría</b> reúne, en pestañas, lo que el perfil permite consultar: la bitácora general, la auditoría de login, el registro de excepciones y los respaldos.</p>
+<h2 id="bitacora">Bitácora general</h2>
+<p>Cada operación relevante y cada rechazo de una regla, con fecha, usuario, módulo, acción, criticidad y detalle. Se filtra por <b>Usuario</b>, fechas (<b>Desde</b> y <b>Hasta</b>), <b>Módulo</b> y <b>Criticidad</b>, con <b>Buscar</b>; <b>Limpiar</b> quita los filtros.</p>
+<h2 id="login">Auditoría de login</h2>
+<p>Ingresos, salidas e intentos fallidos, con el equipo de origen. Se filtra por <b>Usuario</b>, fechas y <b>Acción</b>.</p>
+<h2 id="linea-base">Línea base de integridad</h2>
+<p><b>Recalcular línea base</b>, debajo de las pestañas, vuelve a calcular los dígitos verificadores de reservas y pagos con los datos tal como están. Se usa después de corregir datos alterados, y solo si se comprobó que son correctos (perfiles Administrador y Gerencial).</p>
+<h2 id="respaldos">Respaldos</h2>
 <ol><li><b>Crear respaldo</b> guarda una copia completa y verificada de la base en la carpeta de respaldos del equipo; la grilla la lista con su fecha, su motivo y su tamaño.</li><li>Para volver a un respaldo, se lo elige en la grilla y se presiona <b>Restaurar el respaldo elegido</b>. <b>Buscar otro archivo...</b> agrega a la lista un respaldo guardado en otra carpeta.</li><li>Al confirmar, el sistema guarda antes un respaldo de la base actual, restaura el elegido y se reinicia: los datos pasan a ser los de ese momento. Si el respaldo no sirve, la base queda como estaba.</li></ol>
-<div class="nota">Los respaldos quedan en %ProgramData%\EvenTech\respaldos. Conviene copiarlos fuera del equipo.</div>
-<h2>Registro de excepciones</h2>
-<ol><li>La grilla lista las excepciones, de la más reciente a la más vieja; al seleccionar una, abajo se ve el detalle: equipo, versión, módulo, tipo, mensaje, excepciones internas y pila de llamadas.</li><li><b>Exportar lote...</b> guarda las del equipo que se pueden leer en un único archivo XML, para enviarlo a quien da soporte.</li><li><b>Abrir lote...</b> muestra un lote exportado en otro equipo; <b>Volver al registro del equipo</b> regresa a la lista local.</li></ol>
+<div class="nota">Los respaldos quedan en %ProgramData%\EvenTech\respaldos. Conviene copiarlos fuera del equipo. Crear y restaurar respaldos es del perfil Administrador.</div>
+<h2 id="excepciones">Registro de excepciones</h2>
+<ol><li>La grilla lista las fallas técnicas del sistema, de la más reciente a la más vieja; al seleccionar una, abajo se ve el detalle: equipo, versión, módulo, tipo, mensaje, excepciones internas y pila de llamadas. Se guardan en este equipo como archivos XML aunque la base de datos no responda.</li><li><b>Exportar lote...</b> guarda las del equipo que se pueden leer en un único archivo XML, para enviarlo a quien da soporte.</li><li><b>Abrir lote...</b> muestra un lote exportado en otro equipo; <b>Volver al registro del equipo</b> regresa a la lista local.</li></ol>
 <div class="nota">El registro oculta los valores con forma de credencial y no agrega por sí mismo la cadena de conexión ni datos de clientes. Conserva las 500 excepciones más recientes.</div>
-<p class="pie"><a href="inicio.htm">Índice de la ayuda</a> · F1 abre la ayuda de la pantalla en uso.</p>
+<p class="pie"><a href="inicio.htm">Índice de la ayuda</a> · El botón ? de cada ventana abre la ayuda de esa pantalla; F1, la de la parte que tiene el cursor.</p>
 </div></body></html>

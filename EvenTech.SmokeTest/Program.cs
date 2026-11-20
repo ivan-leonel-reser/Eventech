@@ -4606,10 +4606,13 @@ finally
 
 // ---------------------------------------------------------------------------
 // [59] D02 Ayuda en linea: el manual compilado viaja junto al ejecutable y tiene una
-// pagina para cada tema que la aplicacion puede pedir con F1 o desde el menu. Se
-// descompila el .chm con el visor de ayuda de Windows y se busca cada pagina.
+// pagina para cada tema que la aplicacion puede pedir y, dentro de ella, el subtitulo
+// (ancla) de cada apartado al que llevan el boton "?" de una parte de la pantalla y F1.
+// Se descompila el .chm con el visor de ayuda de Windows y se busca cada pagina y cada
+// ancla. Ademas, sin abrir el visor: el "?" junto a un rotulo pide su apartado y F1
+// dentro de una zona declarada pide el apartado de esa zona.
 // ---------------------------------------------------------------------------
-Caso_704ILR("[59] D02 Ayuda en linea: el manual compilado y sus temas:");
+Caso_704ILR("[59] D02 Ayuda en linea: el manual compilado, sus temas y sus apartados:");
 string tmp59_704ILR = Path.Combine(Path.GetTempPath(), "eventech_smoke_ayuda_" + suf_704ILR);
 try
 {
@@ -4619,6 +4622,36 @@ try
     Esperar_704ILR("cada constante de tema esta en la lista de temas",
         constantes59_704ILR.Where(t_704ILR => !EvenTech.UI.Ayuda_704ILR.Temas_704ILR.Contains(t_704ILR)).Count(), 0);
     Esperar_704ILR("temas declarados", EvenTech.UI.Ayuda_704ILR.Temas_704ILR.Length, 23);
+    var apartados59_704ILR = typeof(EvenTech.UI.Ayuda_704ILR).GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)
+        .Where(f_704ILR => f_704ILR.IsLiteral && f_704ILR.Name.StartsWith("Apartado")).Select(f_704ILR => (string)f_704ILR.GetRawConstantValue()).ToList();
+    Esperar_704ILR("cada constante de apartado esta en la lista de apartados",
+        apartados59_704ILR.Where(a_704ILR => !EvenTech.UI.Ayuda_704ILR.Apartados_704ILR.Contains(a_704ILR)).Count(), 0);
+    Esperar_704ILR("apartados declarados", EvenTech.UI.Ayuda_704ILR.Apartados_704ILR.Length, 35);
+    Esperar_704ILR("cada apartado es de un tema declarado", EvenTech.UI.Ayuda_704ILR.Apartados_704ILR
+        .Count(a_704ILR => !EvenTech.UI.Ayuda_704ILR.Temas_704ILR.Contains(EvenTech.UI.Ayuda_704ILR.TemaDelDestino_704ILR(a_704ILR))), 0);
+    Esperar_704ILR("pagina de un apartado", EvenTech.UI.Ayuda_704ILR.Pagina_704ILR(EvenTech.UI.Ayuda_704ILR.ApartadoReservasEstados_704ILR), "reservas.htm#estados");
+    Esperar_704ILR("pagina de un tema", EvenTech.UI.Ayuda_704ILR.Pagina_704ILR(EvenTech.UI.Ayuda_704ILR.TemaPagos_704ILR), "pagos.htm");
+
+    // El boton "?" junto a un rotulo y la zona de F1, con controles sueltos y un receptor de
+    // prueba en lugar del visor.
+    string pedido59_704ILR = null;
+    EvenTech.UI.Ayuda_704ILR.ReceptorDePrueba_704ILR = (c_704ILR, d_704ILR) => pedido59_704ILR = d_704ILR;
+    try
+    {
+        using var panel59_704ILR = new System.Windows.Forms.Panel();
+        var rotulo59_704ILR = new System.Windows.Forms.Label { Text = "Estado", AutoSize = true };
+        var campo59_704ILR = new System.Windows.Forms.TextBox();
+        panel59_704ILR.Controls.Add(rotulo59_704ILR);
+        panel59_704ILR.Controls.Add(campo59_704ILR);
+        var boton59_704ILR = EvenTech.UI.Ayuda_704ILR.JuntoA_704ILR(rotulo59_704ILR, EvenTech.UI.Ayuda_704ILR.ApartadoReservasEstados_704ILR, panel59_704ILR);
+        Esperar_704ILR("el ? va dentro del rotulo", boton59_704ILR.Parent == rotulo59_704ILR, true);
+        Esperar_704ILR("el ? queda despues del texto", boton59_704ILR.Left >= System.Windows.Forms.TextRenderer.MeasureText("Estado", rotulo59_704ILR.Font).Width - 1, true);
+        Esperar_704ILR("F1 dentro de la zona", EvenTech.UI.Ayuda_704ILR.DestinoDe_704ILR(campo59_704ILR, EvenTech.UI.Ayuda_704ILR.TemaReservas_704ILR), "reservas#estados");
+        Esperar_704ILR("F1 fuera de toda zona", EvenTech.UI.Ayuda_704ILR.DestinoDe_704ILR(new System.Windows.Forms.TextBox(), EvenTech.UI.Ayuda_704ILR.TemaReservas_704ILR), "reservas");
+        boton59_704ILR.Abrir_704ILR();
+        Esperar_704ILR("el ? pide su apartado", pedido59_704ILR, "reservas#estados");
+    }
+    finally { EvenTech.UI.Ayuda_704ILR.ReceptorDePrueba_704ILR = null; }
     if (EvenTech.UI.Ayuda_704ILR.Disponible_704ILR)
     {
         Directory.CreateDirectory(tmp59_704ILR);
@@ -4632,6 +4665,13 @@ try
             hh_704ILR.WaitForExit(30000);
         var faltan59_704ILR = EvenTech.UI.Ayuda_704ILR.Temas_704ILR.Where(t_704ILR => !File.Exists(Path.Combine(tmp59_704ILR, EvenTech.UI.Ayuda_704ILR.Pagina_704ILR(t_704ILR)))).ToList();
         Esperar_704ILR("paginas del .chm que faltan", faltan59_704ILR.Count == 0 ? "ninguna" : string.Join(", ", faltan59_704ILR), "ninguna");
+        var sinAncla59_704ILR = EvenTech.UI.Ayuda_704ILR.Apartados_704ILR.Where(a_704ILR =>
+        {
+            string htm_704ILR = Path.Combine(tmp59_704ILR, EvenTech.UI.Ayuda_704ILR.TemaDelDestino_704ILR(a_704ILR) + ".htm");
+            return !File.Exists(htm_704ILR) ||
+                   !File.ReadAllText(htm_704ILR, System.Text.Encoding.Latin1).Contains("<h2 id=\"" + EvenTech.UI.Ayuda_704ILR.ApartadoDelDestino_704ILR(a_704ILR) + "\">");
+        }).ToList();
+        Esperar_704ILR("apartados (anclas) del .chm que faltan", sinAncla59_704ILR.Count == 0 ? "ninguno" : string.Join(", ", sinAncla59_704ILR), "ninguno");
         Esperar_704ILR("tema vacio = indice", EvenTech.UI.Ayuda_704ILR.Pagina_704ILR(null), "inicio.htm");
     }
 }

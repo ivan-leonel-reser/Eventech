@@ -10,7 +10,7 @@ namespace EvenTech.UI
     public class frmNuevoPerfil_704ILR : FormBase_704ILR
     {
         // Tema de la ayuda en linea de esta ventana (F1).
-        protected override string TemaAyuda_704ILR => Ayuda_704ILR.TemaPerfiles_704ILR;
+        protected override string TemaAyuda_704ILR => Ayuda_704ILR.ApartadoPerfilesPermisos_704ILR;
 
         private TextBox _txtNombre_704ILR, _txtDesc_704ILR;
         private Label _lblMsg_704ILR;

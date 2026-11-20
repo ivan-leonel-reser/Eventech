@@ -243,7 +243,7 @@ viven en ella, y cada acción vuelve a exigir el suyo al ejecutarse.
 | Informes | Informe de gestión del período (reservas por estado, cobranza, ocupación de los salones, operaciones por vencer, eventos) y su exportación a PDF | `INFORMES_VER` |
 | Perfiles | Perfiles, permisos y asignación a usuarios | `PERFILES_GESTION` |
 | Auditoría | Bitácora, auditoría de acceso, registro de excepciones, respaldos de la base (crear y restaurar) y línea base de integridad | `BITACORA_VER`, `AUDIT_LOGIN_VER`, `EXCEPCIONES_VER`, `RESPALDO_CREAR`, `RESPALDO_RESTAURAR`, `INTEGRIDAD_RECALC` |
-| Ayuda | Manual de usuario (también con **F1** desde cualquier pantalla) | (sin restricción) |
+| Ayuda | Manual de usuario. Además, el botón **?** de la barra de título de cada pantalla abre su tema, el ícono **?** junto a una parte de la pantalla abre la guía en el apartado que la explica y **F1** abre el de la parte que tiene el cursor | (sin restricción) |
 
 La gestión de idiomas (`IDIOMAS_GESTION`) se abre desde el selector de idioma del
 pie de la ventana. Perfiles de fábrica: **Administrador** (todos los permisos),
@@ -345,7 +345,7 @@ baja y borrado lógico desde el sistema y por fuera, resguardo de la copia, acti
 activaciones simultáneas, filtros y permisos) y los respaldos con las dos salidas de la
 alerta de integridad (alterar la base por fuera, restaurar el respaldo y recalcular). Son
 61 casos numerados `[1]` a `[61]`, más un bloque `[limpieza]` y un `[cierre]` que vuelve a
-verificar la integridad de toda la base al terminar: 63 casos y 1152
+verificar la integridad de toda la base al terminar: 63 casos y 1163
 verificaciones en total.
 
 ```bat

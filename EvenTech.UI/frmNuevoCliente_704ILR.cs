@@ -11,7 +11,7 @@ namespace EvenTech.UI
     public class frmNuevoCliente_704ILR : FormBase_704ILR
     {
         // Tema de la ayuda en linea de esta ventana (F1).
-        protected override string TemaAyuda_704ILR => Ayuda_704ILR.TemaClientes_704ILR;
+        protected override string TemaAyuda_704ILR => Ayuda_704ILR.ApartadoClientesAlta_704ILR;
 
         private TextBox _txtNombre_704ILR, _txtApellido_704ILR, _txtDni_704ILR, _txtEmail_704ILR, _txtTelefono_704ILR;
         private Label _lblMsg_704ILR;

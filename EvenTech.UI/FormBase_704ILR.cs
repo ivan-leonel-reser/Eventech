@@ -33,18 +33,80 @@ namespace EvenTech.UI
             DoubleBuffered = true;
         }
 
-        // Ayuda en linea (D02): F1 abre el tema de esta ventana. Cada dialogo declara el
-        // suyo; la ventana principal devuelve el de la seccion abierta. Sin tema, el indice.
-        protected virtual string TemaAyuda_704ILR => Ayuda_704ILR.TemaInicio_704ILR;
+        // Ayuda en linea (D02): el tema de esta ventana (un tema o "tema#apartado"). Cada
+        // dialogo declara el suyo; la ventana principal devuelve el de la seccion abierta.
+        // Un dialogo que no declara ninguno (el pedido de un motivo, por ejemplo) usa el de
+        // la ventana que lo abrio; sin duenio, el indice.
+        protected virtual string TemaAyuda_704ILR =>
+            Owner is FormBase_704ILR duenio_704ILR ? duenio_704ILR.DestinoAyudaEnFoco_704ILR() : Ayuda_704ILR.TemaInicio_704ILR;
+
+        // Destino de F1: el apartado de la parte de la ventana que tiene el foco (la zona
+        // declarada mas cercana) o, si esa parte no declara ninguno, el tema de la ventana.
+        public string DestinoAyudaEnFoco_704ILR() =>
+            Ayuda_704ILR.DestinoDe_704ILR(Ayuda_704ILR.Enfocado_704ILR(this), TemaAyuda_704ILR);
+
+        // Destino del boton "?" de la barra de titulo: el tema de la pantalla.
+        public string DestinoAyudaVentana_704ILR() => TemaAyuda_704ILR;
 
         protected override bool ProcessCmdKey(ref Message msg_704ILR, Keys keyData_704ILR)
         {
             if (keyData_704ILR == Keys.F1)
             {
-                Ayuda_704ILR.Mostrar_704ILR(this, TemaAyuda_704ILR);
+                Ayuda_704ILR.Mostrar_704ILR(this, DestinoAyudaEnFoco_704ILR());
                 return true;
             }
             return base.ProcessCmdKey(ref msg_704ILR, keyData_704ILR);
+        }
+
+        // ---------- Boton "?" en la barra de titulo ----------
+        // Cada dialogo arma su barra con WindowButton_704ILR (cerrar y, a veces, minimizar)
+        // acoplados a la derecha. Al cargarse la ventana, la base agrega a la izquierda de
+        // esos botones el "?" de la ayuda, sin que cada dialogo tenga que hacerlo. Una
+        // ventana cuyos botones no van acoplados a la derecha (la principal) lo arma ella.
+        private readonly System.Collections.Generic.List<Label> _botonesBarra_704ILR = new System.Collections.Generic.List<Label>();
+        private ToolTip _tipBarra_704ILR;
+        public Label BotonAyudaBarra_704ILR { get; private set; }
+
+        protected override void OnLoad(EventArgs e_704ILR)
+        {
+            AgregarAyudaEnBarra_704ILR();
+            base.OnLoad(e_704ILR);
+        }
+
+        private void AgregarAyudaEnBarra_704ILR()
+        {
+            if (BotonAyudaBarra_704ILR != null) return;
+            Label ultimo_704ILR = _botonesBarra_704ILR.Count > 0 ? _botonesBarra_704ILR[_botonesBarra_704ILR.Count - 1] : null;
+            Control barra_704ILR = ultimo_704ILR?.Parent;
+            if (barra_704ILR == null || ultimo_704ILR.Dock != DockStyle.Right) return;
+            int indice_704ILR = int.MaxValue;
+            foreach (var b_704ILR in _botonesBarra_704ILR)
+                if (b_704ILR.Parent == barra_704ILR && b_704ILR.Dock == DockStyle.Right)
+                    indice_704ILR = Math.Min(indice_704ILR, barra_704ILR.Controls.GetChildIndex(b_704ILR));
+            var ayuda_704ILR = CrearBotonAyudaBarra_704ILR();
+            ayuda_704ILR.Dock = DockStyle.Right;
+            barra_704ILR.Controls.Add(ayuda_704ILR);
+            // Se acoplan primero los de indice mayor: el "?" queda a la izquierda de todos.
+            barra_704ILR.Controls.SetChildIndex(ayuda_704ILR, indice_704ILR);
+        }
+
+        // Boton "?" con el estilo de los botones de ventana y su descripcion emergente.
+        protected Label CrearBotonAyudaBarra_704ILR()
+        {
+            var b_704ILR = WindowButton_704ILR(Theme_704ILR.IcoAyuda_704ILR, (s_704ILR, e_704ILR) => Ayuda_704ILR.Mostrar_704ILR(this, DestinoAyudaVentana_704ILR()));
+            _botonesBarra_704ILR.Remove(b_704ILR);
+            b_704ILR.AccessibleName = "Ayuda";
+            _tipBarra_704ILR ??= new ToolTip();
+            b_704ILR.MouseEnter += (s_704ILR, e_704ILR) =>
+                _tipBarra_704ILR.SetToolTip(b_704ILR, Ayuda_704ILR.Texto_704ILR("AYU_TT_PANTALLA", "Ayuda de esta pantalla (F1)."));
+            BotonAyudaBarra_704ILR = b_704ILR;
+            return b_704ILR;
+        }
+
+        protected override void Dispose(bool disposing_704ILR)
+        {
+            if (disposing_704ILR) _tipBarra_704ILR?.Dispose();
+            base.Dispose(disposing_704ILR);
         }
 
         // Una ventana sin borde no trae el redimensionado del sistema. Activandolo,
@@ -215,6 +277,7 @@ namespace EvenTech.UI
             l_704ILR.MouseEnter += (s_704ILR, e_704ILR) => { l_704ILR.BackColor = danger_704ILR ? Theme_704ILR.Error_704ILR : Theme_704ILR.SidebarHover_704ILR; l_704ILR.ForeColor = Color.White; };
             l_704ILR.MouseLeave += (s_704ILR, e_704ILR) => { l_704ILR.BackColor = Color.Transparent; l_704ILR.ForeColor = Theme_704ILR.TextLight_704ILR; };
             l_704ILR.Click += onClick_704ILR;
+            _botonesBarra_704ILR.Add(l_704ILR);
             return l_704ILR;
         }
     }

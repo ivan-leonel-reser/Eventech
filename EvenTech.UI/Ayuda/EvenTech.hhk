@@ -3,17 +3,17 @@
 <UL>
 <LI> <OBJECT type="text/sitemap">
 	<param name="Name" value="Acceso">
-	<param name="Local" value="primeros_pasos.htm">
+	<param name="Local" value="primeros_pasos.htm#ingreso">
 	</OBJECT>
 
 <LI> <OBJECT type="text/sitemap">
 	<param name="Name" value="Activar versión">
-	<param name="Local" value="bitacora_cambios.htm">
+	<param name="Local" value="bitacora_cambios.htm#activar">
 	</OBJECT>
 
 <LI> <OBJECT type="text/sitemap">
 	<param name="Name" value="Adelanto">
-	<param name="Local" value="pagos.htm">
+	<param name="Local" value="pagos.htm#registrar">
 	</OBJECT>
 
 <LI> <OBJECT type="text/sitemap">
@@ -23,7 +23,7 @@
 
 <LI> <OBJECT type="text/sitemap">
 	<param name="Name" value="Anular un pago">
-	<param name="Local" value="pagos.htm">
+	<param name="Local" value="pagos.htm#anular">
 	</OBJECT>
 
 <LI> <OBJECT type="text/sitemap">
@@ -38,7 +38,7 @@
 
 <LI> <OBJECT type="text/sitemap">
 	<param name="Name" value="Bitácora">
-	<param name="Local" value="auditoria.htm">
+	<param name="Local" value="auditoria.htm#bitacora">
 	</OBJECT>
 
 <LI> <OBJECT type="text/sitemap">
@@ -48,7 +48,7 @@
 
 <LI> <OBJECT type="text/sitemap">
 	<param name="Name" value="Cancelación">
-	<param name="Local" value="reservas.htm">
+	<param name="Local" value="reservas.htm#estados">
 	</OBJECT>
 
 <LI> <OBJECT type="text/sitemap">
@@ -63,7 +63,7 @@
 
 <LI> <OBJECT type="text/sitemap">
 	<param name="Name" value="Comprobante">
-	<param name="Local" value="pagos.htm">
+	<param name="Local" value="reservas.htm#documentacion">
 	</OBJECT>
 
 <LI> <OBJECT type="text/sitemap">
@@ -73,12 +73,12 @@
 
 <LI> <OBJECT type="text/sitemap">
 	<param name="Name" value="Confirmar turno">
-	<param name="Local" value="agenda.htm">
+	<param name="Local" value="agenda.htm#responder">
 	</OBJECT>
 
 <LI> <OBJECT type="text/sitemap">
 	<param name="Name" value="Cotización">
-	<param name="Local" value="reservas.htm">
+	<param name="Local" value="reservas.htm#generar">
 	</OBJECT>
 
 <LI> <OBJECT type="text/sitemap">
@@ -88,12 +88,17 @@
 
 <LI> <OBJECT type="text/sitemap">
 	<param name="Name" value="Cuenta bloqueada">
-	<param name="Local" value="problemas.htm">
+	<param name="Local" value="perfiles.htm#cuentas">
+	</OBJECT>
+
+<LI> <OBJECT type="text/sitemap">
+	<param name="Name" value="Cuenta nueva">
+	<param name="Local" value="primeros_pasos.htm#cuenta-nueva">
 	</OBJECT>
 
 <LI> <OBJECT type="text/sitemap">
 	<param name="Name" value="Cuentas">
-	<param name="Local" value="perfiles.htm">
+	<param name="Local" value="perfiles.htm#cuentas">
 	</OBJECT>
 
 <LI> <OBJECT type="text/sitemap">
@@ -107,18 +112,23 @@
 	</OBJECT>
 
 <LI> <OBJECT type="text/sitemap">
+	<param name="Name" value="Estado de coordinación">
+	<param name="Local" value="operaciones.htm#estados">
+	</OBJECT>
+
+<LI> <OBJECT type="text/sitemap">
 	<param name="Name" value="Estados de la reserva">
-	<param name="Local" value="reservas.htm">
+	<param name="Local" value="reservas.htm#estados">
 	</OBJECT>
 
 <LI> <OBJECT type="text/sitemap">
 	<param name="Name" value="Excepciones">
-	<param name="Local" value="auditoria.htm">
+	<param name="Local" value="auditoria.htm#excepciones">
 	</OBJECT>
 
 <LI> <OBJECT type="text/sitemap">
 	<param name="Name" value="Exportar a PDF">
-	<param name="Local" value="informes.htm">
+	<param name="Local" value="informes.htm#exportar">
 	</OBJECT>
 
 <LI> <OBJECT type="text/sitemap">
@@ -128,7 +138,7 @@
 
 <LI> <OBJECT type="text/sitemap">
 	<param name="Name" value="Incidencias">
-	<param name="Local" value="supervision.htm">
+	<param name="Local" value="supervision.htm#incidencias">
 	</OBJECT>
 
 <LI> <OBJECT type="text/sitemap">
@@ -138,12 +148,12 @@
 
 <LI> <OBJECT type="text/sitemap">
 	<param name="Name" value="Integridad">
-	<param name="Local" value="problemas.htm">
+	<param name="Local" value="problemas.htm#integridad">
 	</OBJECT>
 
 <LI> <OBJECT type="text/sitemap">
 	<param name="Name" value="Línea base">
-	<param name="Local" value="auditoria.htm">
+	<param name="Local" value="auditoria.htm#linea-base">
 	</OBJECT>
 
 <LI> <OBJECT type="text/sitemap">
@@ -163,7 +173,7 @@
 
 <LI> <OBJECT type="text/sitemap">
 	<param name="Name" value="Permisos">
-	<param name="Local" value="perfiles.htm">
+	<param name="Local" value="perfiles.htm#permisos">
 	</OBJECT>
 
 <LI> <OBJECT type="text/sitemap">
@@ -173,17 +183,17 @@
 
 <LI> <OBJECT type="text/sitemap">
 	<param name="Name" value="Respaldos">
-	<param name="Local" value="auditoria.htm">
+	<param name="Local" value="auditoria.htm#respaldos">
 	</OBJECT>
 
 <LI> <OBJECT type="text/sitemap">
 	<param name="Name" value="Restaurar un respaldo">
-	<param name="Local" value="auditoria.htm">
+	<param name="Local" value="auditoria.htm#respaldos">
 	</OBJECT>
 
 <LI> <OBJECT type="text/sitemap">
 	<param name="Name" value="Restaurar versión">
-	<param name="Local" value="historial.htm">
+	<param name="Local" value="historial.htm#versiones">
 	</OBJECT>
 
 <LI> <OBJECT type="text/sitemap">
@@ -208,17 +218,17 @@
 
 <LI> <OBJECT type="text/sitemap">
 	<param name="Name" value="Versiones">
-	<param name="Local" value="historial.htm">
+	<param name="Local" value="historial.htm#versiones">
 	</OBJECT>
 
 <LI> <OBJECT type="text/sitemap">
 	<param name="Name" value="Versión del sistema">
-	<param name="Local" value="primeros_pasos.htm">
+	<param name="Local" value="primeros_pasos.htm#ventana-principal">
 	</OBJECT>
 
 <LI> <OBJECT type="text/sitemap">
 	<param name="Name" value="Vigencia">
-	<param name="Local" value="reservas.htm">
+	<param name="Local" value="reservas.htm#estados">
 	</OBJECT>
 
 </UL></BODY></HTML>

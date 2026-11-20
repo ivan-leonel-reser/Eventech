@@ -13,7 +13,7 @@ namespace EvenTech.UI
     public class frmCrearCuenta_704ILR : FormBase_704ILR, IObservadorIdioma_704ILR
     {
         // Tema de la ayuda en linea de esta ventana (F1).
-        protected override string TemaAyuda_704ILR => Ayuda_704ILR.TemaPrimerosPasos_704ILR;
+        protected override string TemaAyuda_704ILR => Ayuda_704ILR.ApartadoCuentaNueva_704ILR;
 
         private TextBox _txtUser_704ILR, _txtPass_704ILR, _txtPass2_704ILR;
         private Label _lblUser_704ILR, _lblPass_704ILR, _lblPass2_704ILR, _lblTitle_704ILR, _lblStatus_704ILR;

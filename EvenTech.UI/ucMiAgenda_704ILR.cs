@@ -65,6 +65,10 @@ namespace EvenTech.UI
             var lblTitle_704ILR = Ui_704ILR.H1_704ILR("Mi agenda");
             lblTitle_704ILR.Tag = "T:AGE_TITULO"; lblTitle_704ILR.Anchor = AnchorStyles.Left; lblTitle_704ILR.Margin = new Padding(0, 0, Theme_704ILR.SpaceLg_704ILR, 0);
             _lblEmpleado_704ILR = Ui_704ILR.Body_704ILR(); _lblEmpleado_704ILR.ForeColor = Theme_704ILR.TextMuted_704ILR; _lblEmpleado_704ILR.Anchor = AnchorStyles.Left;
+            // Ayuda en linea (D02): junto al titulo, el apartado de responder un turno (lo
+            // principal de la pantalla); junto al detalle del evento, el de la consulta. El
+            // rotulo del empleado no sirve: sin ficha vinculada muestra un aviso de dos lineas.
+            Ayuda_704ILR.JuntoA_704ILR(lblTitle_704ILR, Ayuda_704ILR.ApartadoAgendaResponder_704ILR);
 
             _btnConfirmar_704ILR = Ui_704ILR.Primary_704ILR("Confirmar", Theme_704ILR.IcoOk_704ILR);
             _btnConfirmar_704ILR.Tag = "T:AGE_CONFIRMAR"; _btnConfirmar_704ILR.Size = new Size(150, 36); _btnConfirmar_704ILR.BehindColor_704ILR = Theme_704ILR.BgContent_704ILR;
@@ -109,14 +113,18 @@ namespace EvenTech.UI
             };
             var cardAsignaciones_704ILR = new CardPanel_704ILR { Dock = DockStyle.Fill, Margin = new Padding(0, 0, 0, Theme_704ILR.SpaceMd_704ILR), Padding = new Padding(Theme_704ILR.SpaceSm_704ILR) };
             cardAsignaciones_704ILR.Controls.Add(_gridAsignaciones_704ILR);
+            foreach (Control turnos_704ILR in new Control[] { cardAsignaciones_704ILR, _btnConfirmar_704ILR, _btnRechazar_704ILR })
+                Ayuda_704ILR.Zona_704ILR(turnos_704ILR, Ayuda_704ILR.ApartadoAgendaResponder_704ILR);
 
             _lblEvento_704ILR = Ui_704ILR.BodyBold_704ILR();
             _lblEvento_704ILR.Margin = new Padding(2, 0, 0, Theme_704ILR.SpaceXs_704ILR);
             // El nombre del salon puede llevar '&': se muestra tal cual.
             _lblEvento_704ILR.UseMnemonic = false;
+            Ayuda_704ILR.JuntoA_704ILR(_lblEvento_704ILR, Ayuda_704ILR.ApartadoAgendaConsultar_704ILR);
 
             // --- Detalle del evento elegido: mis tareas y el cronograma ---
             var detalle_704ILR = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, BackColor = Theme_704ILR.BgContent_704ILR, Margin = new Padding(0) };
+            Ayuda_704ILR.Zona_704ILR(detalle_704ILR, Ayuda_704ILR.ApartadoAgendaConsultar_704ILR);
             detalle_704ILR.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
             detalle_704ILR.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
             detalle_704ILR.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
